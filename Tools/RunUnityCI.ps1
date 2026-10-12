@@ -9,7 +9,10 @@ $ErrorActionPreference = 'Stop'
 $project = (Resolve-Path -LiteralPath $ProjectPath).Path
 $runner = Join-Path $PSScriptRoot 'RunUnityEditModeTests.ps1'
 $scannerTests = Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Policy\ReleaseArtifactScanner.Tests.ps1'
+$repositoryPolicyTests = Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Policy\MilestoneRepositoryPolicy.Tests.ps1'
 $scanner = Join-Path $PSScriptRoot 'ScanUnityReleaseArtifact.ps1'
+$repositoryPolicy = Join-Path $PSScriptRoot 'ValidateMilestoneRepositoryPolicy.ps1'
+$reusePolicy = Join-Path $PSScriptRoot 'ValidateThirdPartyProvenance.ps1'
 $powerShell = (Get-Command pwsh -ErrorAction Stop).Source
 
 function Invoke-PowerShellChild([string] $scriptPath, [string[]] $arguments) {
@@ -39,6 +42,19 @@ $code = Invoke-PowerShellChild $scannerTests @()
 if ($code -ne 0) {
     Write-Output "UNITY_CI_FAILURE: Release artifact scanner tests failed with child exit code $code."
     exit $code
+}
+
+foreach ($policyCheck in @(
+    @('RUN_REPOSITORY_POLICY_FIXTURES', $repositoryPolicyTests),
+    @('RUN_REUSE_RIGHTS_VALIDATOR', $reusePolicy),
+    @('RUN_REPOSITORY_POLICY_VALIDATOR', $repositoryPolicy)
+)) {
+    Write-Output $policyCheck[0]
+    $code = Invoke-PowerShellChild $policyCheck[1] @()
+    if ($code -ne 0) {
+        Write-Output "UNITY_CI_FAILURE: $($policyCheck[0]) failed with child exit code $code."
+        exit $code
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ReleaseArtifactPath)) {
