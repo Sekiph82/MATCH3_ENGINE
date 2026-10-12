@@ -1,0 +1,19 @@
+{
+  "name": "Match3.Engine.Demo",
+  "rootNamespace": "Match3.Engine.Demo",
+  "references": [
+    "Match3.App",
+    "Match3.Core",
+    "Match3.Infrastructure",
+    "UniTask"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

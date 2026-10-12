@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Match3Demo/Scenes/NeutralMatch3Demo.unity
+    guid: 35a6940fb04e6fd4ab32395166722f00
   m_configObjects: {}
