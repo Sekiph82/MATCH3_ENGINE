@@ -1,6 +1,20 @@
 # MATCH3_ENGINE | MASTER TASKS.md
 
+
+## PERSISTENT OWNER WORKFLOW RULE | MASTER MILESTONE / DRIVE HANDOFF | 2026-10-12
+- **Primary goal:** finish robust, fast, Unity-6.6-compatible, runnable code with minimal new implementation. Search for mature reusable source/components first; pin released commits/tags; adopt only needed functions/adapters. Do not rewrite a stable existing solution simply for novelty. Prefer tested permissive licensed MIT/BSD/Apache code with retained notices, but verify LICENSE and per-file asset/dependency rights; visible GitHub source with no license is NOT automatically reusable. Commercially restricted / CC BY-NC-ND projects are behavior references only, to be independently implemented.
+- **ONE MASTER HANDOFF PER MILESTONE:** ChatGPT prepares a versioned implementation prompt and an independent master audit rubric in Google Drive, PLUS separately titled PROMPT and AUDIT CRITERIA for EACH numbered subtask, before Codex begins. Master prompt enumerates and links all children and demands continuous implementation within that milestone without waiting for approval between successful children. Failure/blocker protocols remain mandatory.
+- **ONE LOG PER CHILD:** Codex reads prompt and rubric from Drive; for every child uses exactly corresponding `<TASK_ID>_CODEX_LOG_V01` in the same project's Drive `02_CODEX_LOGS`, plus `<MILESTONE>_MASTER_CODEX_LOG_V01` at milestone end; runtime/test evidence goes to `05_EVIDENCE`. Prompts/audit criteria/results stay solely in Drive, NEVER committed to GitHub. If Codex cannot access/write Google Drive, STOP with exact connector blocker before implementation instead of silently writing logs to GitHub.
+- **SAFE SYNC PRE/POST EACH CHILD AND WHOLE MASTER:** Discover owner desktop checkout and exact Unity editor, check clean/dirty/untracked, `git fetch origin`, inspect divergence, safe fast-forward or isolated worktree without touching owner files. Never force push, hard reset, delete/recreate directories, lose owner changes or pull into dirty conflicts. Commit and push ONLY authorized source/config/tests/necessary docs to `origin/main`; perform post-push fetch and verify `HEAD == origin/main`, report any divergence/block. Do not mass-copy Unity caches or spend storage for redundant clones.
+- **Audit ownership:** Codex implements, runs real tests and reports `READY_FOR_INDEPENDENT_AUDIT`; it NEVER self-certifies an independent PASS or edits root `TASKS.md`. ChatGPT independently checks each task against its FROZEN Drive audit criteria, files per-child and master results in Drive `04_AUDIT_RESULTS`, changes each GitHub root task checkbox/state and writes `CURRENT_OWNER` baton and next action. FAIL creates matching numbered remediation prompt AND fresh remediation audit criteria in Drive before Codex reworks; PASS yields the NEXT milestone's full prompt set. No PASS from skipped/unexecuted tests or undocumented environment.
+- **Release hygiene:** test code/asmdefs and small fixtures in GitHub, but test assemblies/fixtures/editor tools/logs/evidence never in player APK/AAB/IPA or Addressables. All 5 game repos remain gated until commercial ENGINE ENG-M24 and Factory LFX-M14 final PASS.
+
 > Created 2026-10-12. **All work initially PLANNED, no tests or audits performed.** Single canonical GitHub lifecycle tracker.
+
+## CURRENT BATON / TASK AUTHORITY
+- `CURRENT_OWNER: CODEX_NEXT` | `MILESTONE: ENG-M00` | `SCOPE: ENG-M00-001..010` | `HANDOFF: DRIVE_MASTER_PROMPT_PENDING_LINK`.
+- Status of all ten children remains `PLANNED` until Codex actually begins; this entry announces queued handoff, NOT claimed code progress. ChatGPT returns baton to `CHATGPT_AUDIT` only after actual pushed evidence and matching Drive child logs; only then update individual checkboxes.
+- `BLOCKED` baton is used for missing Drive connector, unsafe sync, license, Unity activation or other non-resolvable preflight; never fabricate PASS.
 
 ## Fixed requirements
 - Unity installed baseline `6000.6.5f1` (Unity 6.6). LibraStack Match3-SDK (MIT) is the primary upstream. Pin commit and licenses; Unity 2021 sample compatibility with Unity 6.6 remains unverified.
