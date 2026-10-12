@@ -167,19 +167,11 @@ namespace Match3.Engine.Demo
     {
         public LevelGoal<DemoGridSlot>[] GetLevelGoals(int level, IGameBoard<DemoGridSlot> gameBoard)
         {
-            return new LevelGoal<DemoGridSlot>[] { new DemoOneMatchGoal() };
-        }
-    }
-
-    internal sealed class DemoOneMatchGoal : LevelGoal<DemoGridSlot>
-    {
-        public override void OnSequencesSolved(SolvedData<DemoGridSlot> solvedData)
-        {
-            var matchedItems = solvedData.GetSolvedGridSlots(true).Distinct().Count();
-            if (matchedItems >= DemoScenario.GoalItemCount)
+            return new LevelGoal<DemoGridSlot>[]
             {
-                MarkAchieved();
-            }
+                new SdkTargetCollectionGoal<DemoGridSlot>(DemoScenario.GoalItemCount,
+                    slot => slot.HasItem && slot.ItemId == DemoScenario.TargetItemId)
+            };
         }
     }
 }

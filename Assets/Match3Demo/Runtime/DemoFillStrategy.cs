@@ -79,6 +79,7 @@ namespace Match3.Engine.Demo
                 }
 
                 _metrics.WaveCleared(wave, solvedSlots.Length);
+                _metrics.AwardWave(wave, solvedSlots.Length);
                 foreach (var slot in solvedSlots)
                 {
                     slot.Clear();

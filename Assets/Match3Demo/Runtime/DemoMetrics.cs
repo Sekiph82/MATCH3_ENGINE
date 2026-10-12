@@ -16,6 +16,7 @@ namespace Match3.Engine.Demo
         public bool GameFinished { get; private set; }
         public int InitialMatchedItemCount { get; private set; }
         public int CascadeCount { get; private set; }
+        public int Score { get; private set; }
         public string InitialBoardSnapshot { get; private set; } = string.Empty;
         public string FinalBoardSnapshot { get; private set; } = string.Empty;
         public string InitialBoardHash => Hash(InitialBoardSnapshot);
@@ -53,6 +54,13 @@ namespace Match3.Engine.Demo
             {
                 _events.Add("match:" + itemCount);
             }
+        }
+
+        internal void AwardWave(int wave, int itemCount)
+        {
+            var award = CascadeScoreRules.GetAward(itemCount, wave);
+            Score += award;
+            _events.Add("score-wave:" + wave + ":" + itemCount + ":" + award + ":total-" + Score);
         }
 
         internal void Settled(string snapshot)

@@ -48,6 +48,7 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(demo.Metrics.GoalAchieved, Is.True);
             Assert.That(demo.Metrics.GameFinished, Is.True);
             Assert.That(demo.Metrics.MovesRemaining, Is.EqualTo(1));
+            Assert.That(demo.Metrics.Score, Is.EqualTo(130));
             Assert.That(demo.BoardSnapshot, Is.EqualTo("ABAB/CDBD/BBCC/DCBA"));
             Assert.That(demo.Metrics.FinalBoardHash, Is.EqualTo("e1cba6fb1b18f0a4bd3c060ed84e56f75b081c7873c62abf8077d5a7bbe3fcf6"));
             Assert.That(demo.Metrics.Events, Does.Contain("move-committed:1"));

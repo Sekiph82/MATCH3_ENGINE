@@ -33,6 +33,7 @@ namespace Match3.Engine.Demo
         public const int Columns = 4;
         public const int StartingMoves = 2;
         public const int GoalItemCount = 3;
+        public const int TargetItemId = 0;
 
         // Row-major deterministic fixture. Swapping (1,0) with (2,0) makes the bottom row a triple.
         public static readonly int[,] StartingItems =
