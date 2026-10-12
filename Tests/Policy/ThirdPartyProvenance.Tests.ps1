@@ -24,7 +24,7 @@ try {
     }
 
     Remove-Item -LiteralPath (Join-Path $fixtureRoot 'Assets') -Recurse -Force
-    $manifest = '{"dependencies":{"com.chebanovdd.match3sdk":"https://github.com/LibraStack/Match3-SDK.git?path=src/Match3.UnityPackage/Assets/Plugins/Match3#771e62908056c2c5fa69937a52ca52ab589f19ea"}}'
+    $manifest = '{"dependencies":{"com.chebanovdd.match3sdk":"https://github.com/LibraStack/Match3-SDK.git?path=src/Match3.UnityPackage/Assets/Plugins/Match3#771e62908056c2c5fa69937a52ca52ab589f19ea","com.cysharp.unitask":"https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2e993ff18f28c931602a07292df0b0804eebef99"}}'
     Set-Content -LiteralPath (Join-Path $fixtureRoot 'Packages/manifest.json') -Value $manifest -NoNewline
     $missingNoticeFindings = @(Get-ThirdPartyProvenanceFindings -Root $fixtureRoot)
     if (-not ($missingNoticeFindings | Where-Object { $_ -like '*retained MIT notice*' })) {
@@ -32,7 +32,7 @@ try {
     }
 
     New-Item -ItemType Directory -Path (Join-Path $fixtureRoot 'Documentation~') -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $fixtureRoot 'Documentation~/THIRD_PARTY_NOTICES.md') -Value 'LibraStack/Match3-SDK; MIT License' -NoNewline
+    Set-Content -LiteralPath (Join-Path $fixtureRoot 'Documentation~/THIRD_PARTY_NOTICES.md') -Value 'LibraStack/Match3-SDK; MIT License; Copyright (c) 2022 Dima; Cysharp/UniTask; Copyright (c) 2019 Yoshifumi Kawai / Cysharp, Inc.; e44b59b10deacda8e7d1a81555429cdb3f7d12c8' -NoNewline
     $noticeFindings = @(Get-ThirdPartyProvenanceFindings -Root $fixtureRoot)
     if ($noticeFindings.Count -ne 0) {
         throw "Positive notice test failed: $($noticeFindings -join '; ')"

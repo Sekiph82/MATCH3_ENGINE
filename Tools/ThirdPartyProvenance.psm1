@@ -45,11 +45,20 @@ function Get-ThirdPartyProvenanceFindings {
             $sdkDependency = $manifest.dependencies.PSObject.Properties['com.chebanovdd.match3sdk']
             $sdkUri = if ($sdkDependency) { $sdkDependency.Value } else { $null }
             if ($sdkUri) {
-                if ($sdkUri -notmatch '#[0-9a-fA-F]{40}$') {
-                    $findings.Add('LibraStack package dependency is not pinned to a full 40-character commit SHA.')
+                if ($sdkUri -ne 'https://github.com/LibraStack/Match3-SDK.git?path=src/Match3.UnityPackage/Assets/Plugins/Match3#771e62908056c2c5fa69937a52ca52ab589f19ea') {
+                    $findings.Add('LibraStack package dependency differs from the audited origin, package path, or full commit pin.')
                 }
-                if ($notice -notmatch 'MIT License' -or $notice -notmatch 'LibraStack/Match3-SDK') {
+                if ($notice -notmatch 'MIT License' -or $notice -notmatch 'LibraStack/Match3-SDK' -or $notice -notmatch 'Copyright \(c\) 2022 Dima') {
                     $findings.Add('LibraStack package is present without its retained MIT notice in Documentation~/THIRD_PARTY_NOTICES.md.')
+                }
+
+                $unitaskDependency = $manifest.dependencies.PSObject.Properties['com.cysharp.unitask']
+                $unitaskUri = if ($unitaskDependency) { $unitaskDependency.Value } else { $null }
+                if ($unitaskUri -ne 'https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2e993ff18f28c931602a07292df0b0804eebef99') {
+                    $findings.Add('UniTask transitive package dependency is not overridden with the audited full commit pin.')
+                }
+                if ($notice -notmatch 'Cysharp/UniTask' -or $notice -notmatch 'Copyright \(c\) 2019 Yoshifumi Kawai / Cysharp, Inc\.' -or $notice -notmatch 'e44b59b10deacda8e7d1a81555429cdb3f7d12c8') {
+                    $findings.Add('UniTask is missing its retained MIT notice or upstream LICENSE blob SHA in Documentation~/THIRD_PARTY_NOTICES.md.')
                 }
             }
         } catch {

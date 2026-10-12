@@ -8,12 +8,13 @@ Audit date: 2026-10-12. Target editor: **Unity 6000.6.5f1** (`3ff58d469c8a`). Th
 | --- | --- | --- | --- |
 | LibraStack Match3 SDK Core | REQUIRED | source commit `771e62908056c2c5fa69937a52ca52ab589f19ea`; .NET project `netstandard2.0`; Unity `Match3.Core` asmdef | MIT at the pinned upstream [LICENSE](https://github.com/LibraStack/Match3-SDK/blob/771e62908056c2c5fa69937a52ca52ab589f19ea/LICENSE). Consume its Unity package source, not compiled .NET 5 `App`/`Infrastructure` outputs. Retain the complete MIT notice. |
 | LibraStack App and Infrastructure assemblies | REQUIRED as package source | same commit; `Match3.App` and `Match3.Infrastructure` asmdefs | The .NET projects target `net5.0`; Unity imports the C# source under asmdefs. These are not .NET 5 binaries. |
+| Terminal sample hosting dependency | REMOVE from Unity game | NuGet `Microsoft.Extensions.Hosting` 5.0.0; terminal sample targets `net5.0` | Applies only to `samples/Terminal.Match3/Terminal.Match3.csproj`; not in the Unity package manifest. |
 | UniTask | REQUIRED | **2.5.11**, Git commit `2e993ff18f28c931602a07292df0b0804eebef99`; package declares Unity `2018.4` minimum | MIT at the pinned [LICENSE](https://github.com/Cysharp/UniTask/blob/2e993ff18f28c931602a07292df0b0804eebef99/LICENSE); package `com.cysharp.unitask` has no package dependencies. The SDK's .NET App project references NuGet UniTask 2.3.1, while its Unity package declares UniTask with an unpinned Git URL. Unity uses the UPM package at this exact commit; do not import the .NET 5 project output. |
 | DOTween | REMOVE from engine dependencies; sample-only optional | no engine pin | Not declared by the SDK Unity package and no `DG.Tweening` reference occurs in its 37 runtime C# files. Fourteen sample C# files reference `DG.Tweening`; the sample carries DOTween DLLs but does not declare it in its package manifest. Do not copy opaque binaries or sample media. |
 | Upstream sample packages | OPTIONAL when a selected sample feature needs one | configured for Unity 2021.3.34f1 | The sample manifest includes editor integrations, Test Framework 1.1.33, TextMeshPro 3.0.6, Timeline 1.6.5, uGUI 1.0.0, Visual Scripting 1.9.1 and Unity modules. None is a dependency of the SDK package. |
 | Unity built-in modules | OPTIONAL by feature | Unity-managed `1.0.0` modules | Keep only modules needed by the project and selected features. They are not third-party SDKs. |
 
-The SDK package declares no dependency besides UniTask. The scanned Unity runtime source imports `Cysharp.Threading.Tasks`, SDK namespaces, and standard `System` namespaces. It has three asmdefs and the bounded scan found no UnityEditor, UnityEngine, .NET 5-only, or identified removed Unity API calls. No type-name collision was found within the SDK package's declared assemblies. Source provenance and the SDK license blob are recorded in [THIRD_PARTY_PROVENANCE.md](THIRD_PARTY_PROVENANCE.md).
+The SDK package declares no dependency besides UniTask. Its Unity package source path is `src/Match3.UnityPackage/Assets/Plugins/Match3`; it contains `Runtime/Match3.Core`, `Runtime/Match3.App`, and `Runtime/Match3.Infrastructure` with one asmdef for each. The inspected .NET project paths are `src/Match3.Core/Match3.Core.csproj`, `src/Match3.App/Match3.App.csproj`, and `src/Match3.Infrastructure/Match3.Infrastructure.csproj`. The scanned Unity runtime source imports `Cysharp.Threading.Tasks`, SDK namespaces, and standard `System` namespaces. It has three asmdefs and the bounded scan found no UnityEditor, UnityEngine, .NET 5-only, or identified removed Unity API calls. No type-name collision was found within the SDK package's declared assemblies. Source provenance and license blob IDs are recorded in [THIRD_PARTY_PROVENANCE.md](THIRD_PARTY_PROVENANCE.md); full license texts are retained in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## 2021 sample and platform limits
 
@@ -25,10 +26,10 @@ If selected sample code fails to compile, record the compiler diagnostic and pat
 
 ## Reproducible package resolution
 
-`Tools/ResolveSdkDependencyCompatibility.ps1` temporarily uses a manifest containing only the exact SDK and UniTask commits, invokes the installed Unity editor in batch mode, checks the package lock and package metadata, then restores the original manifest and lock byte-for-byte. It retains its temporary backups and log for review.
+`Tools/ResolveSdkDependencyCompatibility.ps1` checks the exact SDK and UniTask commits with the installed Unity editor in batch mode. By default it uses a temporary manifest and restores the original manifest and lock byte-for-byte. For the committed project manifest, add `-PersistResolvedLock` to resolve and retain `Packages/packages-lock.json`. Both modes retain their temporary backups and log for review.
 
 ```powershell
-pwsh -NoProfile -File .\Tools\ResolveSdkDependencyCompatibility.ps1
+pwsh -NoProfile -File .\Tools\ResolveSdkDependencyCompatibility.ps1 -PersistResolvedLock
 pwsh -NoProfile -File .\Tests\Policy\SdkDependencyPolicy.Tests.ps1
 ```
 

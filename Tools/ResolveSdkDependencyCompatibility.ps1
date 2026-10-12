@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string] $ProjectPath = (Split-Path -Parent $PSScriptRoot),
-    [string] $EditorPath = 'C:\Program Files\Unity\Hub\Editor\6000.6.5f1\Editor\Unity.exe'
+    [string] $EditorPath = 'C:\Program Files\Unity\Hub\Editor\6000.6.5f1\Editor\Unity.exe',
+    [switch] $PersistResolvedLock
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,19 +33,23 @@ $logPath = Join-Path $work 'unity-resolve.log'
 [System.IO.File]::WriteAllBytes($manifestBackup, $manifestBytes)
 [System.IO.File]::WriteAllBytes($lockBackup, $lockBytes)
 
-$dependencies = [ordered]@{
+$dependencies = if ($PersistResolvedLock) {
+    (Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable).dependencies
+} else {
+    [ordered]@{
     'com.chebanovdd.match3sdk' = 'https://github.com/LibraStack/Match3-SDK.git?path=src/Match3.UnityPackage/Assets/Plugins/Match3#771e62908056c2c5fa69937a52ca52ab589f19ea'
     'com.cysharp.unitask' = 'https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2e993ff18f28c931602a07292df0b0804eebef99'
+    }
 }
 $findings = @(Get-SdkDependencyPolicyFindings -Dependencies $dependencies)
 if ($findings.Count -gt 0) { throw "Invalid probe manifest: $($findings -join '; ')" }
-$probeJson = @{ dependencies = $dependencies } | ConvertTo-Json -Depth 8
+$probeJson = if ($PersistResolvedLock) { [System.IO.File]::ReadAllText($manifestPath) } else { @{ dependencies = $dependencies } | ConvertTo-Json -Depth 8 }
 [System.IO.File]::WriteAllText($manifestProbe, $probeJson, [System.Text.UTF8Encoding]::new($false))
 $exitCode = $null
 $resolutionError = $null
 
 try {
-    [System.IO.File]::WriteAllText($manifestPath, $probeJson, [System.Text.UTF8Encoding]::new($false))
+    if (-not $PersistResolvedLock) { [System.IO.File]::WriteAllText($manifestPath, $probeJson, [System.Text.UTF8Encoding]::new($false)) }
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $EditorPath
     $start.UseShellExecute = $false
@@ -84,13 +89,17 @@ try {
     if ($exitCode -ne 0) { $resolutionError = "Unity package resolution exited with code $exitCode. See $logPath" }
 } finally {
     [System.IO.File]::WriteAllBytes($manifestPath, $manifestBytes)
-    [System.IO.File]::WriteAllBytes($lockPath, $lockBytes)
+    if (-not $PersistResolvedLock) { [System.IO.File]::WriteAllBytes($lockPath, $lockBytes) }
 }
 
 $manifestRestored = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($manifestPath))) -eq $manifestHash
-$lockRestored = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($lockPath))) -eq $lockHash
-if (-not $manifestRestored -or -not $lockRestored) { throw 'Probe failed to restore the original manifest and lock byte-for-byte.' }
+if (-not $manifestRestored) { throw 'Probe failed to preserve the original manifest byte-for-byte.' }
+if (-not $PersistResolvedLock) {
+    $lockRestored = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($lockPath))) -eq $lockHash
+    if (-not $lockRestored) { throw 'Probe failed to restore the original package lock byte-for-byte.' }
+}
 if ($null -ne $resolutionError) { throw $resolutionError }
 Write-Output "PASS: Unity package resolution exit code $exitCode; exact SDK 0.1.3 and UniTask 2.5.11 Git commits found in package lock."
-Write-Output "RESTORE: manifest SHA-256 $manifestHash; lock SHA-256 $lockHash; both restored byte-for-byte."
+Write-Output "MANIFEST: preserved byte-for-byte, SHA-256 $manifestHash."
+if ($PersistResolvedLock) { Write-Output "LOCK: newly resolved project lock retained at $lockPath" } else { Write-Output "LOCK: original SHA-256 $lockHash restored byte-for-byte." }
 Write-Output "REVIEW: probe manifest, original backups, resolved lock, and Unity log retained under $work"
