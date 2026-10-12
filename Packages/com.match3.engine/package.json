@@ -1,0 +1,10 @@
+{
+  "name": "com.match3.engine",
+  "displayName": "Match3 Engine",
+  "version": "0.1.0",
+  "unity": "6000.6",
+  "description": "Foundational runtime and editor assemblies for the Match3 Engine.",
+  "dependencies": {
+    "com.unity.test-framework": "1.8.0"
+  }
+}

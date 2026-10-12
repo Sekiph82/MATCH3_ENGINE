@@ -1,0 +1,22 @@
+{
+  "name": "Match3.Engine.Editor.Tests",
+  "rootNamespace": "Match3.Engine.Tests.Editor",
+  "references": [
+    "Match3.Engine.Runtime",
+    "Match3.Engine.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

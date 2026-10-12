@@ -15,6 +15,42 @@
       "source": "git",
       "dependencies": {},
       "hash": "2e993ff18f28c931602a07292df0b0804eebef99"
+    },
+    "com.match3.engine": {
+      "version": "file:com.match3.engine",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.test-framework": "1.8.0"
+      }
+    },
+    "com.unity.ext.nunit": {
+      "version": "2.1.0",
+      "depth": 2,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.test-framework": {
+      "version": "1.8.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.ext.nunit": "2.1.0",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.jsonserialize": "1.0.0"
+      }
+    },
+    "com.unity.modules.imgui": {
+      "version": "1.0.0",
+      "depth": 2,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.jsonserialize": {
+      "version": "1.0.0",
+      "depth": 2,
+      "source": "builtin",
+      "dependencies": {}
     }
   }
 }
