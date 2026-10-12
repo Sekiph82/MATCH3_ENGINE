@@ -24,6 +24,16 @@ The installed editor has `WebGLSupport` and `windowsstandalonesupport`; Android 
 
 If selected sample code fails to compile, record the compiler diagnostic and patch only the affected adapter or call site; preserve the upstream SDK algorithms. Before claiming Android/iOS support, install those Unity modules and run the target's actual IL2CPP build.
 
+## ENG-M00-004 Unity 6.6 sample migration notes
+
+The exact upstream sample at SDK commit `771e62908056c2c5fa69937a52ca52ab589f19ea` uses Unity `2021.3.34f1`. Its source inherits the repository's [MIT license](https://github.com/LibraStack/Match3-SDK/blob/771e62908056c2c5fa69937a52ca52ab589f19ea/LICENSE). The original source was kept intact; the compatibility probe used a separate temporary project copy with the same source and `MainScene`.
+
+The probe's manifest points the SDK dependency to the Unity package at that pinned source commit and pins UniTask to `2e993ff18f28c931602a07292df0b0804eebef99`. It updates the Test Framework to Unity 6.6's built-in `1.8.0` and removes the obsolete `com.unity.modules.vr` dependency. Plastic SCM and Visual Scripting are optional editor integrations unused by the sample; their legacy package versions produce Unity 6.6 compiler errors, so the isolated probe omits them. No Match3 sample runtime C# source required a Unity API adapter after those package changes.
+
+The sample contains a `DOTween.dll` and its original `readme.txt`; DOTween is not a dependency of the SDK or this engine. The readme identifies the bundled plugin and links to Demigiant's [DOTween license](https://dotween.demigiant.com/license.php). Its standard license permits commercial use and verbatim source distribution with the copyright notice and readme. The probe used the unmodified sample bundle only in its temporary project; no sample code, artwork, scene, or DOTween binary was added to this repository.
+
+The isolated Unity 6.6 project imported and its original `MainScene` loaded in PlayMode. The Drive child log carries the executed commands, Unity exits, positive and intentional-failure test results, source/result hashes, and redacted NUnit XML. This compatibility note does not claim a player build or device test.
+
 ## Reproducible package resolution
 
 `Tools/ResolveSdkDependencyCompatibility.ps1` checks the exact SDK and UniTask commits with the installed Unity editor in batch mode. By default it uses a temporary manifest and restores the original manifest and lock byte-for-byte. For the committed project manifest, add `-PersistResolvedLock` to resolve and retain `Packages/packages-lock.json`. Both modes retain their temporary backups and log for review.
