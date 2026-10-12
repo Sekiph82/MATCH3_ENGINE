@@ -12,7 +12,7 @@
 > Created 2026-10-12. **All work initially PLANNED, no tests or audits performed.** Single canonical GitHub lifecycle tracker.
 
 ## CURRENT BATON / TASK AUTHORITY
-- `CURRENT_OWNER: CODEX_NEXT` | `MILESTONE: ENG-M00` | `SCOPE: ENG-M00-001..010` | `HANDOFF: DRIVE_MASTER_PROMPT_PENDING_LINK`.
+- `CURRENT_OWNER: CODEX_NEXT` | `MILESTONE: ENG-M00` | `SCOPE: ENG-M00-001..010` | `HANDOFF: https://docs.google.com/document/d/11xUwhxEDFtZ0hZF3x_0hR1PpFVW4tH5WEEB_SmyTXWo/edit`.
 - Status of all ten children remains `PLANNED` until Codex actually begins; this entry announces queued handoff, NOT claimed code progress. ChatGPT returns baton to `CHATGPT_AUDIT` only after actual pushed evidence and matching Drive child logs; only then update individual checkboxes.
 - `BLOCKED` baton is used for missing Drive connector, unsafe sync, license, Unity activation or other non-resolvable preflight; never fabricate PASS.
 
