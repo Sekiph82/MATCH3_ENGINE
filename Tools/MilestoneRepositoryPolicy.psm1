@@ -6,7 +6,7 @@ function Get-MilestoneRepositoryPathFindings {
 
     $findings = [System.Collections.Generic.List[string]]::new()
     $forbiddenDirectory = '(?i)(^|/)(02_CODEX_LOGS|04_AUDIT_RESULTS|05_EVIDENCE|prompts?|audit[-_ ]criteria)(/|$)'
-    $forbiddenDocument = '(?i)(^|/)(ENG-M00-(\d{3}_)?(CODEX_LOG|AUDIT_RESULT|AUDIT_CRITERIA|IMPLEMENTATION_PROMPT)|ENG-M00_MASTER_CODEX_LOG|ENG-M00_MASTER_AUDIT_RESULT|AUDIT_HANDOFF_INDEX)(_[A-Z0-9]+)*\.(md|txt|json|xml|yaml|yml|docx|gdoc)$'
+    $forbiddenDocument = '(?i)(^|/)(ENG-M00-(\d{3}_)?(CODEX_LOG|AUDIT_RESULT|AUDIT_CRITERIA|IMPLEMENTATION_PROMPT|EVIDENCE)|ENG-M00_MASTER_CODEX_LOG|ENG-M00_MASTER_AUDIT_RESULT|AUDIT_HANDOFF_INDEX)(_[A-Z0-9]+)*\.(md|txt|json|xml|yaml|yml|docx|gdoc)$'
 
     foreach ($path in $Paths) {
         $normalized = $path.Replace([string][char]92, '/')

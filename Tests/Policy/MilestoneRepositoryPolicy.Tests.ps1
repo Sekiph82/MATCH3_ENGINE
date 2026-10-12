@@ -24,8 +24,8 @@ $valid = [pscustomobject]@{
 }
 Assert-Policy 'source, tests, product documentation and the protected tracked TASKS.md are permitted' ((Get-MilestoneRepositoryPolicyFindings -Snapshot $valid).Count -eq 0)
 
-$forbidden = Get-MilestoneRepositoryPathFindings -Paths @('02_CODEX_LOGS/ENG-M00-007_CODEX_LOG_V02.md','04_AUDIT_RESULTS/ENG-M00-007_AUDIT_RESULT_V02.md','05_EVIDENCE/result.xml','Prompts/ENG-M00-007.md')
-Assert-Policy 'Drive coordination paths and task artifacts are rejected' ($forbidden.Count -eq 4)
+$forbidden = Get-MilestoneRepositoryPathFindings -Paths @('02_CODEX_LOGS/ENG-M00-007_CODEX_LOG_V02.md','04_AUDIT_RESULTS/ENG-M00-007_AUDIT_RESULT_V02.md','05_EVIDENCE/result.xml','Prompts/ENG-M00-007.md','ENG-M00-007_Evidence_Notes.txt')
+Assert-Policy 'Drive coordination paths and task artifacts are rejected' ($forbidden.Count -eq 5)
 
 $mutatedTracker = $valid.PSObject.Copy()
 $mutatedTracker.ChangedPaths = @('TASKS.md')
