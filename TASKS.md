@@ -26,7 +26,7 @@
 - **Baton:** Owner decision on approved separately controlled licensed Windows Unity 6000.6.5f1 runner or equivalent independent execution; then ChatGPT reviews actual run. Do not start paid compute, install huge modules, launch unapproved workflows or start ENG-M01.
 
 ## CURRENT BATON / TASK AUTHORITY
-- `CURRENT_OWNER: OWNER_INDEPENDENT_RUNTIME_DECISION` | `MILESTONE: ENG-M00` | `SCOPE: ENG-M00-001/002/003/004/005/006/007/009/010 independent execution (no active source remediation)` | `AUDIT: https://docs.google.com/document/d/1X8DWsX7UUnoYni8QknK2Zy2eUht0a4e6q5AgO7upzIM/edit`.
+- `CURRENT_OWNER: CODEX_RUNTIME_PREFLIGHT / OWNER_AUTHORIZATION_REQUIRED_FOR_DISPATCH` | `MILESTONE: ENG-M00` | `SCOPE: ENG-M00-001/002/003/004/005/006/007/009/010 evidence only; ENG-M00-008 CLOSED` | `HANDOFF: https://docs.google.com/document/d/1rPO2ChZNCiuhezrZuc_T82g3R2HPSKZbudI1P9dEwYE/edit` | `AUDIT_CRITERIA: https://docs.google.com/document/d/1Av22NxIQ2kqGbZVxAH0zH79pv4Oss2ORIbiNsD62cIM/edit`.
 - **Independent audit 2026-10-13:** Audit result https://docs.google.com/document/d/1o2vtvcHJcY5gmwAg5ZtSsH6zYhEkGhHZk3ERDExXPuM/edit . **MILESTONE ENG-M00: FAIL/BLOCKED.** Historical V02: 008 handoff PASS, 006 and 009 initially FAIL. R01 re-audit updated 006 to FAIL/R02; 009 source licensing corrected but independent policy execution NOT_INDEPENDENTLY_VERIFIED. 001/002/003/004/005/007/010 require independently executed Unity proof. R01 MASTER AUDIT: https://docs.google.com/document/d/1cDcfvrf5Xv8jEjjY_dUNnXNlEJhRp2cFkmW9hIzOti8/edit All required new evidence and remediation must be independently audited before ENG-M01.
 - `BLOCKED` baton is used for missing Drive connector, unsafe sync, license, Unity activation or other non-resolvable preflight; never fabricate PASS.
 
