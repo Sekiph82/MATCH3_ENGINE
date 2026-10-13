@@ -78,6 +78,9 @@ jobs:
             Write-Host "INDEPENDENT_NEGATIVE_PROBE_EXIT=$exit"
             if ($exit -eq 0) { throw 'False-PASS: forbidden developer resource was accepted' }
             Write-Host 'INDEPENDENT_NEGATIVE_PROBE=PASS'
+            # The GitHub pwsh wrapper checks $LASTEXITCODE after the step script;
+            # an EXPECTED nonzero child must not leak as the step's exit code.
+            $global:LASTEXITCODE = 0
           } finally {
             if (Test-Path -LiteralPath $root) {
               $r = [System.IO.Path]::GetFullPath($root)
