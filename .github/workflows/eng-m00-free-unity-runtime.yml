@@ -271,6 +271,15 @@ jobs:
                 (sys.argv[2], nums["total"], nums["passed"], nums["failed"], nums["skipped"]))
           if nums["passed"] < 1 or nums["failed"] != 0 or nums["skipped"] != 0:
               raise SystemExit("FAIL: Unity actual test counts invalid")
+          # The frozen ENG-M00-005 gate requires genuine locked input
+          # rollback, not merely the existing invalid-match case.
+          if sys.argv[2] == 'PlayMode':
+              name = 'NeutralMatch3DemoPlayModeTests.LockedAdjacentSwapLeavesBoardAndMovesUntouched'
+              cases = [x for x in root.findall('.//test-case')
+                       if x.get('fullname', '').endswith(name)]
+              if nums['passed'] < 6 or len(cases) != 1 or cases[0].get('result') != 'Passed':
+                  raise SystemExit('FAIL: required locked-swap PlayMode evidence is absent')
+              print('UNITY_ENG_M00_005_LOCKED_SWAP_ROLLBACK=PASS')
           PY
           done
 
