@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Match3.App.Interfaces;
 using Match3.Core.Structs;
 
@@ -5,6 +7,13 @@ namespace Match3.Engine.Demo
 {
     internal sealed class DemoBoardDataProvider : IGameBoardDataProvider<DemoGridSlot>
     {
+        private readonly GridPosition[] _lockedPositions;
+
+        public DemoBoardDataProvider(IEnumerable<GridPosition> lockedPositions = null)
+        {
+            _lockedPositions = lockedPositions == null ? new GridPosition[0] : lockedPositions.ToArray();
+        }
+
         public DemoGridSlot[,] GetGameBoardSlots(int level)
         {
             if (level != DemoScenario.Level)
@@ -17,7 +26,8 @@ namespace Match3.Engine.Demo
             {
                 for (var column = 0; column < DemoScenario.Columns; column++)
                 {
-                    slots[row, column] = new DemoGridSlot(new GridPosition(row, column));
+                    var locked = _lockedPositions.Any(p => p.RowIndex == row && p.ColumnIndex == column);
+                    slots[row, column] = new DemoGridSlot(new GridPosition(row, column), locked);
                 }
             }
 
