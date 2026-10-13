@@ -111,7 +111,11 @@
 **Milestone closure:** every M00 child audited; no unresolved blocker; ChatGPT updates only this TASKS.md.
 
 ### ENG-M01 | UPM reusable architecture
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+**State:** IN_PROGRESS. **Exit gate:** 11/11 independently audited PASS, exact real Unity 6.6/Windows64 source evidence, dependent M02 gated.
+**MASTER SPEC (frozen before code):** https://docs.google.com/document/d/1Trf1URFaDwkWM8T9s4LUFce5e4NRyCqgOKqQfrcNAGM/edit
+**MASTER AUDIT (frozen before code):** https://docs.google.com/document/d/1IJv-hq0BEtfWZqFW49I7dlLt4JUHpcmcVZ8GnMa-wnA/edit
+**BATCH A source implemented / READY_FOR_INDEPENDENT_RUNTIME_AUDIT (not PASS):** ENG-M01-001/002/003/007/008/009 pure-C# neutral profile/version/capability catalog, exact five unique game placeholders with optional features disabled by default, 7 positive and adversarial NUnit tests. First source SHA `2985af91930226690c15a9b1150e48bf291c6fe3`; test source SHA `42be6eb65e967029ea9218de69d3799b0c990ef6`; explicit GitHub-hosted Unity CI gate SHA `8e0c8acf6d2cf76fc5b9a470c33e6adb2674a9e1`. **Run:** https://github.com/Sekiph82/MATCH3_ENGINE/actions/runs/38474486323 pending real independent runtime audit. No new source task is closed merely because committed. Other children 004/005/006/010/011 remain PLANNED. All source changes GitHub-only, owner Desktop untouched; no new paid runner. 
+**CURRENT_OWNER:** CHATGPT_ENG_M01_IMPLEMENT_AND_INDEPENDENT_CI_AUDIT; **NEXT:** inspect new NUnit original XML and error logs, remediate if necessary, then implement remaining M01 children in cohesive batches.
 
 - [ ] **ENG-M01-001 UPM project layout** `PLANNED`. **Contract:** Runtime Editor Tests Samples~ Documentation~ package.json assembly definitions. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M01-002 Pure model boundary** `PLANNED`. **Contract:** Gameplay logic C# not Unity GameObjects UI or theme names. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
