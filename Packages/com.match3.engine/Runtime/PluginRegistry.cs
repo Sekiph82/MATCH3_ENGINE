@@ -54,8 +54,9 @@ namespace Match3.Engine.Runtime
         public void Register(PluginDescriptor descriptor)
         {
             if (descriptor == null) throw new ArgumentNullException(nameof(descriptor));
-            if (!_registered.TryAdd(descriptor.Id, descriptor))
+            if (_registered.ContainsKey(descriptor.Id))
                 throw new InvalidOperationException("Plugin ID collision: " + descriptor.Id);
+            _registered.Add(descriptor.Id, descriptor);
         }
 
         // A disabled capability is NOT secretly instantiable. Registry lookup
