@@ -1,7 +1,7 @@
-name: ENG-M00 Real Windows Player Release Firewall
+name: ENG-M01 Real Windows Player Release Firewall
 on:
   workflow_dispatch:
-  # Final ENG-M00-010 clean-room compile and release scan with the now-locked swap input fixture.
+  # ENG-M01 final all-profile/authority/SDK-adapter source: real Unity Win64 build, strict release scanner.
   # Run once when this tightly scoped workflow is created or adjusted.
   # No automatic player builds for unrelated source or TASKS.md commits.
   push:
@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: eng-m00-win64-player-firewall
+  group: eng-m01-win64-player-firewall
   cancel-in-progress: false
 
 jobs:
