@@ -16,7 +16,11 @@ function Add-PathFinding([string] $label, [string] $path) {
     $forbiddenSegment = $normalized -match '(?i)(^|/)(Editor|Tests?|TestFixtures|Evidence)(/|$)'
     $forbiddenAssembly = $name -match '(?i)(NUnit.*\.dll|Unity(?:Engine|Editor)\.TestRunner.*\.dll|[^/]*(?:Tests?|TestAssembly)[^/]*\.dll)$'
     $resourceCode = $normalized -match '(?i)(^|/)(Resources|StreamingAssets|Addressables)(/|$).+\.(cs|ps1|asmdef|rsp)$'
-    if ($forbiddenSegment -or $forbiddenAssembly -or $resourceCode) {
+    # Reject known developer-only/evidence payloads by their complete resource
+    # path. Keep the Factory rule filename-specific so themed Factory artwork
+    # and other legitimate game assets remain allowed.
+    $developerResource = $normalized -match '(?i)(^|/)StreamingAssets/Diagnostics/evidence\.json$|(^|/)StreamingAssets/Factory/FactoryDatabase\.bytes$|(^|/)Addressables/Development/DebugOverlay\.prefab$'
+    if ($forbiddenSegment -or $forbiddenAssembly -or $resourceCode -or $developerResource) {
         $script:violations.Add("$label contains forbidden path: $normalized")
     }
 }

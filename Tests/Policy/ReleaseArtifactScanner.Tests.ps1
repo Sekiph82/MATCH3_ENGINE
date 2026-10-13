@@ -55,12 +55,39 @@ try {
     $positive = New-FixtureZip 'positive' @{
         'Demo_Data/Resources/config.json' = '{"theme":"neutral"}'
         'Demo_Data/StreamingAssets/readme.txt' = 'demo payload'
+        'Demo_Data/StreamingAssets/Factory/FactoryGems.png' = 'themed game artwork'
     }
     $result = Invoke-Scanner $positive
     if ($result.ExitCode -ne 0 -or $result.Output -notmatch 'SCAN=PASS') {
-        throw "Allowed release fixture should pass; exit=$($result.ExitCode) output=$($result.Output)"
+        throw "Allowed release fixture, including themed Factory artwork, should pass; exit=$($result.ExitCode) output=$($result.Output)"
     }
-    Write-Output 'PASS: permitted Resources and StreamingAssets payload is accepted.'
+    Write-Output 'PASS: permitted Resources, StreamingAssets payload, and themed Factory artwork are accepted.'
+
+    $developerResourceFixtures = @(
+        @{
+            Name = 'diagnostics-evidence'
+            Path = 'Demo_Data/StreamingAssets/Diagnostics/evidence.json'
+            Content = '{"note":"innocuous payload"}'
+        },
+        @{
+            Name = 'factory-database'
+            Path = 'Demo_Data/StreamingAssets/Factory/FactoryDatabase.bytes'
+            Content = 'innocuous payload'
+        },
+        @{
+            Name = 'addressables-debug-overlay'
+            Path = 'Demo_Data/Addressables/Development/DebugOverlay.prefab'
+            Content = 'innocuous payload'
+        }
+    )
+    foreach ($fixture in $developerResourceFixtures) {
+        $archive = New-FixtureZip $fixture.Name @{ $fixture.Path = $fixture.Content }
+        $result = Invoke-Scanner $archive
+        if ($result.ExitCode -eq 0 -or $result.Output -notmatch 'forbidden path') {
+            throw "Developer resource '$($fixture.Path)' must fail by path even with innocuous payload; exit=$($result.ExitCode) output=$($result.Output)"
+        }
+        Write-Output "PASS: developer resource '$($fixture.Path)' is rejected by path."
+    }
 
     $badAssembly = New-FixtureZip 'test-assembly' @{
         'Demo_Data/Managed/NUnit.Framework.dll' = 'forbidden test assembly'
@@ -88,7 +115,7 @@ try {
         throw "Test assembly build flag must fail; exit=$($result.ExitCode) output=$($result.Output)"
     }
     Write-Output 'PASS: IncludeTestAssemblies build flag is rejected.'
-    Write-Output 'SCANNER_TESTS=4 PASSED=4 FAILED=0'
+    Write-Output 'SCANNER_TESTS=7 PASSED=7 FAILED=0'
 }
 finally {
     if (Test-Path -LiteralPath $work) {
