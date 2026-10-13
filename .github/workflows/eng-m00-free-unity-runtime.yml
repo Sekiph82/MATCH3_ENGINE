@@ -242,6 +242,34 @@ jobs:
             -EvidenceDirectory "$RUNNER_TEMP/eng-m00-blank-import"
           echo 'UNITY_BLANK_PROJECT_UPM_IMPORT=PASS'
 
+      # ENG-M00-004: run the upstream original sample (not the new neutral
+      # demo) pinned to the audited commit. The script exercises original
+      # pointer-down/drag against MainScene and requires board state change.
+      # Any incompatibility is real independent evidence and must FAIL.
+      - name: Independently exercise original pinned SDK Unity sample gameplay
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$RUNNER_TEMP/eng-m00-pinned-sdk"
+          mkdir -p "$sdk"
+          git -C "$sdk" init -q
+          git -C "$sdk" remote add origin https://github.com/LibraStack/Match3-SDK.git
+          git -C "$sdk" fetch -q --no-tags --depth=1 origin 771e62908056c2c5fa69937a52ca52ab589f19ea
+          git -C "$sdk" checkout -q --detach FETCH_HEAD
+          actual="$(git -C "$sdk" rev-parse HEAD)"
+          [[ "$actual" == 771e62908056c2c5fa69937a52ca52ab589f19ea ]] || {
+            echo '::error::Upstream immutable SDK SHA mismatch'
+            exit 1
+          }
+          test -f "$sdk/LICENSE"
+          test -f "$sdk/samples/Unity.Match3/Assets/Scenes/MainScene.unity"
+          command -v pwsh
+          timeout 600s pwsh -NoProfile -File Tools/RunPinnedSampleGameplayProbe.ps1 \
+            -SdkCheckoutPath "$sdk" \
+            -EditorPath "$UNITY_EDITOR_PATH" \
+            -EvidenceDirectory "$RUNNER_TEMP/eng-m00-upstream-sample"
+          echo 'UNITY_PINNED_ORIGINAL_MATCH3_SAMPLE=PASS'
+
       - name: Enforce bounded evidence size
         id: evidence-size
         if: always()
