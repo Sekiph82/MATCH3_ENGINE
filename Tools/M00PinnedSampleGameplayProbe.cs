@@ -32,6 +32,8 @@ public static class M00PinnedSampleGameplayProbe
     private static Camera _camera;
     private static string _beforeAction;
     private static double _probeStartedAt;
+    private static double _playModeRequestedAt;
+    private const double PlayModeEntryTimeoutSeconds = 120;
     private static double _actionStartedAt;
     private static int _candidateIndex;
     private static bool _waitingForAction;
@@ -44,7 +46,10 @@ public static class M00PinnedSampleGameplayProbe
             return;
         }
 
+        Debug.Log("M00_SAMPLE_PROBE_ENTRY method=Run scene=" + ScenePath);
         EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        _playModeRequestedAt = EditorApplication.timeSinceStartup;
+        EditorApplication.update += WaitForPlayMode;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         EditorApplication.isPlaying = true;
     }
@@ -56,9 +61,19 @@ public static class M00PinnedSampleGameplayProbe
             return;
         }
 
+        EditorApplication.update -= WaitForPlayMode;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        Debug.Log("M00_SAMPLE_PROBE_ENTERED_PLAYMODE");
         _probeStartedAt = EditorApplication.timeSinceStartup;
         EditorApplication.update += Tick;
+    }
+
+    private static void WaitForPlayMode()
+    {
+        if (EditorApplication.timeSinceStartup - _playModeRequestedAt > PlayModeEntryTimeoutSeconds)
+        {
+            Fail("timed out waiting for EnteredPlayMode after request");
+        }
     }
 
     private static void Tick()
@@ -184,6 +199,8 @@ public static class M00PinnedSampleGameplayProbe
     private static void Finish(int exitCode)
     {
         EditorApplication.update -= Tick;
+        EditorApplication.update -= WaitForPlayMode;
+        EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         EditorApplication.isPlaying = false;
         EditorApplication.delayCall += () => EditorApplication.Exit(exitCode);
     }
