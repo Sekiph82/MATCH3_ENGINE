@@ -9,6 +9,8 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
+using Common.UiElements;
 
 [InitializeOnLoad]
 public static class M00PinnedSampleGameplayProbe
@@ -29,6 +31,8 @@ public static class M00PinnedSampleGameplayProbe
     private static readonly MethodInfo PointerDown = typeof(CanvasInputSystem).GetMethod("OnPointerDown", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly MethodInfo PointerDrag = typeof(CanvasInputSystem).GetMethod("OnPointerDrag", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly FieldInfo CameraField = typeof(CanvasInputSystem).GetField("_camera", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo StartButtonField = typeof(GameUiCanvas).GetField("_startGameButton", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo WrappedButtonField = typeof(InteractableButton).GetField("_button", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly List<MoveCandidate> Candidates = new List<MoveCandidate>();
 
     private static UnityGame _game;
@@ -43,6 +47,7 @@ public static class M00PinnedSampleGameplayProbe
     private static int _candidateIndex;
     private static bool _waitingForAction;
     private static bool _tickStarted;
+    private static bool _startClicked;
 
     static M00PinnedSampleGameplayProbe()
     {
@@ -55,7 +60,7 @@ public static class M00PinnedSampleGameplayProbe
 
     public static void Run()
     {
-        if (PointerDown == null || PointerDrag == null || CameraField == null)
+        if (PointerDown == null || PointerDrag == null || CameraField == null || StartButtonField == null || WrappedButtonField == null)
         {
             Fail("original sample input hooks could not be reflected");
             return;
@@ -121,6 +126,23 @@ public static class M00PinnedSampleGameplayProbe
             return;
         }
 
+        // Upstream MainScene starts in DrawGameBoardMode: the board is EMPTY
+        // until the genuine UI Start button transitions GameInit -> GamePlay.
+        // Trigger the *existing* Unity UI Button event once, not a counterfeit
+        // game state or direct board mutation.
+        if (!_startClicked)
+        {
+            if (EditorApplication.timeSinceStartup - _probeStartedAt < 1.0) return;
+            var ui = UnityEngine.Object.FindAnyObjectByType<GameUiCanvas>();
+            var wrapped = ui == null ? null : (InteractableButton)StartButtonField.GetValue(ui);
+            var button = wrapped == null ? null : (Button)WrappedButtonField.GetValue(wrapped);
+            if (button == null || !button.isActiveAndEnabled) return;
+            button.onClick.Invoke();
+            _startClicked = true;
+            Debug.Log("M00_SAMPLE_START_UI_BUTTON_CLICKED=1");
+            return;
+        }
+
         if (_game == null)
         {
             var context = UnityEngine.Object.FindAnyObjectByType<AppContext>();
@@ -139,8 +161,21 @@ public static class M00PinnedSampleGameplayProbe
                 {
                     return;
                 }
-                BuildCandidates(_game.GetGridSlots().ToArray());
+                var slots = _game.GetGridSlots().ToArray();
+                // StartAsync's fill is asynchronous. Do not confuse an empty
+                // DrawMode grid or partially filled board with a legal board.
+                if (slots.Length < 9 || slots.Any(slot => slot == null || !slot.HasItem))
+                {
+                    _game = null;
+                    return;
+                }
+                BuildCandidates(slots);
                 Debug.Log("M00_SAMPLE_PROBE_READY scene=" + ScenePath + " movable_edges=" + Candidates.Count);
+                if (Candidates.Count == 0)
+                {
+                    Fail("upstream game started with no movable board edges");
+                    return;
+                }
             }
             catch (System.Exception exception)
             {
@@ -175,6 +210,7 @@ public static class M00PinnedSampleGameplayProbe
         }
 
         var candidate = Candidates[_candidateIndex++];
+        Debug.Log("M00_SAMPLE_INPUT_TRIAL=" + _candidateIndex);
         _beforeAction = Snapshot(_game.GetGridSlots());
         SendPointer(PointerDown, candidate.First.GridPosition);
         SendPointer(PointerDrag, candidate.Second.GridPosition);
