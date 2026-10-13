@@ -149,6 +149,65 @@ jobs:
           echo 'UNITY_EDITOR_6000_6_5f1_INSTALL=PASS'
           unity editors -i --format tsv
 
+      # ENG-M00-004: run the upstream original sample (not the new neutral
+      # demo) pinned to the audited commit. The script exercises original
+      # pointer-down/drag against MainScene and requires board state change.
+      # Any incompatibility is real independent evidence and must FAIL.
+      - name: Independently exercise original pinned SDK Unity sample gameplay
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk="$RUNNER_TEMP/eng-m00-pinned-sdk"
+          mkdir -p "$sdk"
+          git -C "$sdk" init -q
+          git -C "$sdk" remote add origin https://github.com/LibraStack/Match3-SDK.git
+          git -C "$sdk" fetch -q --no-tags --depth=1 origin 771e62908056c2c5fa69937a52ca52ab589f19ea
+          git -C "$sdk" checkout -q --detach FETCH_HEAD
+          actual="$(git -C "$sdk" rev-parse HEAD)"
+          [[ "$actual" == 771e62908056c2c5fa69937a52ca52ab589f19ea ]] || {
+            echo '::error::Upstream immutable SDK SHA mismatch'
+            exit 1
+          }
+          test -f "$sdk/LICENSE"
+          test -f "$sdk/samples/Unity.Match3/Assets/Scenes/MainScene.unity"
+          command -v pwsh
+          # Keep stalled upstream imports bounded and print only safe aggregate
+          # error-category counts. Never dump Unity logs or licensing metadata.
+          set +e
+          timeout 280s pwsh -NoProfile -File Tools/RunPinnedSampleGameplayProbe.ps1 \
+            -SdkCheckoutPath "$sdk" \
+            -EditorPath "$UNITY_EDITOR_PATH" \
+            -EvidenceDirectory "$RUNNER_TEMP/eng-m00-upstream-sample"
+          sample_exit=$?
+          set -e
+          python3 - "$RUNNER_TEMP/eng-m00-upstream-sample/pinned-sdk-sample-gameplay.log" "$sample_exit" <<'PY'
+          from pathlib import Path
+          import hashlib, re, sys
+          p = Path(sys.argv[1])
+          raw = p.read_bytes() if p.is_file() else b''
+          s = raw.decode('utf-8', 'replace')
+          patterns = {
+              'CSHARP_COMPILER_ERRORS': r'error CS\\d{4}',
+              'PACKAGE_RESOLVE_ERRORS': r'Failed to resolve packages|Package Manager.*error',
+              'PROBE_METHOD_ENTERED': r'M00_SAMPLE_PROBE_ENTRY',
+              'PROBE_ENTERED_PLAYMODE': r'M00_SAMPLE_PROBE_ENTERED_PLAYMODE',
+              'PROBE_READY': r'M00_SAMPLE_PROBE_READY',
+              'PROBE_PASS': r'M00_SAMPLE_GAMEPLAY_PROBE=PASS',
+              'PROBE_FAIL': r'M00_SAMPLE_GAMEPLAY_PROBE=FAIL',
+              'UNITY_ABNORMAL_EXIT': r'Aborting batchmode|Fatal Error|Segmentation fault',
+          }
+          for name, pattern in patterns.items():
+              print('SAMPLE_DIAG_%s=%d' % (name, len(re.findall(pattern, s, re.IGNORECASE))))
+          print('SAMPLE_DIAG_LOG_BYTES=%d' % len(raw))
+          print('SAMPLE_DIAG_LOG_SHA256=%s' % hashlib.sha256(raw).hexdigest())
+          print('SAMPLE_PROBE_SUBPROCESS_EXIT=%s' % sys.argv[2])
+          PY
+          if (( sample_exit != 0 )); then
+            echo '::error::Original pinned Unity SDK sample failed; review aggregate category counters, not raw private editor logs'
+            exit 1
+          fi
+          echo 'UNITY_PINNED_ORIGINAL_MATCH3_SAMPLE=PASS'
+
       - name: Run actual EditMode and PlayMode tests with licensed Unity Editor
         id: unity-tests
         shell: bash
@@ -241,34 +300,6 @@ jobs:
             -EditorPath "$UNITY_EDITOR_PATH" \
             -EvidenceDirectory "$RUNNER_TEMP/eng-m00-blank-import"
           echo 'UNITY_BLANK_PROJECT_UPM_IMPORT=PASS'
-
-      # ENG-M00-004: run the upstream original sample (not the new neutral
-      # demo) pinned to the audited commit. The script exercises original
-      # pointer-down/drag against MainScene and requires board state change.
-      # Any incompatibility is real independent evidence and must FAIL.
-      - name: Independently exercise original pinned SDK Unity sample gameplay
-        shell: bash
-        run: |
-          set -euo pipefail
-          sdk="$RUNNER_TEMP/eng-m00-pinned-sdk"
-          mkdir -p "$sdk"
-          git -C "$sdk" init -q
-          git -C "$sdk" remote add origin https://github.com/LibraStack/Match3-SDK.git
-          git -C "$sdk" fetch -q --no-tags --depth=1 origin 771e62908056c2c5fa69937a52ca52ab589f19ea
-          git -C "$sdk" checkout -q --detach FETCH_HEAD
-          actual="$(git -C "$sdk" rev-parse HEAD)"
-          [[ "$actual" == 771e62908056c2c5fa69937a52ca52ab589f19ea ]] || {
-            echo '::error::Upstream immutable SDK SHA mismatch'
-            exit 1
-          }
-          test -f "$sdk/LICENSE"
-          test -f "$sdk/samples/Unity.Match3/Assets/Scenes/MainScene.unity"
-          command -v pwsh
-          timeout 600s pwsh -NoProfile -File Tools/RunPinnedSampleGameplayProbe.ps1 \
-            -SdkCheckoutPath "$sdk" \
-            -EditorPath "$UNITY_EDITOR_PATH" \
-            -EvidenceDirectory "$RUNNER_TEMP/eng-m00-upstream-sample"
-          echo 'UNITY_PINNED_ORIGINAL_MATCH3_SAMPLE=PASS'
 
       - name: Enforce bounded evidence size
         id: evidence-size
