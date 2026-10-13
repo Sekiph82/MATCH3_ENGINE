@@ -2,6 +2,12 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # One workflow-only push lets the current Unity CI preflight run without
+  # changing game code, secrets, licensing, or local owner files.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/eng-m00-free-unity-runtime.yml'
 
 permissions:
   contents: read
