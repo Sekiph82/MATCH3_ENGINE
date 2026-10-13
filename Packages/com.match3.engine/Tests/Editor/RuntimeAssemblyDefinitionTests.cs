@@ -31,7 +31,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(definition.references, Is.Empty);
             Assert.That(definition.includePlatforms, Is.Empty);
             Assert.That(definition.optionalUnityReferences ?? Array.Empty<string>(), Does.Not.Contain("TestAssemblies"));
-            var runtimeAssembly = AppDomain.CurrentDomain.GetAssemblies().Single(assembly => assembly.GetName().Name == "Match3.Engine.Runtime");
+            var runtimeAssembly = System.Reflection.Assembly.Load("Match3.Engine.Runtime");
             Assert.That(runtimeAssembly.GetReferencedAssemblies().Any(reference => reference.Name == "UnityEditor"), Is.False);
         }
     }

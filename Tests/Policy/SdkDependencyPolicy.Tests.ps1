@@ -26,6 +26,13 @@ $tagOnly = [ordered]@{
 if (-not (@(Get-SdkDependencyPolicyFindings -Dependencies $tagOnly) | Where-Object { $_ -like '*full 40-character commit*' })) {
     throw 'Negative test failed: a tag-only SDK reference was accepted.'
 }
+$tamperedSdkRef = [ordered]@{
+    'com.chebanovdd.match3sdk' = $valid['com.chebanovdd.match3sdk'].Substring(0, $valid['com.chebanovdd.match3sdk'].Length - 1) + 'b'
+    'com.cysharp.unitask' = $unitask
+}
+if (-not (@(Get-SdkDependencyPolicyFindings -Dependencies $tamperedSdkRef) | Where-Object { $_ -like '*does not match the audited compatibility pin*' })) {
+    throw 'Negative test failed: a different but well-formed SDK commit was accepted.'
+}
 $withTween = [ordered]@{
     'com.chebanovdd.match3sdk' = $valid['com.chebanovdd.match3sdk']
     'com.cysharp.unitask' = $unitask
@@ -34,4 +41,4 @@ $withTween = [ordered]@{
 if (-not (@(Get-SdkDependencyPolicyFindings -Dependencies $withTween) | Where-Object { $_ -like '*DOTween is sample-only*' })) {
     throw 'Negative test failed: DOTween was accepted as an engine dependency.'
 }
-Write-Output 'PASS: 4 dependency policy scenarios (exact pins accepted; unpinned transitive URL, tag-only SDK ref, and DOTween engine dependency rejected).'
+Write-Output 'PASS: 5 dependency policy scenarios (exact pins accepted; unpinned transitive URL, tag-only and tampered SDK refs, and DOTween engine dependency rejected).'

@@ -58,6 +58,45 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(demo.Metrics.SettledSnapshots[1], Is.EqualTo("ABAB/CDBD/BBCC/DCBA"));
         }
 
+        [UnityTest]
+        public IEnumerator AlternateSeedRunsTheUncannedRefillPath()
+        {
+            const int alternateSeed = 20261014;
+            var metrics = new DemoMetrics(alternateSeed);
+            var game = new DemoGame(metrics);
+            game.InitializeAsync().Forget();
+            yield return new WaitUntil(() => metrics.InitialBoardSnapshot.Length > 0);
+
+            Assert.That(metrics.Seed, Is.EqualTo(alternateSeed));
+            Assert.That(game.GetSnapshot(), Is.EqualTo("CDCB/ABCD/BAAC/DCBA"));
+
+            game.TrySwapAsync(new GridPosition(1, 0), new GridPosition(2, 0)).Forget();
+            yield return new WaitUntil(() => !game.IsBusy);
+
+            Assert.That(metrics.MoveAccepted, Is.True);
+            Assert.That(metrics.InitialMatchedItemCount, Is.EqualTo(3));
+            Assert.That(metrics.GoalAchieved, Is.True);
+            Assert.That(metrics.SettledSnapshots, Is.Not.Empty);
+            Assert.That(metrics.Events, Does.Contain("score-wave:0:3:30:total-30"));
+        }
+
+        [UnityTest]
+        public IEnumerator SameSlotSwapIsRejectedWithoutChangingBoardOrMoves()
+        {
+            yield return LoadDemoScene();
+            var demo = Object.FindAnyObjectByType<NeutralMatch3Demo>();
+            Assert.That(demo, Is.Not.Null);
+
+            var before = demo.BoardSnapshot;
+            var movesBefore = demo.Metrics.MovesRemaining;
+            demo.TrySwapAsync(new GridPosition(0, 0), new GridPosition(0, 0)).Forget();
+            yield return null;
+
+            Assert.That(demo.BoardSnapshot, Is.EqualTo(before));
+            Assert.That(demo.Metrics.MovesRemaining, Is.EqualTo(movesBefore));
+            Assert.That(demo.Metrics.MoveAccepted, Is.False);
+        }
+
         private static IEnumerator LoadDemoScene()
         {
             var load = SceneManager.LoadSceneAsync("NeutralMatch3Demo", LoadSceneMode.Single);

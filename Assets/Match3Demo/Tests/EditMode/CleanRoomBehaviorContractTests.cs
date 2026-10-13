@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Match3.App;
 using Match3.Core.Interfaces;
 using Match3.Core.Structs;
@@ -35,6 +36,31 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [Test]
+        public void TargetCollectionHandlesDuplicateSlotsAcrossRefillWaves()
+        {
+            var repeatedRefillSlot = new FixtureSlot(0, true, true);
+            var goal = new SdkTargetCollectionGoal<FixtureSlot>(4, slot => slot.ItemId == 0);
+            var achievedEvents = 0;
+            goal.Achieved += (_, _) => achievedEvents++;
+
+            goal.OnSequencesSolved(Solved(
+                new[] { repeatedRefillSlot, repeatedRefillSlot },
+                new[] { repeatedRefillSlot, new FixtureSlot(0, true, true) }));
+            Assert.That(goal.CollectedCount, Is.EqualTo(2));
+            Assert.That(goal.IsAchieved, Is.False);
+
+            goal.OnSequencesSolved(Solved(new FixtureSlot(0, true, true)));
+            Assert.That(goal.CollectedCount, Is.EqualTo(3));
+
+            goal.OnSequencesSolved(Solved(new FixtureSlot(0, true, true)));
+            goal.OnSequencesSolved(Solved(new FixtureSlot(0, true, true)));
+
+            Assert.That(goal.CollectedCount, Is.EqualTo(4));
+            Assert.That(goal.IsAchieved, Is.True);
+            Assert.That(achievedEvents, Is.EqualTo(1));
+        }
+
+        [Test]
         public void TargetCollectionRejectsInvalidConfigurationAndIgnoresNonmatches()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
@@ -59,6 +85,12 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(CascadeScoreRules.GetAward(3, 1), Is.EqualTo(60));
             Assert.That(CascadeScoreRules.GetAward(3, 5), Is.EqualTo(120));
             Assert.That(CascadeScoreRules.GetAward(0, 1), Is.Zero);
+
+            var chainAwards = Enumerable.Range(0, 5)
+                .Select(wave => CascadeScoreRules.GetAward(3, wave))
+                .ToArray();
+            Assert.That(chainAwards, Is.EqualTo(new[] { 30, 60, 90, 120, 120 }));
+            Assert.That(chainAwards.Sum(), Is.EqualTo(420));
         }
 
         [Test]
@@ -70,10 +102,14 @@ namespace Match3.Engine.Demo.Tests
 
         private static SolvedData<FixtureSlot> Solved(params FixtureSlot[] slots)
         {
-            return new SolvedData<FixtureSlot>(new[]
-            {
-                new ItemSequence<FixtureSlot>(typeof(CleanRoomBehaviorContractTests), slots)
-            }, Array.Empty<FixtureSlot>());
+            return Solved(new[] { slots });
+        }
+
+        private static SolvedData<FixtureSlot> Solved(params FixtureSlot[][] sequences)
+        {
+            var solvedSequences = sequences.Select(slots =>
+                new ItemSequence<FixtureSlot>(typeof(CleanRoomBehaviorContractTests), slots));
+            return new SolvedData<FixtureSlot>(solvedSequences.ToArray(), Array.Empty<FixtureSlot>());
         }
 
         private sealed class FixtureSlot : IGridSlot

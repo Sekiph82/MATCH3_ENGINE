@@ -34,6 +34,8 @@ The sample contains a `DOTween.dll` and its original `readme.txt`; DOTween is no
 
 The isolated Unity 6.6 project imported and its original `MainScene` loaded in PlayMode. The Drive child log carries the executed commands, Unity exits, positive and intentional-failure test results, source/result hashes, and redacted NUnit XML. This compatibility note does not claim a player build or device test.
 
+R01 adds `Tools/RunPinnedSampleGameplayProbe.ps1` and `Tools/M00PinnedSampleGameplayProbe.cs`. The probe verifies the upstream checkout is exactly `771e62908056c2c5fa69937a52ca52ab589f19ea`, creates a temporary Unity 6.6 copy, resolves SDK source and pinned UniTask plus the original licensed DOTween sample binary, opens `MainScene`, and drives the sample's own pointer-down/drag callbacks across adjacent movable slots until the SDK accepts a move and the board contents change. This is an executable route only; it is not a new test result until the R01 manual workflow runs on the separately controlled Unity runner.
+
 ## Reproducible package resolution
 
 `Tools/ResolveSdkDependencyCompatibility.ps1` checks the exact SDK and UniTask commits with the installed Unity editor in batch mode. By default it uses a temporary manifest and restores the original manifest and lock byte-for-byte. For the committed project manifest, add `-PersistResolvedLock` to resolve and retain `Packages/packages-lock.json`. Both modes retain their temporary backups and log for review.

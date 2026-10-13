@@ -1,0 +1,190 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Common;
+using Common.Interfaces;
+using Match3.Core.Structs;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+public static class M00PinnedSampleGameplayProbe
+{
+    private sealed class MoveCandidate
+    {
+        public IUnityGridSlot First;
+        public IUnityGridSlot Second;
+    }
+
+    private const string ScenePath = "Assets/Scenes/MainScene.unity";
+    private const double ActionSettleSeconds = 2.5;
+    private const double ProbeTimeoutSeconds = 120;
+    private static readonly MethodInfo PointerDown = typeof(CanvasInputSystem).GetMethod("OnPointerDown", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly MethodInfo PointerDrag = typeof(CanvasInputSystem).GetMethod("OnPointerDrag", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo CameraField = typeof(CanvasInputSystem).GetField("_camera", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly List<MoveCandidate> Candidates = new List<MoveCandidate>();
+
+    private static UnityGame _game;
+    private static CanvasInputSystem _input;
+    private static UnityGameBoardRenderer _renderer;
+    private static Camera _camera;
+    private static string _beforeAction;
+    private static double _probeStartedAt;
+    private static double _actionStartedAt;
+    private static int _candidateIndex;
+    private static bool _waitingForAction;
+
+    public static void Run()
+    {
+        if (PointerDown == null || PointerDrag == null || CameraField == null)
+        {
+            Fail("original sample input hooks could not be reflected");
+            return;
+        }
+
+        EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        EditorApplication.isPlaying = true;
+    }
+
+    private static void OnPlayModeStateChanged(PlayModeStateChange state)
+    {
+        if (state != PlayModeStateChange.EnteredPlayMode)
+        {
+            return;
+        }
+
+        EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        _probeStartedAt = EditorApplication.timeSinceStartup;
+        EditorApplication.update += Tick;
+    }
+
+    private static void Tick()
+    {
+        if (EditorApplication.timeSinceStartup - _probeStartedAt > ProbeTimeoutSeconds)
+        {
+            Fail("timed out before an accepted board-changing input action was observed");
+            return;
+        }
+
+        if (_game == null)
+        {
+            var context = UnityEngine.Object.FindAnyObjectByType<AppContext>();
+            _input = UnityEngine.Object.FindAnyObjectByType<CanvasInputSystem>();
+            _renderer = UnityEngine.Object.FindAnyObjectByType<UnityGameBoardRenderer>();
+            if (context == null || _input == null || _renderer == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _game = context.Resolve<UnityGame>();
+                _camera = (Camera)CameraField.GetValue(_input);
+                if (_game == null || _camera == null)
+                {
+                    return;
+                }
+                BuildCandidates(_game.GetGridSlots().ToArray());
+                Debug.Log("M00_SAMPLE_PROBE_READY scene=" + ScenePath + " movable_edges=" + Candidates.Count);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning("M00 sample board is not ready: " + exception.GetType().Name);
+                _game = null;
+                return;
+            }
+        }
+
+        if (_waitingForAction)
+        {
+            if (EditorApplication.timeSinceStartup - _actionStartedAt < ActionSettleSeconds)
+            {
+                return;
+            }
+
+            var after = Snapshot(_game.GetGridSlots());
+            if (!string.Equals(after, _beforeAction, System.StringComparison.Ordinal))
+            {
+                Debug.Log("M00_SAMPLE_GAMEPLAY_PROBE=PASS source_commit=771e62908056c2c5fa69937a52ca52ab589f19ea scene=" + ScenePath + " accepted_input=PointerDown+PointerDrag board_changed=true before=" + _beforeAction + " after=" + after);
+                Finish(0);
+                return;
+            }
+
+            _waitingForAction = false;
+        }
+
+        if (_candidateIndex >= Candidates.Count)
+        {
+            Fail("all movable adjacent pairs rolled back or failed to change the original board");
+            return;
+        }
+
+        var candidate = Candidates[_candidateIndex++];
+        _beforeAction = Snapshot(_game.GetGridSlots());
+        SendPointer(PointerDown, candidate.First.GridPosition);
+        SendPointer(PointerDrag, candidate.Second.GridPosition);
+        _actionStartedAt = EditorApplication.timeSinceStartup;
+        _waitingForAction = true;
+    }
+
+    private static void BuildCandidates(IUnityGridSlot[] slots)
+    {
+        var byPosition = slots.ToDictionary(slot => Key(slot.GridPosition));
+        foreach (var slot in slots.OrderBy(item => item.GridPosition.RowIndex).ThenBy(item => item.GridPosition.ColumnIndex))
+        {
+            if (!slot.IsMovable)
+            {
+                continue;
+            }
+
+            var row = slot.GridPosition.RowIndex;
+            var column = slot.GridPosition.ColumnIndex;
+            AddCandidate(byPosition, slot, new GridPosition(row, column + 1));
+            AddCandidate(byPosition, slot, new GridPosition(row + 1, column));
+        }
+    }
+
+    private static void AddCandidate(IDictionary<string, IUnityGridSlot> byPosition, IUnityGridSlot first, GridPosition secondPosition)
+    {
+        IUnityGridSlot second;
+        if (byPosition.TryGetValue(Key(secondPosition), out second) && second.IsMovable)
+        {
+            Candidates.Add(new MoveCandidate { First = first, Second = second });
+        }
+    }
+
+    private static string Key(GridPosition position)
+    {
+        return position.RowIndex + ":" + position.ColumnIndex;
+    }
+
+    private static void SendPointer(MethodInfo method, GridPosition position)
+    {
+        var world = _renderer.GetWorldPosition(position);
+        var screen = _camera.WorldToScreenPoint(world);
+        var data = new PointerEventData(EventSystem.current) { position = screen };
+        method.Invoke(_input, new object[] { data });
+    }
+
+    private static string Snapshot(IEnumerable<IUnityGridSlot> slots)
+    {
+        return string.Join("/", slots.OrderBy(slot => slot.GridPosition.RowIndex).ThenBy(slot => slot.GridPosition.ColumnIndex)
+            .Select(slot => slot.HasItem && slot.Item != null ? RuntimeHelpers.GetHashCode(slot.Item).ToString("x8") : "empty"));
+    }
+
+    private static void Fail(string reason)
+    {
+        Debug.LogError("M00_SAMPLE_GAMEPLAY_PROBE=FAIL reason=" + reason);
+        Finish(2);
+    }
+
+    private static void Finish(int exitCode)
+    {
+        EditorApplication.update -= Tick;
+        EditorApplication.isPlaying = false;
+        EditorApplication.delayCall += () => EditorApplication.Exit(exitCode);
+    }
+}

@@ -17,11 +17,12 @@ namespace Match3.Engine.Demo
         private readonly DemoMetrics _metrics;
         private readonly SeededItemSource _itemSource;
 
-        public DemoFillStrategy(IGameBoardSolver<DemoGridSlot> solver, DemoMetrics metrics, int seed)
+        public DemoFillStrategy(IGameBoardSolver<DemoGridSlot> solver, DemoMetrics metrics, int seed,
+            bool useCascadeSetup)
         {
             _solver = solver;
             _metrics = metrics;
-            _itemSource = new SeededItemSource(seed);
+            _itemSource = new SeededItemSource(seed, useCascadeSetup);
         }
 
         public string Name => "Seeded neutral demo fill";
@@ -163,12 +164,13 @@ namespace Match3.Engine.Demo
     internal sealed class SeededItemSource
     {
         private readonly System.Random _random;
-        private readonly int[] _cascadeSetup = { 2, 2, 2, 0, 1, 0, 1, 2 };
+        private readonly int[] _cascadeSetup;
         private int _index;
 
-        public SeededItemSource(int seed)
+        public SeededItemSource(int seed, bool useCascadeSetup)
         {
             _random = new System.Random(seed);
+            _cascadeSetup = useCascadeSetup ? new[] { 2, 2, 2, 0, 1, 0, 1, 2 } : Array.Empty<int>();
         }
 
         public int NextItemId()

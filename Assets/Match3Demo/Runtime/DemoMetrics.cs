@@ -8,8 +8,14 @@ namespace Match3.Engine.Demo
     {
         private readonly List<string> _events = new List<string>();
         private readonly List<string> _settledSnapshots = new List<string>();
+        private readonly int _seed;
 
-        public int Seed => DemoScenario.Seed;
+        public DemoMetrics(int seed = DemoScenario.Seed)
+        {
+            _seed = seed;
+        }
+
+        public int Seed => _seed;
         public int MovesRemaining { get; private set; } = DemoScenario.StartingMoves;
         public bool MoveAccepted { get; private set; }
         public bool GoalAchieved { get; private set; }

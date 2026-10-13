@@ -135,7 +135,8 @@ namespace Match3.Engine.Demo
                         new VerticalLineDetector<DemoGridSlot>()
                     },
                     new ISpecialItemDetector<DemoGridSlot>[0]);
-                FillStrategy = new DemoFillStrategy(solver, metrics, DemoScenario.Seed);
+                FillStrategy = new DemoFillStrategy(solver, metrics, metrics.Seed,
+                    metrics.Seed == DemoScenario.Seed);
                 Config = new GameConfig<DemoGridSlot>
                 {
                     GameBoardSolver = solver,

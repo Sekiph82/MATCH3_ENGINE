@@ -2,13 +2,16 @@
 param(
     [string] $ProjectPath = (Split-Path -Parent $PSScriptRoot),
     [string] $EditorPath = 'C:\Program Files\Unity\Hub\Editor\6000.6.5f1\Editor\Unity.exe',
-    [string] $ReleaseArtifactPath
+    [string] $ReleaseArtifactPath,
+    [string] $EvidenceDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $project = (Resolve-Path -LiteralPath $ProjectPath).Path
 $runner = Join-Path $PSScriptRoot 'RunUnityEditModeTests.ps1'
 $scannerTests = Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Policy\ReleaseArtifactScanner.Tests.ps1'
+$dependencyPolicyTests = Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Policy\SdkDependencyPolicy.Tests.ps1'
+$bootstrapTests = Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Policy\UnityBootstrap.Tests.ps1'
 $repositoryPolicyTests = Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Policy\MilestoneRepositoryPolicy.Tests.ps1'
 $scanner = Join-Path $PSScriptRoot 'ScanUnityReleaseArtifact.ps1'
 $repositoryPolicy = Join-Path $PSScriptRoot 'ValidateMilestoneRepositoryPolicy.ps1'
@@ -30,7 +33,12 @@ function Invoke-PowerShellChild([string] $scriptPath, [string[]] $arguments) {
 
 foreach ($platform in @('EditMode', 'PlayMode')) {
     Write-Output "RUN_UNITY_TESTS=$platform"
-    $code = Invoke-PowerShellChild $runner @('-ProjectPath', $project, '-EditorPath', $EditorPath, '-TestPlatform', $platform)
+    $runnerArgs = @('-ProjectPath', $project, '-EditorPath', $EditorPath, '-TestPlatform', $platform)
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+        $platformEvidence = Join-Path ([System.IO.Path]::GetFullPath($EvidenceDirectory)) $platform
+        $runnerArgs += @('-EvidenceDirectory', $platformEvidence)
+    }
+    $code = Invoke-PowerShellChild $runner $runnerArgs
     if ($code -ne 0) {
         Write-Output "UNITY_CI_FAILURE: Unity $platform checks failed with child exit code $code."
         exit $code
@@ -45,6 +53,8 @@ if ($code -ne 0) {
 }
 
 foreach ($policyCheck in @(
+    @('RUN_SDK_DEPENDENCY_POLICY_FIXTURES', $dependencyPolicyTests),
+    @('RUN_UNITY_BOOTSTRAP_POLICY_FIXTURES', $bootstrapTests),
     @('RUN_REPOSITORY_POLICY_FIXTURES', $repositoryPolicyTests),
     @('RUN_REUSE_RIGHTS_VALIDATOR', $reusePolicy),
     @('RUN_REPOSITORY_POLICY_VALIDATOR', $repositoryPolicy)

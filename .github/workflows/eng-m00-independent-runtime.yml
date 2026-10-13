@@ -1,0 +1,107 @@
+name: ENG-M00 independent Unity runtime proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eng-m00-independent-runtime
+  cancel-in-progress: false
+
+jobs:
+  unity-proof:
+    # This must be a separate, clean, auditor-controlled machine with the exact
+    # licensed Unity editor and Windows player module already installed.
+    runs-on: [self-hosted, windows, x64, independent-unity-6000.6.5f1, windows-build-support]
+    environment: m00-independent-runtime
+    timeout-minutes: 90
+    env:
+      UNITY_EDITOR_PATH: C:\Program Files\Unity\Hub\Editor\6000.6.5f1\Editor\Unity.exe
+      PROOF_SOURCE_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Checkout exact workflow source SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify clean checkout, source SHA, and Unity version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $actual = (& git rev-parse HEAD).Trim()
+          if ($actual -ne $env:PROOF_SOURCE_SHA) { throw "Checkout SHA mismatch: expected $env:PROOF_SOURCE_SHA, got $actual." }
+          if (@(& git status --porcelain).Count -ne 0) { throw 'Runner checkout was not clean before execution.' }
+          if (-not (Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)) { throw "Pinned Unity Editor is missing: $env:UNITY_EDITOR_PATH" }
+          $version = (& $env:UNITY_EDITOR_PATH -version 2>&1 | Out-String)
+          if ($version -notmatch '6000\.6\.5f1') { throw "Unexpected Unity version: $version" }
+          New-Item -ItemType Directory -Path evidence -Force | Out-Null
+          @("SOURCE_SHA=$actual", "UNITY_EDITOR=$version", "RUN_ID=$env:GITHUB_RUN_ID", "RUN_URL=$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID") | Set-Content evidence\runner-metadata.txt -Encoding utf8NoBOM
+
+      - name: Prove Unity propagates an intentional assertion failure
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\RunUnityEditModeTests.ps1 -ProjectPath . -EditorPath "$env:UNITY_EDITOR_PATH" -TestPlatform EditMode -FailureProbe -EvidenceDirectory evidence\runner-integrity
+
+      - name: Run all EditMode, PlayMode, and repository policy tests
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\RunUnityCI.ps1 -ProjectPath . -EditorPath "$env:UNITY_EDITOR_PATH" -EvidenceDirectory evidence\unity-ci
+
+      - name: Import exact packages in a clean blank Unity project
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\TestBlankUnityProjectImport.ps1 -SourceProjectPath . -EditorPath "$env:UNITY_EDITOR_PATH" -EvidenceDirectory evidence\blank-project
+
+      - name: Checkout the immutable licensed SDK sample source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: LibraStack/Match3-SDK
+          ref: 771e62908056c2c5fa69937a52ca52ab589f19ea
+          path: external\Match3-SDK
+          persist-credentials: false
+
+      - name: Run an actual board-changing input action in the original SDK sample
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\RunPinnedSampleGameplayProbe.ps1 -SdkCheckoutPath external\Match3-SDK -EditorPath "$env:UNITY_EDITOR_PATH" -EvidenceDirectory evidence\pinned-sample
+
+      - name: Build and scan the Windows player for excluded test assemblies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $playerDir = Join-Path $PWD 'evidence\player'
+          New-Item -ItemType Directory -Path $playerDir -Force | Out-Null
+          $player = Join-Path $playerDir 'Match3.exe'
+          $log = Join-Path $PWD 'evidence\windows-player-build.log'
+          $start = [System.Diagnostics.ProcessStartInfo]::new()
+          $start.FileName = $env:UNITY_EDITOR_PATH
+          $start.UseShellExecute = $false
+          foreach ($argument in @('-batchmode','-nographics','-quit','-projectPath',$PWD.Path,'-buildWindows64Player',$player,'-logFile',$log)) { [void]$start.ArgumentList.Add($argument) }
+          $process = [System.Diagnostics.Process]::Start($start)
+          $process.WaitForExit()
+          if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $player -PathType Leaf)) { throw "Windows player build failed with exit $($process.ExitCode). See $log" }
+          pwsh -NoProfile -File Tools\ScanUnityReleaseArtifact.ps1 -ArtifactPath $playerDir | Tee-Object -FilePath evidence\player-scan.txt
+          if ($LASTEXITCODE -ne 0) { throw "Release scanner rejected the built player (exit $LASTEXITCODE)." }
+
+      - name: Verify protected tracker and capture final evidence manifest
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $taskDiff = @(& git diff --name-only HEAD -- TASKS.md)
+          if ($taskDiff.Count -ne 0) { throw 'Protected root TASKS.md was changed by the run.' }
+          if (Test-Path evidence -PathType Container) {
+            Get-ChildItem evidence -Recurse -File | Sort-Object FullName | ForEach-Object {
+              $relative = [System.IO.Path]::GetRelativePath($PWD.Path, $_.FullName).Replace('\','/')
+              "$relative SHA256=$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash) BYTES=$($_.Length)"
+            } | Set-Content evidence\sha256-manifest.txt -Encoding utf8NoBOM
+          }
+
+      - name: Upload raw Unity logs, NUnit XML, lockfiles, build, and hashes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: eng-m00-independent-unity-${{ github.sha }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 30
