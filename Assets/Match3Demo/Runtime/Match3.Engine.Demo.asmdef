@@ -5,7 +5,8 @@
     "Match3.App",
     "Match3.Core",
     "Match3.Infrastructure",
-    "UniTask"
+    "UniTask",
+    "Match3.Engine.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
