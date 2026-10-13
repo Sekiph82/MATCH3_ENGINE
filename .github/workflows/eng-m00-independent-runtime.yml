@@ -65,6 +65,10 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File Tools\RunPinnedSampleGameplayProbe.ps1 -SdkCheckoutPath external\Match3-SDK -EditorPath "$env:UNITY_EDITOR_PATH" -EvidenceDirectory evidence\pinned-sample
 
+      - name: Validate and hash the complete Unity source asset inputs before build
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\ScanUnityReleaseArtifact.ps1 -SourceAssetRoot Assets -ManifestPath evidence\prebuild-source-assets.txt
+
       - name: Build and scan the Windows player for excluded test assemblies
         shell: pwsh
         run: |

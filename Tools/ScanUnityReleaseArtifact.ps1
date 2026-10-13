@@ -1,26 +1,55 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string] $ArtifactPath
+    [Parameter(Mandatory = $true, ParameterSetName = 'Artifact')][string] $ArtifactPath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'SourceManifest')][string[]] $SourceAssetRoot,
+    [Parameter(Mandatory = $true, ParameterSetName = 'SourceManifest')][string] $ManifestPath
 )
 
 $ErrorActionPreference = 'Stop'
-$artifact = (Resolve-Path -LiteralPath $ArtifactPath).Path
 $archiveExtensions = @('.apk', '.aab', '.ipa', '.zip', '.unitypackage')
 $maxInspectBytes = 268435456
 $script:scannedItems = 0
 $script:violations = [System.Collections.Generic.List[string]]::new()
 
-function Add-PathFinding([string] $label, [string] $path) {
+function Get-DeveloperResourceFinding([string] $normalizedPath) {
+    $developerDirectoryFamilies = @(
+        '(?i)(^|/)StreamingAssets/Diagnostics(/|$)',
+        '(?i)(^|/)Addressables/Development(/|$)',
+        '(?i)(^|/)Resources/DeveloperLogs(/|$)',
+        '(?i)(^|/)StreamingAssets/Factory/(DeveloperOnly|Tooling|Diagnostics|Debug|Database|Pipeline|PipelineOutput|PipelineCache)(/|$)'
+    )
+    foreach ($pattern in $developerDirectoryFamilies) {
+        if ($normalizedPath -match $pattern) {
+            return "developer-only resource family matched '$pattern'"
+        }
+    }
+
+    if ($normalizedPath -match '(?i)(^|/)StreamingAssets/Factory/') {
+        $extension = [System.IO.Path]::GetExtension($normalizedPath).ToLowerInvariant()
+        # These are production visual formats, including the themed Factory art
+        # allowlist. A developer directory above still takes precedence.
+        $factoryArtExtensions = @('.png', '.jpg', '.jpeg', '.webp', '.tga', '.psd')
+        if ($factoryArtExtensions -contains $extension) { return $null }
+
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($normalizedPath)
+        $toolingExtensions = @('.bytes', '.db', '.sqlite', '.cache', '.manifest', '.output', '.dat', '.csv', '.tsv', '.json', '.asset', '.prefab', '.txt', '.log', '.bin', '.xml', '.yaml', '.yml')
+        if (($toolingExtensions -contains $extension) -and $name -match '(?i)(database|debug|pipeline)') {
+            return 'Factory database, debug, or pipeline tooling family'
+        }
+    }
+
+    return $null
+}
+
+function Add-PathFinding([string] $label, [string] $path, [switch] $SourceAsset) {
     $normalized = $path.Replace([string][char]92, '/')
     $name = [System.IO.Path]::GetFileName($normalized)
-    $forbiddenSegment = $normalized -match '(?i)(^|/)(Editor|Tests?|TestFixtures|Evidence)(/|$)'
-    $forbiddenAssembly = $name -match '(?i)(NUnit.*\.dll|Unity(?:Engine|Editor)\.TestRunner.*\.dll|[^/]*(?:Tests?|TestAssembly)[^/]*\.dll)$'
+    $forbiddenSegment = -not $SourceAsset -and $normalized -match '(?i)(^|/)(Editor|Tests?|TestFixtures|Evidence)(/|$)'
+    $forbiddenAssembly = -not $SourceAsset -and $name -match '(?i)(NUnit.*\.dll|Unity(?:Engine|Editor)\.TestRunner.*\.dll|[^/]*(?:Tests?|TestAssembly)[^/]*\.dll)$'
     $resourceCode = $normalized -match '(?i)(^|/)(Resources|StreamingAssets|Addressables)(/|$).+\.(cs|ps1|asmdef|rsp)$'
-    # Reject known developer-only/evidence payloads by their complete resource
-    # path. Keep the Factory rule filename-specific so themed Factory artwork
-    # and other legitimate game assets remain allowed.
-    $developerResource = $normalized -match '(?i)(^|/)StreamingAssets/Diagnostics/evidence\.json$|(^|/)StreamingAssets/Factory/FactoryDatabase\.bytes$|(^|/)Addressables/Development/DebugOverlay\.prefab$'
-    if ($forbiddenSegment -or $forbiddenAssembly -or $resourceCode -or $developerResource) {
+    $developerResource = Get-DeveloperResourceFinding $normalized
+    $opaqueSourceBundle = $SourceAsset -and [System.IO.Path]::GetExtension($normalized) -match '(?i)^\.(bundle|assetbundle|unity3d)$'
+    if ($forbiddenSegment -or $forbiddenAssembly -or $resourceCode -or $developerResource -or $opaqueSourceBundle) {
         $script:violations.Add("$label contains forbidden path: $normalized")
     }
 }
@@ -103,6 +132,63 @@ function Inspect-File([string] $filePath, [string] $relativePath) {
     }
 }
 
+if ($PSCmdlet.ParameterSetName -eq 'SourceManifest') {
+    $roots = [System.Collections.Generic.List[string]]::new()
+    foreach ($rootPath in $SourceAssetRoot) {
+        $resolvedRoot = (Resolve-Path -LiteralPath $rootPath).Path
+        if (-not (Test-Path -LiteralPath $resolvedRoot -PathType Container)) {
+            throw "Source asset root must be a directory: $rootPath"
+        }
+        $roots.Add($resolvedRoot)
+    }
+    if ($roots.Count -eq 0) { throw 'At least one source asset root is required.' }
+
+    $manifest = [System.IO.Path]::GetFullPath($ManifestPath)
+    if (Test-Path -LiteralPath $manifest) { throw "Refusing to overwrite an existing source manifest: $manifest" }
+    $manifestParent = Split-Path -Parent $manifest
+    if (-not (Test-Path -LiteralPath $manifestParent -PathType Container)) {
+        throw "Source manifest parent directory does not exist: $manifestParent"
+    }
+    foreach ($root in $roots) {
+        $rootPrefix = $root.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+        if ($manifest.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Source manifest must be outside the input asset roots: $manifest"
+        }
+    }
+
+    $records = [System.Collections.Generic.List[string]]::new()
+    foreach ($root in $roots) {
+        $rootName = Split-Path -Leaf $root
+        $files = @(Get-ChildItem -LiteralPath $root -Recurse -File)
+        if ($files.Count -eq 0) { throw "Source asset root is empty; refusing an uninformative manifest: $root" }
+        foreach ($file in $files) {
+            $relative = [System.IO.Path]::GetRelativePath($root, $file.FullName).Replace([string][char]92, '/')
+            $assetPath = "$rootName/$relative"
+            Add-PathFinding $assetPath $assetPath -SourceAsset
+            $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $records.Add("$assetPath SHA256=$hash BYTES=$($file.Length)")
+            $script:scannedItems++
+        }
+    }
+
+    if ($script:violations.Count -gt 0) {
+        $script:violations | ForEach-Object { Write-Output $_ }
+        Write-Output "SOURCE_MANIFEST=FAIL ITEMS=$script:scannedItems VIOLATIONS=$($script:violations.Count)"
+        exit 1
+    }
+
+    $header = @(
+        'MATCH3_ENGINE Unity release source asset manifest',
+        'All files under the declared source roots were SHA-256 inventoried before the player build.',
+        'Opaque prebuilt bundles are not introspected; they must be built from these validated source roots or excluded.',
+        "ROOTS=$($roots.Count) FILES=$script:scannedItems"
+    )
+    [System.IO.File]::WriteAllLines($manifest, [string[]]($header + @($records | Sort-Object -CaseSensitive)), [System.Text.UTF8Encoding]::new($false))
+    Write-Output "SOURCE_MANIFEST=PASS ROOTS=$($roots.Count) FILES=$script:scannedItems VIOLATIONS=0 PATH=$manifest"
+    exit 0
+}
+
+$artifact = (Resolve-Path -LiteralPath $ArtifactPath).Path
 if (Test-Path -LiteralPath $artifact -PathType Container) {
     foreach ($file in Get-ChildItem -LiteralPath $artifact -Recurse -File) {
         $relative = [System.IO.Path]::GetRelativePath($artifact, $file.FullName)
