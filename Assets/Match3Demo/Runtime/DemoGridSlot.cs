@@ -7,10 +7,10 @@ namespace Match3.Engine.Demo
     {
         private readonly DemoTileState _state;
 
-        public DemoGridSlot(GridPosition gridPosition)
+        public DemoGridSlot(GridPosition gridPosition, bool isLocked = false)
         {
             GridPosition = gridPosition;
-            _state = new DemoTileState();
+            _state = new DemoTileState(isLocked);
         }
 
         public int ItemId => Item?.ItemId ?? -1;
@@ -34,8 +34,13 @@ namespace Match3.Engine.Demo
 
     internal sealed class DemoTileState : IGridSlotState
     {
+        public DemoTileState(bool isLocked)
+        {
+            IsLocked = isLocked;
+        }
+
         public int GroupId => 0;
-        public bool IsLocked => false;
+        public bool IsLocked { get; }
         public bool CanContainItem => true;
     }
 }
