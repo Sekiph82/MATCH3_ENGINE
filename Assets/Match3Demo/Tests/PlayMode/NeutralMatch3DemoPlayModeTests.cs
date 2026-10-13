@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using Match3.Core.Structs;
+using Match3.Engine.Runtime;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -82,6 +83,35 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(demo.Metrics.SettledSnapshots.Count, Is.EqualTo(2));
             Assert.That(demo.Metrics.SettledSnapshots[0], Is.EqualTo("CCCB/CDCD/BBCC/DCBA"));
             Assert.That(demo.Metrics.SettledSnapshots[1], Is.EqualTo("ABAB/CDBD/BBCC/DCBA"));
+        }
+
+        [UnityTest]
+        public IEnumerator ReadOnlyAdapterObservesRealSdkSwapAndCannotEditBoard()
+        {
+            var metrics = new DemoMetrics(20261013);
+            var game = new DemoGame(metrics);
+            game.InitializeAsync().Forget();
+            yield return new WaitUntil(() => metrics.InitialBoardSnapshot.Length > 0);
+
+            IReadOnlyMatch3Outcome reader = new DemoSdkReadAdapter(game, metrics);
+            Assert.That(reader.BoardSnapshot, Is.EqualTo(game.GetSnapshot()));
+            Assert.That(reader.MovesRemaining, Is.EqualTo(2));
+            Assert.That(typeof(IReadOnlyMatch3Outcome).GetProperties().All(p => !p.CanWrite), Is.True);
+            Assert.That(typeof(IReadOnlyMatch3Outcome).GetMethods()
+                .All(m => m.IsSpecialName && m.Name.StartsWith("get_")), Is.True);
+
+            game.TrySwapAsync(new GridPosition(1, 0), new GridPosition(2, 0)).Forget();
+            yield return new WaitUntil(() => !game.IsBusy);
+
+            Assert.That(metrics.MoveAccepted, Is.True);
+            Assert.That(reader.BoardSnapshot, Is.EqualTo(game.GetSnapshot()));
+            Assert.That(reader.BoardSnapshot, Is.Not.EqualTo(metrics.InitialBoardSnapshot));
+            Assert.That(reader.MovesRemaining, Is.EqualTo(1));
+            Assert.That(reader.GoalAchieved, Is.True);
+            Assert.That(reader.GameFinished, Is.True);
+            Assert.That(reader.Score, Is.EqualTo(130));
+            Assert.Throws<System.ArgumentNullException>(() => new DemoSdkReadAdapter(null, metrics));
+            Assert.Throws<System.ArgumentNullException>(() => new DemoSdkReadAdapter(game, null));
         }
 
         [UnityTest]
