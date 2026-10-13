@@ -10,6 +10,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+[InitializeOnLoad]
 public static class M00PinnedSampleGameplayProbe
 {
     private sealed class MoveCandidate
@@ -19,6 +20,10 @@ public static class M00PinnedSampleGameplayProbe
     }
 
     private const string ScenePath = "Assets/Scenes/MainScene.unity";
+    // Play Mode may reload the editor scripting domain and discard callbacks.
+    // SessionState persists within this one temporary Unity Editor process.
+    private const string ActiveSessionKey = "M00PinnedSdkProbe.Active";
+    private const string StartSessionKey = "M00PinnedSdkProbe.Start";
     private const double ActionSettleSeconds = 2.5;
     private const double ProbeTimeoutSeconds = 120;
     private static readonly MethodInfo PointerDown = typeof(CanvasInputSystem).GetMethod("OnPointerDown", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -37,6 +42,16 @@ public static class M00PinnedSampleGameplayProbe
     private static double _actionStartedAt;
     private static int _candidateIndex;
     private static bool _waitingForAction;
+    private static bool _tickStarted;
+
+    static M00PinnedSampleGameplayProbe()
+    {
+        if (SessionState.GetBool(ActiveSessionKey, false))
+        {
+            EditorApplication.update += RestoreAfterDomainReload;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        }
+    }
 
     public static void Run()
     {
@@ -49,7 +64,9 @@ public static class M00PinnedSampleGameplayProbe
         Debug.Log("M00_SAMPLE_PROBE_ENTRY method=Run scene=" + ScenePath);
         EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         _playModeRequestedAt = EditorApplication.timeSinceStartup;
-        EditorApplication.update += WaitForPlayMode;
+        SessionState.SetFloat(StartSessionKey, (float)_playModeRequestedAt);
+        SessionState.SetBool(ActiveSessionKey, true);
+        EditorApplication.update += RestoreAfterDomainReload;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         EditorApplication.isPlaying = true;
     }
@@ -61,19 +78,39 @@ public static class M00PinnedSampleGameplayProbe
             return;
         }
 
-        EditorApplication.update -= WaitForPlayMode;
+        BeginProbeAfterPlayMode();
+    }
+
+    private static void RestoreAfterDomainReload()
+    {
+        if (!SessionState.GetBool(ActiveSessionKey, false))
+        {
+            EditorApplication.update -= RestoreAfterDomainReload;
+            return;
+        }
+
+        if (EditorApplication.isPlaying)
+        {
+            BeginProbeAfterPlayMode();
+            return;
+        }
+
+        double requestedAt = SessionState.GetFloat(StartSessionKey, (float)_playModeRequestedAt);
+        if (EditorApplication.timeSinceStartup - requestedAt > PlayModeEntryTimeoutSeconds)
+        {
+            Fail("timed out waiting for actual PlayMode after script-domain reload");
+        }
+    }
+
+    private static void BeginProbeAfterPlayMode()
+    {
+        if (_tickStarted || !SessionState.GetBool(ActiveSessionKey, false)) return;
+        _tickStarted = true;
+        EditorApplication.update -= RestoreAfterDomainReload;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         Debug.Log("M00_SAMPLE_PROBE_ENTERED_PLAYMODE");
         _probeStartedAt = EditorApplication.timeSinceStartup;
         EditorApplication.update += Tick;
-    }
-
-    private static void WaitForPlayMode()
-    {
-        if (EditorApplication.timeSinceStartup - _playModeRequestedAt > PlayModeEntryTimeoutSeconds)
-        {
-            Fail("timed out waiting for EnteredPlayMode after request");
-        }
     }
 
     private static void Tick()
@@ -198,10 +235,12 @@ public static class M00PinnedSampleGameplayProbe
 
     private static void Finish(int exitCode)
     {
+        SessionState.SetBool(ActiveSessionKey, false);
         EditorApplication.update -= Tick;
-        EditorApplication.update -= WaitForPlayMode;
+        EditorApplication.update -= RestoreAfterDomainReload;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
-        EditorApplication.isPlaying = false;
-        EditorApplication.delayCall += () => EditorApplication.Exit(exitCode);
+        Debug.Log("M00_SAMPLE_PROBE_EXIT=" + exitCode);
+        // Calling Exit directly avoids losing delayCall on the PlayMode domain reload.
+        EditorApplication.Exit(exitCode);
     }
 }
