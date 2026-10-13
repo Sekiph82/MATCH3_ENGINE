@@ -69,8 +69,12 @@ jobs:
             $blocked = Join-Path $root 'StreamingAssets\Diagnostics'
             New-Item -ItemType Directory -Path $blocked -Force | Out-Null
             [System.IO.File]::WriteAllText((Join-Path $blocked 'new_debug_logs.json'), '{"harmless":true}')
+            # This child exit=1 is EXPECTED. PowerShell 7 error-action promotion must
+            # not abort the caller before we can assert its actual exit code.
+            $PSNativeCommandUseErrorActionPreference = $false
             & pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 -ArtifactPath $root
             $exit = $LASTEXITCODE
+            $PSNativeCommandUseErrorActionPreference = $true
             Write-Host "INDEPENDENT_NEGATIVE_PROBE_EXIT=$exit"
             if ($exit -eq 0) { throw 'False-PASS: forbidden developer resource was accepted' }
             Write-Host 'INDEPENDENT_NEGATIVE_PROBE=PASS'
