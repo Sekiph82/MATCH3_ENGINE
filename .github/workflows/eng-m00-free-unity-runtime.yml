@@ -18,12 +18,11 @@ concurrency:
 
 jobs:
   preflight:
-    name: Verify required secret names are configured
+    name: Verify two Marketplace activation secret names are configured
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:
-      HAS_UNITY_LICENSE: ${{ secrets.UNITY_LICENSE != '' }}
-      HAS_UNITY_EMAIL: ${{ secrets.UNITY_EMAIL != '' }}
+      HAS_UNITY_USERNAME: ${{ secrets.UNITY_USERNAME != '' }}
       HAS_UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD != '' }}
     steps:
       - name: Exercise the evidence-size boundary without Unity
@@ -44,14 +43,13 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          [[ "$HAS_UNITY_LICENSE" == "true" ]] || missing+=(UNITY_LICENSE)
-          [[ "$HAS_UNITY_EMAIL" == "true" ]] || missing+=(UNITY_EMAIL)
+          [[ "$HAS_UNITY_USERNAME" == "true" ]] || missing+=(UNITY_USERNAME)
           [[ "$HAS_UNITY_PASSWORD" == "true" ]] || missing+=(UNITY_PASSWORD)
           if (( ${#missing[@]} > 0 )); then
             printf 'Missing GitHub Actions secret names: %s\n' "${missing[*]}" >&2
             exit 1
           fi
-          echo 'UNITY_PERSONAL_SECRET_NAME_PREFLIGHT=PASS'
+          echo 'UNITY_PERSONAL_MARKETPLACE_SECRET_NAME_PREFLIGHT=PASS'
 
   unity-tests:
     name: Unity 6000.6.5f1 EditMode and PlayMode tests
@@ -82,19 +80,64 @@ jobs:
             printf 'RUN_URL=%s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
           } > evidence/runner-metadata.txt
 
-      - name: Run Unity EditMode and PlayMode tests
-        id: unity-tests
-        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      # The Marketplace action takes a Unity ID login, not a legacy .ulf file.
+      # Unity documents Hub-only activation for Personal. If the third-party
+      # licensing client cannot activate legally/technically, stop and report it.
+      # Never copy local entitlement XML, store credentials in source or invent PASS.
+      - name: Install pinned Unity 6000.6.5f1 on the free hosted runner
+        uses: buildalon/unity-setup@30fcbcb56c10ea5d64298e970d952b8d29bc268b # v2.6.0
         with:
-          unityVersion: 6000.6.5f1
-          projectPath: .
-          testMode: All
-          coverageEnabled: false
-          artifactsPath: artifacts
+          version-file: ProjectSettings/ProjectVersion.txt
+          unity-version: 6000.6.5f1
+          cache-installation: false
+
+      - name: Activate Unity Personal via user-requested GitHub Marketplace action
+        uses: RageAgainstThePixel/activate-unity-license@e73ff1f81db81a2595f86642123ce2b73b9a9258 # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+
+      - name: Run actual EditMode and PlayMode tests with licensed Unity Editor
+        id: unity-tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${UNITY_EDITOR_PATH:?Unity setup did not export Unity Editor path}"
+          test -x "$UNITY_EDITOR_PATH"
+          mkdir -p artifacts
+          for mode in EditMode PlayMode; do
+            lower="${mode,,}"
+            results="$PWD/artifacts/${lower}-results.xml"
+            log="$RUNNER_TEMP/eng-m00-unity-${lower}.log"
+            echo "RUN_UNITY_TEST_MODE=$mode"
+            set +e
+            timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics -quit \
+              -projectPath "$PWD" -runTests -testPlatform "$mode" \
+              -testResults "$results" -logFile "$log"
+            exit_code=$?
+            set -e
+            if (( exit_code != 0 )) || [[ ! -s "$results" ]]; then
+              echo "::error::Unity $mode failed or produced no NUnit XML (exit $exit_code)"
+              if [[ -f "$log" ]]; then
+                grep -E 'error CS[0-9]+|SCRIPT ERROR|Compilation failed|License|license|Exception:|error:' "$log" \
+                  | sed -E 's/([Pp]assword|[Tt]oken|[Ss]ecret|[Cc]redential)[^ ]*/[redacted]/g' | tail -35 || true
+              fi
+              exit 1
+            fi
+            python3 - "$results" "$mode" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          if root.tag != "test-run":
+              raise SystemExit("FAIL: not a NUnit test-run")
+          nums = {k: int(root.get(k, "0")) for k in ("total", "passed", "failed", "skipped")}
+          print("UNITY_MODE=%s TOTAL=%s PASSED=%s FAILED=%s SKIPPED=%s" %
+                (sys.argv[2], nums["total"], nums["passed"], nums["failed"], nums["skipped"]))
+          if nums["passed"] < 1 or nums["failed"] != 0 or nums["skipped"] != 0:
+              raise SystemExit("FAIL: Unity actual test counts invalid")
+          PY
+          done
 
       - name: Enforce bounded evidence size
         id: evidence-size
