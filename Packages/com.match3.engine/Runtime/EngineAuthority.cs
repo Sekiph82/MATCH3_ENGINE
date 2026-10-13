@@ -82,6 +82,17 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    // The render and service layers receive only this view. They cannot
+    // call the SDK solver, commit a swap or edit score/inventory.
+    public interface IReadOnlyMatch3Outcome
+    {
+        string BoardSnapshot { get; }
+        int MovesRemaining { get; }
+        bool GoalAchieved { get; }
+        bool GameFinished { get; }
+        int Score { get; }
+    }
+
     public enum EnginePhase
     {
         Boot = 0, Loading = 1, Ready = 2, Swapping = 3,
