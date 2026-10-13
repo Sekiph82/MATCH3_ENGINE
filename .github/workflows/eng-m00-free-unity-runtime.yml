@@ -283,6 +283,36 @@ jobs:
           PY
           done
 
+      - name: Assert new M01 profile and version contracts were actually discovered
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'AllFiveBrandNeutralProfilesAreUniqueAndOptionalFeaturesDefaultOff',
+              'FeatureCatalogContainsAllThirteenTypedOptionalCapabilities',
+              'KnownProfileMayEnableOnlyItsExplicitCompatibleFeatures',
+              'InvalidProfileIdentifiersEnumsAndSchemaFailClosed',
+              'DuplicateAndConflictingFeatureFlagsAreRejected',
+              'ProfileCatalogRejectsUnknownMissingAndDuplicateProfiles',
+              'VersionRulesDoNotAcceptIncompatibleMajorOrNegativeSegments',
+          }
+          found = {}
+          for path in sys.argv[1:]:
+              root = ET.parse(path).getroot()
+              for case in root.findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  if 'GameProfileContractTests.' not in fullname:
+                      continue
+                  short = fullname.rsplit('.', 1)[-1]
+                  found.setdefault(short, set()).add(case.get('result', 'Missing'))
+          if set(found) != expected or any(states != {'Passed'} for states in found.values()):
+              raise SystemExit('FAIL: M01 new contract suite missing, skipped or failed: ' + str(found))
+          print('UNITY_M01_PROFILE_CONTRACTS=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
