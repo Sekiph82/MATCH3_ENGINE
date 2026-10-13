@@ -34,7 +34,7 @@ namespace Match3.Engine.Demo.Tests
         {
             // The exact same move that wins on the unlocked board must be
             // rejected when the source cell is locked. No rules fork.
-            var metrics = new DemoMetrics(DemoScenario.Seed);
+            var metrics = new DemoMetrics(20261013);
             var game = new DemoGame(metrics, new GridPosition(1, 0));
             game.InitializeAsync().Forget();
             yield return new WaitUntil(() => metrics.InitialBoardSnapshot.Length > 0);
