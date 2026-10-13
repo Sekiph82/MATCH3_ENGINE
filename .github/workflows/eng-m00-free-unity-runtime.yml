@@ -116,6 +116,11 @@ jobs:
           test ! -e /opt/unityhub
           sudo ln -s /usr/lib/unityhub /opt/unityhub
           test -x /opt/unityhub/unityhub
+          # Pinned setup invokes the historical unity-hub CLI name; the current
+          # signed Unity Hub 3.22 package only publishes /usr/bin/unityhub.
+          # Provide an alias exclusively on this disposable CI runner.
+          sudo ln -s /usr/bin/unityhub /usr/local/bin/unity-hub
+          command -v unity-hub
           # The Marketplace action adds its own apt source with a different
           # Signed-By key path, so remove only our temporary source first.
           sudo rm -f /etc/apt/sources.list.d/unityhub.sources
