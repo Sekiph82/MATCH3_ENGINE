@@ -20,6 +20,19 @@ jobs:
       HAS_UNITY_EMAIL: ${{ secrets.UNITY_EMAIL != '' }}
       HAS_UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD != '' }}
     steps:
+      - name: Exercise the evidence-size boundary without Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          limit=10485760
+          within_limit() {
+            [[ "$1" =~ ^[0-9]+$ ]] && (( $1 <= limit ))
+          }
+          within_limit "$limit" || { echo 'Evidence size gate rejected the 10 MiB boundary' >&2; exit 1; }
+          ! within_limit "$((limit + 1))" || { echo 'Evidence size gate accepted a payload above 10 MiB' >&2; exit 1; }
+          echo 'EVIDENCE_GATE_SYNTHETIC_WITHIN_LIMIT=PASS'
+          echo 'EVIDENCE_GATE_SYNTHETIC_OVER_LIMIT=PASS'
+
       - name: Fail before Unity starts when a required secret is absent
         shell: bash
         run: |
@@ -78,26 +91,146 @@ jobs:
           artifactsPath: artifacts
 
       - name: Enforce bounded evidence size
+        id: evidence-size
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          size=0
-          [[ ! -d artifacts ]] || size="$(du -sb artifacts | cut -f1)"
-          [[ ! -d evidence ]] || size=$((size + $(du -sb evidence | cut -f1)))
-          printf 'EVIDENCE_BYTES=%s\n' "$size"
-          if (( size > 10485760 )); then
-            echo 'Unity evidence exceeds the 10 MiB upload limit' >&2
+          limit=10485760
+          within_limit() {
+            [[ "$1" =~ ^[0-9]+$ ]] && (( $1 <= limit ))
+          }
+
+          validate_evidence() {
+            local root="$1"
+            local artifacts="$root/artifacts"
+            local evidence="$root/evidence"
+            local metadata="$evidence/runner-metadata.txt"
+            local staging="$evidence/safe-upload"
+            local root_real artifacts_real metadata_real total file file_real relative
+            local -a results=()
+
+            [[ -d "$root" && ! -L "$root" ]] || return 1
+            root_real="$(cd -- "$root" && pwd -P)" || return 1
+            [[ -d "$artifacts" && ! -L "$artifacts" ]] || return 1
+            [[ -d "$evidence" && ! -L "$evidence" ]] || return 1
+            [[ -f "$metadata" && ! -L "$metadata" ]] || return 1
+            [[ ! -e "$staging" && ! -L "$staging" ]] || return 1
+            artifacts_real="$(realpath -e -- "$artifacts")" || return 1
+            metadata_real="$(realpath -e -- "$metadata")" || return 1
+            [[ "$artifacts_real" == "$root_real/artifacts" ]] || return 1
+            [[ "$metadata_real" == "$root_real/evidence/runner-metadata.txt" ]] || return 1
+            if find "$artifacts" -type l -print -quit | grep -q .; then return 1; fi
+
+            mapfile -d '' results < <(find "$artifacts" -type f -name '*-results.xml' -print0)
+            (( ${#results[@]} > 0 )) || return 1
+            total="$(stat -c '%s' -- "$metadata")" || return 1
+            for file in "${results[@]}"; do
+              [[ -f "$file" && ! -L "$file" ]] || return 1
+              file_real="$(realpath -e -- "$file")" || return 1
+              [[ "$file_real" == "$artifacts_real/"* ]] || return 1
+              python3 - "$file_real" <<'PY' || return 1
+          import sys
+          import xml.etree.ElementTree as ET
+          try:
+              valid = ET.parse(sys.argv[1]).getroot().tag == "test-run"
+          except (OSError, ET.ParseError):
+              valid = False
+          if not valid:
+              raise SystemExit(1)
+          PY
+              total=$((total + $(stat -c '%s' -- "$file_real")))
+            done
+            within_limit "$total" || return 1
+
+            mkdir -- "$staging" || return 1
+            cp -- "$metadata" "$staging/runner-metadata.txt" || return 1
+            for file in "${results[@]}"; do
+              relative="${file#"$artifacts"/}"
+              mkdir -p -- "$staging/$(dirname -- "$relative")" || return 1
+              cp -- "$file" "$staging/$relative" || return 1
+            done
+            UPLOAD_BYTES="$total"
+            return 0
+          }
+
+          make_xml() {
+            python3 - "$1" "$2" <<'PY'
+          import sys
+          path, size = sys.argv[1], int(sys.argv[2])
+          prefix, suffix = b"<test-run>", b"</test-run>"
+          if size < len(prefix) + len(suffix):
+              raise SystemExit("fixture too small")
+          with open(path, "wb") as stream:
+              stream.write(prefix)
+              stream.write(b" " * (size - len(prefix) - len(suffix)))
+              stream.write(suffix)
+          PY
+          }
+
+          fixture_root="$(mktemp -d "$RUNNER_TEMP/eng-m00-evidence-gate.XXXXXX")"
+          cleanup_fixture() {
+            case "$fixture_root" in
+              "$RUNNER_TEMP"/eng-m00-evidence-gate.*) rm -rf -- "$fixture_root" ;;
+              *) echo 'Unsafe synthetic evidence cleanup path' >&2; return 1 ;;
+            esac
+          }
+          trap cleanup_fixture EXIT
+          make_fixture() {
+            mkdir -p -- "$1/artifacts" "$1/evidence"
+            printf 'FIXTURE=true\n' > "$1/evidence/runner-metadata.txt"
+            printf '<test-run></test-run>' > "$1/artifacts/editmode-results.xml"
+            printf '<test-run></test-run>' > "$1/artifacts/playmode-results.xml"
+          }
+
+          within="$fixture_root/within"
+          make_fixture "$within"
+          metadata_bytes="$(stat -c '%s' -- "$within/evidence/runner-metadata.txt")"
+          playmode_bytes="$(stat -c '%s' -- "$within/artifacts/playmode-results.xml")"
+          editmode_bytes=$((limit - metadata_bytes - playmode_bytes))
+          make_xml "$within/artifacts/editmode-results.xml" "$editmode_bytes"
+          validate_evidence "$within" || { echo 'Evidence gate rejected the exactly-10-MiB fixture' >&2; exit 1; }
+          [[ "$UPLOAD_BYTES" -eq "$limit" ]] || { echo 'Exactly-10-MiB fixture did not remain at the limit' >&2; exit 1; }
+          echo 'EVIDENCE_GATE_SYNTHETIC_WITHIN_LIMIT=PASS'
+
+          over="$fixture_root/over"
+          make_fixture "$over"
+          metadata_bytes="$(stat -c '%s' -- "$over/evidence/runner-metadata.txt")"
+          playmode_bytes="$(stat -c '%s' -- "$over/artifacts/playmode-results.xml")"
+          editmode_bytes=$((limit - metadata_bytes - playmode_bytes + 1))
+          make_xml "$over/artifacts/editmode-results.xml" "$editmode_bytes"
+          if validate_evidence "$over"; then
+            echo 'Evidence gate accepted an over-10-MiB fixture' >&2
             exit 1
           fi
+          [[ ! -e "$over/evidence/safe-upload" ]] || { echo 'Rejected fixture created an upload directory' >&2; exit 1; }
+          echo 'EVIDENCE_GATE_SYNTHETIC_OVER_LIMIT=PASS'
+
+          unsafe="$fixture_root/unsafe"
+          make_fixture "$unsafe"
+          printf 'synthetic-link-target\n' > "$fixture_root/untrusted-license-data"
+          ln -s "$fixture_root/untrusted-license-data" "$unsafe/artifacts/unity-license.ulf"
+          if validate_evidence "$unsafe"; then
+            echo 'Evidence gate accepted a symlink under artifacts' >&2
+            exit 1
+          fi
+          [[ ! -e "$unsafe/evidence/safe-upload" ]] || { echo 'Unsafe fixture created an upload directory' >&2; exit 1; }
+          echo 'EVIDENCE_GATE_SYNTHETIC_UNSAFE_PATH=PASS'
+
+          if ! validate_evidence "$PWD"; then
+            printf 'allowed=false\n' >> "$GITHUB_OUTPUT"
+            echo 'Unity evidence paths, NUnit XML, or total upload size failed the gate' >&2
+            exit 1
+          fi
+          size="$UPLOAD_BYTES"
+          printf 'EVIDENCE_UPLOAD_BYTES=%s\n' "$size"
+          printf 'allowed=true\n' >> "$GITHUB_OUTPUT"
 
       - name: Upload bounded Unity XML and run metadata
-        if: always()
+        if: always() && steps.evidence-size.outputs.allowed == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: eng-m00-unity-personal-${{ github.sha }}
-          path: |
-            artifacts/
-            evidence/runner-metadata.txt
+          path: evidence/safe-upload/
           if-no-files-found: warn
           retention-days: 1
