@@ -199,6 +199,19 @@ jobs:
           }
           for name, pattern in patterns.items():
               print('SAMPLE_DIAG_%s=%d' % (name, len(re.findall(pattern, s, re.IGNORECASE))))
+          # Extract only vetted numeric/enum diagnostics, never raw Editor log.
+          pcount = re.findall(r'M00_SAMPLE_PREDICTED_MATCH_CANDIDATES=([0-9]+)', s)
+          trials = re.findall(r'M00_SAMPLE_INPUT_TRIAL=([0-9]+)', s)
+          reasons = [
+              ('NO_BOARD_CHANGE', r'FAIL reason=all movable adjacent pairs'),
+              ('NO_ACCEPTED_MOVE_WITHIN_TIME', r'FAIL reason=timed out before an accepted board-changing'),
+              ('PLAYMODE_ENTRY_TIMEOUT', r'FAIL reason=timed out waiting for actual PlayMode'),
+              ('INPUT_EXCEPTION', r'TargetInvocationException|NullReferenceException'),
+          ]
+          print('SAMPLE_DIAG_PREDICTED_VALID_MOVES=' + (pcount[-1] if pcount else 'UNKNOWN'))
+          print('SAMPLE_DIAG_ATTEMPT_COUNT=' + (trials[-1] if trials else 'UNKNOWN'))
+          for name, pat in reasons:
+              print('SAMPLE_DIAG_REASON_%s=%d' % (name, len(re.findall(pat, s))))
           print('SAMPLE_DIAG_LOG_BYTES=%d' % len(raw))
           print('SAMPLE_DIAG_LOG_SHA256=%s' % hashlib.sha256(raw).hexdigest())
           print('SAMPLE_PROBE_SUBPROCESS_EXIT=%s' % sys.argv[2])
