@@ -102,6 +102,34 @@ jobs:
           command -v unity
           unity --version
 
+      # The Marketplace licensing client needs Unity Hub installed to access
+      # Unity's licensing service; the standalone Editor CLI alone is insufficient.
+      # Use Unity's signed repository and pin the already-owner-proven Hub 3.22.2.
+      - name: Install Unity Hub required by Marketplace Personal activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Types: deb\nURIs: https://hub.unity3d.com/linux/repos/deb\nSuites: stable\nComponents: main\nSigned-By: /usr/share/keyrings/Unity_Technologies_ApS.gpg\n' \
+            | sudo tee /etc/apt/sources.list.d/unityhub-stable.sources >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends desktop-file-utils unityhub=3.22.2
+          test -x /usr/lib/unityhub/unityhub
+          # Preserve runtime resources required by Electron and legacy client
+          # binary discovery; paths exist only on disposable GitHub runner.
+          test ! -e /opt/unityhub
+          sudo ln -s /usr/lib/unityhub /opt/unityhub
+          sudo ln -s /usr/bin/unityhub /usr/local/bin/unity-hub
+          test -x /opt/unityhub/unityhub
+          command -v unity-hub
+          echo 'SIGNED_UNITY_HUB_INSTALL=PASS'
+
+      - name: Activate Unity Personal via user-requested GitHub Marketplace action
+        uses: RageAgainstThePixel/activate-unity-license@e73ff1f81db81a2595f86642123ce2b73b9a9258 # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+
       - name: Install exact Unity Editor with official Unity CLI
         shell: bash
         env:
@@ -120,13 +148,6 @@ jobs:
           printf 'UNITY_EDITOR_PATH=%s\n' "$editor" >> "$GITHUB_ENV"
           echo 'UNITY_EDITOR_6000_6_5f1_INSTALL=PASS'
           unity editors -i --format tsv
-
-      - name: Activate Unity Personal via user-requested GitHub Marketplace action
-        uses: RageAgainstThePixel/activate-unity-license@e73ff1f81db81a2595f86642123ce2b73b9a9258 # v2.2.2
-        with:
-          license: personal
-          username: ${{ secrets.UNITY_USERNAME }}
-          password: ${{ secrets.UNITY_PASSWORD }}
 
       - name: Run actual EditMode and PlayMode tests with licensed Unity Editor
         id: unity-tests
