@@ -17,7 +17,7 @@
 
 ## CURRENT BATON / TASK AUTHORITY
 - `CURRENT_OWNER: CODEX_REMEDIATION` | `MILESTONE: ENG-M00` | `SCOPE: ENG-M00-006 R02 + independent proof 001/002/003/004/005/007/009/010` | `HANDOFF: https://docs.google.com/document/d/1bamyO0s6RbhoTxQUlkIPbUyFF0ESW2rdTFiQM7QYNY0/edit`.
-- **Independent audit 2026-10-13:** Audit result https://docs.google.com/document/d/1o2vtvcHJcY5gmwAg5ZtSsH6zYhEkGhHZk3ERDExXPuM/edit . **MILESTONE ENG-M00: FAIL/BLOCKED.** 008 PASS for handoff only; 006 and 009 FAIL; 001/002/003/004/005/007/010 NOT_INDEPENDENTLY_VERIFIED. All required new evidence and remediation must be independently audited before ENG-M01.
+- **Independent audit 2026-10-13:** Audit result https://docs.google.com/document/d/1o2vtvcHJcY5gmwAg5ZtSsH6zYhEkGhHZk3ERDExXPuM/edit . **MILESTONE ENG-M00: FAIL/BLOCKED.** Historical V02: 008 handoff PASS, 006 and 009 initially FAIL. R01 re-audit updated 006 to FAIL/R02; 009 source licensing corrected but independent policy execution NOT_INDEPENDENTLY_VERIFIED. 001/002/003/004/005/007/010 require independently executed Unity proof. R01 MASTER AUDIT: https://docs.google.com/document/d/1cDcfvrf5Xv8jEjjY_dUNnXNlEJhRp2cFkmW9hIzOti8/edit All required new evidence and remediation must be independently audited before ENG-M01.
 - `BLOCKED` baton is used for missing Drive connector, unsafe sync, license, Unity activation or other non-resolvable preflight; never fabricate PASS.
 
 ## Fixed requirements
