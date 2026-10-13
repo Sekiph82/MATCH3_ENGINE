@@ -108,7 +108,17 @@ jobs:
           command -v unityhub
           printf 'UNITY_HUB_PACKAGE_BINARIES:\n'
           dpkg -L unityhub | grep -Ei '(bin/|opt/|unityhub$|\.desktop$)' | head -60 || true
-          ls -ld /opt/unityhub /usr/bin/unityhub /opt/unityhub/unityhub || true
+          # Compatibility with buildalon/unity-setup v2: its Linux UnityHub
+          # locator still expects /opt/unityhub, while Hub 3.22 installs
+          # the signed package to /usr/lib/unityhub. Link the complete tree,
+          # not just the executable, to preserve Electron resources.
+          test -x /usr/lib/unityhub/unityhub
+          test ! -e /opt/unityhub
+          sudo ln -s /usr/lib/unityhub /opt/unityhub
+          test -x /opt/unityhub/unityhub
+          # The Marketplace action adds its own apt source with a different
+          # Signed-By key path, so remove only our temporary source first.
+          sudo rm -f /etc/apt/sources.list.d/unityhub.sources
 
       - name: Install pinned Unity 6000.6.5f1 on the free hosted runner
         uses: buildalon/unity-setup@30fcbcb56c10ea5d64298e970d952b8d29bc268b # v2.6.0
