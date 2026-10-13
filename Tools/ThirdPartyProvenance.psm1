@@ -15,6 +15,39 @@ function Get-ThirdPartyProvenanceFindings {
         'ultragem', 'gemhuntermatch3', 'game-simulation-match-3-sample'
     )
 
+    function Get-UltraGemProvenanceFindings([string] $provenanceText) {
+        $ultraGemFindings = [System.Collections.Generic.List[string]]::new()
+        $requiredEvidence = @(
+            @{ Pattern = 'https://github\.com/JohannesBuchner/ultragem/tree/0e64a5bc66a5fce4b899bf0734c9cc7417b4ed12'; Finding = 'UltraGem source URL is not pinned to the reviewed repository commit.' },
+            @{ Pattern = 'LICENSE\.rst'; Finding = 'UltraGem LICENSE.rst provenance is missing.' },
+            @{ Pattern = '800af6b52afb288d2b5146644dfe8376b4fc7f2a'; Finding = 'UltraGem LICENSE.rst Git blob hash is missing or incorrect.' },
+            @{ Pattern = '7ea84a9613f919b33151f651fb4b6be0ac4b660285d2f1539f140e869f2d46a1'; Finding = 'UltraGem LICENSE.rst SHA-256 is missing or incorrect.' },
+            @{ Pattern = 'NOASSERTION'; Finding = 'UltraGem GitHub license metadata must be recorded as NOASSERTION.' },
+            @{ Pattern = '(?m)^\|[^\r\n]*gemgem\.py[^\r\n]*COPY_ALLOWED_WITH_CONDITIONS[^\r\n]*\|'; Finding = 'UltraGem gemgem.py conditional BSD classification is missing.' },
+            @{ Pattern = '(?m)^\|[^\r\n]*ultragem\.py[^\r\n]*BLOCKED[^\r\n]*\|'; Finding = 'UltraGem Johannes-authored/mixed code is not blocked.' },
+            @{ Pattern = '(?m)^\|[^\r\n]*graphics/\*\.png[^\r\n]*BLOCKED[^\r\n]*\|'; Finding = 'UltraGem unmapped graphics are not blocked.' },
+            @{ Pattern = '(?m)^\|[^\r\n]*sounds/\*\.wav[^\r\n]*BLOCKED[^\r\n]*\|'; Finding = 'UltraGem unknown-author sounds are not blocked.' },
+            @{ Pattern = '(?m)^\|[^\r\n]*gamestats/\*\*[^\r\n]*BLOCKED[^\r\n]*\|'; Finding = 'UltraGem generated level/stat data is not blocked.' },
+            @{ Pattern = '(?m)^\|[^\r\n]*journey-auto/\*\*[^\r\n]*BLOCKED[^\r\n]*\|'; Finding = 'UltraGem generated journey data is not blocked.' },
+            @{ Pattern = '(?i)no UltraGem code, graphics, sounds, levels, or statistics are imported'; Finding = 'UltraGem no-transfer boundary is not documented.' }
+        )
+
+        foreach ($evidence in $requiredEvidence) {
+            if ($provenanceText -notmatch $evidence.Pattern) {
+                $ultraGemFindings.Add($evidence.Finding)
+            }
+        }
+
+        if ($provenanceText -match '(?im)^\|[^\r\n]*(?:graphics/\*\.png|screenshot\.png|sounds/\*\.wav|gamestats/\*\*|journey-auto/\*\*)[^\r\n]*COPY_ALLOWED_WITH_CONDITIONS[^\r\n]*\|') {
+            $ultraGemFindings.Add('UltraGem graphics, unknown-author sounds, or generated level/stat data are falsely marked copyable.')
+        }
+        if ($provenanceText -match '(?i)exact repository/source URL not supplied|no unique repository, commit, license file') {
+            $ultraGemFindings.Add('UltraGem source must not be described as unidentified after its URL was supplied.')
+        }
+
+        return $ultraGemFindings.ToArray()
+    }
+
     foreach ($relativeRoot in $scanRoots) {
         $scanPath = Join-Path $resolvedRoot $relativeRoot
         if (-not (Test-Path -LiteralPath $scanPath -PathType Container)) { continue }
@@ -32,7 +65,18 @@ function Get-ThirdPartyProvenanceFindings {
     }
 
     $manifestPath = Join-Path $resolvedRoot 'Packages/manifest.json'
+    $provenancePath = Join-Path $resolvedRoot 'Documentation~/THIRD_PARTY_PROVENANCE.md'
     $noticePath = Join-Path $resolvedRoot 'Documentation~/THIRD_PARTY_NOTICES.md'
+    if (Test-Path -LiteralPath $provenancePath -PathType Leaf) {
+        $provenanceText = Get-Content -LiteralPath $provenancePath -Raw
+        foreach ($finding in @(Get-UltraGemProvenanceFindings $provenanceText)) {
+            $findings.Add($finding)
+        }
+    }
+    else {
+        $findings.Add('Documentation~/THIRD_PARTY_PROVENANCE.md is missing.')
+    }
+
     $notice = if (Test-Path -LiteralPath $noticePath -PathType Leaf) {
         Get-Content -LiteralPath $noticePath -Raw
     } else {
