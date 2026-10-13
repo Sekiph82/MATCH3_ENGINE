@@ -1,0 +1,135 @@
+name: ENG-M00 Real Windows Player Release Firewall (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: eng-m00-win64-player-firewall
+  cancel-in-progress: false
+
+jobs:
+  licensed-win64-player:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    env:
+      HAS_UNITY_USERNAME: ${{ secrets.UNITY_USERNAME != '' }}
+      HAS_UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD != '' }}
+    steps:
+      - name: Stop before downloads if owner-managed Unity secrets absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$HAS_UNITY_USERNAME" == "true" && "$HAS_UNITY_PASSWORD" == "true" ]] || {
+            echo '::error::Missing Unity Personal activation secrets'
+            exit 1
+          }
+      - name: Checkout immutable source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install official signed Unity CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/keyrings
+          curl -fsSL https://hub.unity3d.com/linux/keys/public \
+            | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/Unity_Technologies_ApS.gpg
+          printf 'Types: deb\nURIs: https://hub.unity3d.com/linux/repos/deb\nSuites: unstable\nComponents: main\nSigned-By: /usr/share/keyrings/Unity_Technologies_ApS.gpg\n' \
+            | sudo tee /etc/apt/sources.list.d/unity-cli.sources >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends unity-cli
+          command -v unity
+      - name: Install signed Hub for Personal licensing client
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Types: deb\nURIs: https://hub.unity3d.com/linux/repos/deb\nSuites: stable\nComponents: main\nSigned-By: /usr/share/keyrings/Unity_Technologies_ApS.gpg\n' \
+            | sudo tee /etc/apt/sources.list.d/unityhub-stable.sources >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends desktop-file-utils unityhub=3.22.2
+          test -x /usr/lib/unityhub/unityhub
+          sudo ln -s /usr/lib/unityhub /opt/unityhub
+          sudo ln -s /usr/bin/unityhub /usr/local/bin/unity-hub
+          command -v unity-hub
+      - name: Activate existing Unity Personal on disposable runner
+        uses: RageAgainstThePixel/activate-unity-license@e73ff1f81db81a2595f86642123ce2b73b9a9258 # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+      - name: Install exact Unity 6.6 Editor and Windows Mono Build Support
+        shell: bash
+        env:
+          UNITY_NON_INTERACTIVE: '1'
+          UNITY_NO_UPDATE_CHECK: '1'
+          UNITY_NO_CONSENT_PROMPT: '1'
+        run: |
+          set -euo pipefail
+          timeout 3600s unity install 6000.6.5f1 -c 3ff58d469c8a --format ndjson
+          timeout 2400s unity install-modules -e 6000.6.5f1 -m windows-mono --format ndjson
+          editor="$(find "$HOME" -type f -path '*/6000.6.5f1/Editor/Unity' -print -quit)"
+          [[ -n "$editor" && -x "$editor" ]] || exit 1
+          printf 'UNITY_EDITOR_PATH=%s\n' "$editor" >> "$GITHUB_ENV"
+          echo 'UNITY_WIN64_SUPPORT_INSTALLED=PASS'
+      - name: Build actual Windows 64-bit player and scan RELEASE output
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/eng-m00-windows-player"
+          mkdir -p "$out" "$PWD/evidence/eng-m00-win64"
+          pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 \
+            -SourceAssetRoot "$PWD/Assets" \
+            -ManifestPath "$PWD/evidence/eng-m00-win64/source-assets.sha256.txt"
+          buildlog="$RUNNER_TEMP/unity-win64-build.log"
+          set +e
+          timeout 1800s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics -quit \
+            -projectPath "$PWD" -buildTarget win64 \
+            -buildWindows64Player "$out/NeutralMatch3.exe" -logFile "$buildlog"
+          rc=$?
+          set -e
+          [[ "$rc" -eq 0 && -s "$out/NeutralMatch3.exe" ]] || {
+            echo "::error::Unity Windows64 release build failed or .exe absent (exit=$rc)"
+            python3 - "$buildlog" <<'PY'
+          import hashlib,re,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); raw=p.read_bytes() if p.exists() else b''
+          text=raw.decode('utf8','replace')
+          print('BUILD_LOG_SHA256='+hashlib.sha256(raw).hexdigest())
+          print('BUILD_COMPILE_ERROR_COUNT='+str(len(re.findall(r'error CS\d{4}',text))))
+          print('BUILD_PIPELINE_ERROR_COUNT='+str(len(re.findall(r'BuildPipeline.*failed|BuildFailedException',text))))
+          PY
+            exit 1
+          }
+          pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 -ArtifactPath "$out"
+          test -s "$out/NeutralMatch3.exe"
+          printf 'SOURCE_SHA=%s\n' "$GITHUB_SHA" > evidence/eng-m00-win64/release-proof.txt
+          printf 'UNITY_VERSION=6000.6.5f1\n' >> evidence/eng-m00-win64/release-proof.txt
+          printf 'BUILD_TYPE=StandaloneWindows64_RELEASE\n' >> evidence/eng-m00-win64/release-proof.txt
+          printf 'RELEASE_SCANNER=PASS\n' >> evidence/eng-m00-win64/release-proof.txt
+          printf 'EXECUTABLE_SHA256=%s\n' "$(sha256sum "$out/NeutralMatch3.exe" | cut -d' ' -f1)" >> evidence/eng-m00-win64/release-proof.txt
+          printf 'RELEASE_FILE_COUNT=%s\n' "$(find "$out" -type f | wc -l)" >> evidence/eng-m00-win64/release-proof.txt
+          echo 'REAL_WIN64_PLAYER_SCANNER=PASS'
+      - name: Independently reject forbidden release fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$RUNNER_TEMP/eng-m00-forbidden-test-payload"
+          mkdir -p "$fixture/Tests"
+          printf 'NUnit.Framework test assembly marker\n' > "$fixture/Tests/InjectedRunner.dll"
+          set +e
+          pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 -ArtifactPath "$fixture" > "$RUNNER_TEMP/negative-scan-out.txt"
+          rc=$?
+          set -e
+          [[ "$rc" -ne 0 ]] || { echo '::error::Scanner accepted forbidden fixture'; exit 1; }
+          grep -q 'SCAN=FAIL' "$RUNNER_TEMP/negative-scan-out.txt"
+          echo 'NEGATIVE_RELEASE_FIXTURE_REJECTED=PASS'
+      - name: Upload tiny metadata only, NEVER player binaries or license
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: eng-m00-real-win64-release-firewall-${{ github.sha }}
+          path: evidence/eng-m00-win64/
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 6
