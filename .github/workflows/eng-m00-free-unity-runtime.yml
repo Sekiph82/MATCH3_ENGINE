@@ -95,6 +95,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends desktop-file-utils
           command -v update-desktop-database
+          # Install Hub explicitly once, then print safe package-path metadata.
+          # The third-party setup action currently looks for an old Linux path.
+          sudo apt-get install -y --no-install-recommends unityhub
+          command -v unityhub
+          printf 'UNITY_HUB_PACKAGE_BINARIES:\n'
+          dpkg -L unityhub | grep -Ei '(bin/|opt/|unityhub$|\.desktop$)' | head -50 || true
+          ls -ld /opt/unityhub /usr/bin/unityhub /opt/unityhub/unityhub || true
 
       - name: Install pinned Unity 6000.6.5f1 on the free hosted runner
         uses: buildalon/unity-setup@30fcbcb56c10ea5d64298e970d952b8d29bc268b # v2.6.0
