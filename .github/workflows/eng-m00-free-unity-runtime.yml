@@ -274,12 +274,19 @@ jobs:
           # The frozen ENG-M00-005 gate requires genuine locked input
           # rollback, not merely the existing invalid-match case.
           if sys.argv[2] == 'PlayMode':
-              name = 'NeutralMatch3DemoPlayModeTests.LockedAdjacentSwapLeavesBoardAndMovesUntouched'
-              cases = [x for x in root.findall('.//test-case')
-                       if x.get('fullname', '').endswith(name)]
-              if nums['passed'] < 6 or len(cases) != 1 or cases[0].get('result') != 'Passed':
-                  raise SystemExit('FAIL: required locked-swap PlayMode evidence is absent')
+              names = (
+                  'NeutralMatch3DemoPlayModeTests.LockedAdjacentSwapLeavesBoardAndMovesUntouched',
+                  'NeutralMatch3DemoPlayModeTests.ReadOnlyAdapterObservesRealSdkSwapAndCannotEditBoard',
+              )
+              cases = root.findall('.//test-case')
+              if nums['passed'] < 7:
+                  raise SystemExit('FAIL: missing M01 read-only SDK adapter PlayMode coverage')
+              for name in names:
+                  matched = [x for x in cases if x.get('fullname', '').endswith(name)]
+                  if len(matched) != 1 or matched[0].get('result') != 'Passed':
+                      raise SystemExit('FAIL: required PlayMode case missing/failed: ' + name)
               print('UNITY_ENG_M00_005_LOCKED_SWAP_ROLLBACK=PASS')
+              print('UNITY_ENG_M01_011_SDK_READONLY_ADAPTER=PASS')
           PY
           done
 
