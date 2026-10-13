@@ -30,6 +30,32 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [UnityTest]
+        public IEnumerator LockedAdjacentSwapLeavesBoardAndMovesUntouched()
+        {
+            // The exact same move that wins on the unlocked board must be
+            // rejected when the source cell is locked. No rules fork.
+            var metrics = new DemoMetrics(DemoScenario.Seed);
+            var game = new DemoGame(metrics, new GridPosition(1, 0));
+            game.InitializeAsync().Forget();
+            yield return new WaitUntil(() => metrics.InitialBoardSnapshot.Length > 0);
+
+            var before = game.GetSnapshot();
+            var movesBefore = metrics.MovesRemaining;
+            Assert.That(before, Is.EqualTo("CDCB/ABCD/BAAC/DCBA"));
+            Assert.That(game.IsBusy, Is.False);
+
+            game.TrySwapAsync(new GridPosition(1, 0), new GridPosition(2, 0)).Forget();
+            yield return null;
+
+            Assert.That(game.IsBusy, Is.False);
+            Assert.That(game.GetSnapshot(), Is.EqualTo(before));
+            Assert.That(metrics.MovesRemaining, Is.EqualTo(movesBefore));
+            Assert.That(metrics.MoveAccepted, Is.False);
+            Assert.That(metrics.GameFinished, Is.False);
+            Assert.That(metrics.Events, Does.Not.Contain("move-committed:1"));
+        }
+
+        [UnityTest]
         public IEnumerator SeededAdjacentSwapClearsRefillsCascadesAndWins()
         {
             yield return LoadDemoScene();
