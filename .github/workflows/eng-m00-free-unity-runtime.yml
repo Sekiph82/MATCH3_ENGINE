@@ -187,13 +187,14 @@ jobs:
           raw = p.read_bytes() if p.is_file() else b''
           s = raw.decode('utf-8', 'replace')
           patterns = {
-              'CSHARP_COMPILER_ERRORS': r'error CS\\d{4}',
+              'CSHARP_COMPILER_ERRORS': r'error CS[0-9]{4}',
               'PACKAGE_RESOLVE_ERRORS': r'Failed to resolve packages|Package Manager.*error',
               'PROBE_METHOD_ENTERED': r'M00_SAMPLE_PROBE_ENTRY',
               'PROBE_ENTERED_PLAYMODE': r'M00_SAMPLE_PROBE_ENTERED_PLAYMODE',
               'PROBE_READY': r'M00_SAMPLE_PROBE_READY',
               'PROBE_PASS': r'M00_SAMPLE_GAMEPLAY_PROBE=PASS',
               'PROBE_FAIL': r'M00_SAMPLE_GAMEPLAY_PROBE=FAIL',
+              'PROBE_EXIT': r'M00_SAMPLE_PROBE_EXIT=',
               'UNITY_ABNORMAL_EXIT': r'Aborting batchmode|Fatal Error|Segmentation fault',
           }
           for name, pattern in patterns.items():
