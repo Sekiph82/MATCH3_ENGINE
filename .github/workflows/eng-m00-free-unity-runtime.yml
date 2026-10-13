@@ -119,9 +119,10 @@ jobs:
             set -e
             if (( exit_code != 0 )) || [[ ! -s "$results" ]]; then
               echo "::error::Unity $mode failed or produced no NUnit XML (exit $exit_code)"
+              # Unity's raw log can contain licensing metadata, user paths, or
+              # other secrets. Never echo raw log excerpts into PUBLIC Actions.
               if [[ -f "$log" ]]; then
-                grep -E 'error CS[0-9]+|SCRIPT ERROR|Compilation failed|License|license|Exception:|error:' "$log" \
-                  | sed -E 's/([Pp]assword|[Tt]oken|[Ss]ecret|[Cc]redential)[^ ]*/[redacted]/g' | tail -35 || true
+                echo 'UNITY_RAW_EDITOR_LOG_RETAINED_ON_EPHEMERAL_RUNNER_ONLY'
               fi
               exit 1
             fi
