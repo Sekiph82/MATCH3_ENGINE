@@ -84,6 +84,18 @@ jobs:
       # Unity documents Hub-only activation for Personal. If the third-party
       # licensing client cannot activate legally/technically, stop and report it.
       # Never copy local entitlement XML, store credentials in source or invent PASS.
+      # On ubuntu-24.04 runners, Unity Hub 3.22.2's post-install script
+      # invokes update-desktop-database. Minimal hosted images omit its package.
+      # Without this prerequisite, the official Unity Hub .deb stays half-
+      # configured and buildalon/unity-setup reports ENOENT for the Hub binary.
+      - name: Supply Unity Hub Debian post-install dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends desktop-file-utils
+          command -v update-desktop-database
+
       - name: Install pinned Unity 6000.6.5f1 on the free hosted runner
         uses: buildalon/unity-setup@30fcbcb56c10ea5d64298e970d952b8d29bc268b # v2.6.0
         with:
