@@ -18,6 +18,13 @@ namespace Match3.Engine.Demo
         {
         }
 
+        // A tiny board-fixture option, used to verify that the SDK-backed
+        // neutral demo refuses a swap into a locked tile without spending moves.
+        public DemoGame(DemoMetrics metrics, GridPosition lockedPosition)
+            : this(metrics, new DemoGameServices(metrics, lockedPosition))
+        {
+        }
+
         private DemoGame(DemoMetrics metrics, DemoGameServices services) : base(services.Config)
         {
             _metrics = metrics;
@@ -126,7 +133,7 @@ namespace Match3.Engine.Demo
 
         private sealed class DemoGameServices
         {
-            public DemoGameServices(DemoMetrics metrics)
+            public DemoGameServices(DemoMetrics metrics, GridPosition? lockedPosition = null)
             {
                 var solver = new GameBoardSolver<DemoGridSlot>(
                     new ISequenceDetector<DemoGridSlot>[]
@@ -140,7 +147,9 @@ namespace Match3.Engine.Demo
                 Config = new GameConfig<DemoGridSlot>
                 {
                     GameBoardSolver = solver,
-                    GameBoardDataProvider = new DemoBoardDataProvider(),
+                    GameBoardDataProvider = lockedPosition.HasValue
+                        ? new DemoBoardDataProvider(new[] { lockedPosition.Value })
+                        : new DemoBoardDataProvider(),
                     ItemSwapper = new DemoItemSwapper(),
                     LevelGoalsProvider = new DemoLevelGoalsProvider(),
                     SolvedSequencesConsumers = new ISolvedSequencesConsumer<DemoGridSlot>[0]
