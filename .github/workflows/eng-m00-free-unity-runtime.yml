@@ -97,10 +97,17 @@ jobs:
           command -v update-desktop-database
           # Install Hub explicitly once, then print safe package-path metadata.
           # The third-party setup action currently looks for an old Linux path.
+          # Register Unity's OFFICIAL signed APT source before install.
+          sudo install -d /etc/apt/keyrings
+          curl -fsSL https://hub.unity3d.com/linux/keys/public \
+            | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/unityhub.gpg
+          printf 'Types: deb\nURIs: https://hub.unity3d.com/linux/repos/deb\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/unityhub.gpg\n' \
+            | sudo tee /etc/apt/sources.list.d/unityhub.sources >/dev/null
+          sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends unityhub
           command -v unityhub
           printf 'UNITY_HUB_PACKAGE_BINARIES:\n'
-          dpkg -L unityhub | grep -Ei '(bin/|opt/|unityhub$|\.desktop$)' | head -50 || true
+          dpkg -L unityhub | grep -Ei '(bin/|opt/|unityhub$|\.desktop$)' | head -60 || true
           ls -ld /opt/unityhub /usr/bin/unityhub /opt/unityhub/unityhub || true
 
       - name: Install pinned Unity 6000.6.5f1 on the free hosted runner
