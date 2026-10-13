@@ -189,6 +189,7 @@ jobs:
           patterns = {
               'CSHARP_COMPILER_ERRORS': r'error CS[0-9]{4}',
               'PACKAGE_RESOLVE_ERRORS': r'Failed to resolve packages|Package Manager.*error',
+              'UI_START_BUTTON_CLICK': r'M00_SAMPLE_START_UI_BUTTON_CLICKED=1',
               'PROBE_METHOD_ENTERED': r'M00_SAMPLE_PROBE_ENTRY',
               'PROBE_ENTERED_PLAYMODE': r'M00_SAMPLE_PROBE_ENTERED_PLAYMODE',
               'PROBE_READY': r'M00_SAMPLE_PROBE_READY',
@@ -216,6 +217,12 @@ jobs:
           print('SAMPLE_DIAG_LOG_SHA256=%s' % hashlib.sha256(raw).hexdigest())
           print('SAMPLE_PROBE_SUBPROCESS_EXIT=%s' % sys.argv[2])
           PY
+          # A zero exit is not sufficient: prove that the ORIGINAL sample's
+          # onClick event was used to leave board-drawing mode before swapping.
+          if (( sample_exit == 0 )) && ! grep -q 'M00_SAMPLE_START_UI_BUTTON_CLICKED=1'             "$RUNNER_TEMP/eng-m00-upstream-sample/pinned-sdk-sample-gameplay.log"; then
+            echo '::error::Original sample never triggered its real Start UI button'
+            exit 1
+          fi
           if (( sample_exit != 0 )); then
             echo '::error::Original pinned Unity SDK sample failed; review aggregate category counters, not raw private editor logs'
             exit 1
