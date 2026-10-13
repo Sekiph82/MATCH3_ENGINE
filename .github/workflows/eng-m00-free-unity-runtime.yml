@@ -163,7 +163,10 @@ jobs:
             log="$RUNNER_TEMP/eng-m00-unity-${lower}.log"
             echo "RUN_UNITY_TEST_MODE=$mode"
             set +e
-            timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics -quit \
+            # Unity 6000.6 Test Framework forbids -quit alongside -runTests:
+            # -quit causes exit 0 BEFORE writing the NUnit XML result.
+            # -runTests terminates Editor itself after test completion.
+            timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics \
               -projectPath "$PWD" -runTests -testPlatform "$mode" \
               -testResults "$results" -logFile "$log"
             exit_code=$?
