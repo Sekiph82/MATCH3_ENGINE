@@ -84,53 +84,42 @@ jobs:
       # Unity documents Hub-only activation for Personal. If the third-party
       # licensing client cannot activate legally/technically, stop and report it.
       # Never copy local entitlement XML, store credentials in source or invent PASS.
-      # On ubuntu-24.04 runners, Unity Hub 3.22.2's post-install script
-      # invokes update-desktop-database. Minimal hosted images omit its package.
-      # Without this prerequisite, the official Unity Hub .deb stays half-
-      # configured and buildalon/unity-setup reports ENOENT for the Hub binary.
-      - name: Supply Unity Hub Debian post-install dependency
+      # Unity Hub's old headless integration in buildalon/unity-setup is
+      # deprecated on Hub 3.22 and returned exit 0 without installing Editor.
+      # Install the official standalone Unity CLI via Unity's signed apt repo.
+      # This setup phase receives NO Unity account credentials.
+      - name: Install official Unity CLI from Unity-signed apt repository
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends desktop-file-utils
-          command -v update-desktop-database
-          # Install Hub explicitly once, then print safe package-path metadata.
-          # The third-party setup action currently looks for an old Linux path.
-          # Register Unity's OFFICIAL signed APT source before install.
-          sudo install -d /etc/apt/keyrings
+          sudo install -d /usr/share/keyrings
           curl -fsSL https://hub.unity3d.com/linux/keys/public \
-            | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/unityhub.gpg
-          printf 'Types: deb\nURIs: https://hub.unity3d.com/linux/repos/deb\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/unityhub.gpg\n' \
-            | sudo tee /etc/apt/sources.list.d/unityhub.sources >/dev/null
+            | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/Unity_Technologies_ApS.gpg
+          printf 'Types: deb\nURIs: https://hub.unity3d.com/linux/repos/deb\nSuites: unstable\nComponents: main\nSigned-By: /usr/share/keyrings/Unity_Technologies_ApS.gpg\n' \
+            | sudo tee /etc/apt/sources.list.d/unity-cli.sources >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends unityhub
-          command -v unityhub
-          printf 'UNITY_HUB_PACKAGE_BINARIES:\n'
-          dpkg -L unityhub | grep -Ei '(bin/|opt/|unityhub$|\.desktop$)' | head -60 || true
-          # Compatibility with buildalon/unity-setup v2: its Linux UnityHub
-          # locator still expects /opt/unityhub, while Hub 3.22 installs
-          # the signed package to /usr/lib/unityhub. Link the complete tree,
-          # not just the executable, to preserve Electron resources.
-          test -x /usr/lib/unityhub/unityhub
-          test ! -e /opt/unityhub
-          sudo ln -s /usr/lib/unityhub /opt/unityhub
-          test -x /opt/unityhub/unityhub
-          # Pinned setup invokes the historical unity-hub CLI name; the current
-          # signed Unity Hub 3.22 package only publishes /usr/bin/unityhub.
-          # Provide an alias exclusively on this disposable CI runner.
-          sudo ln -s /usr/bin/unityhub /usr/local/bin/unity-hub
-          command -v unity-hub
-          # The Marketplace action adds its own apt source with a different
-          # Signed-By key path, so remove only our temporary source first.
-          sudo rm -f /etc/apt/sources.list.d/unityhub.sources
+          sudo apt-get install -y --no-install-recommends unity-cli
+          command -v unity
+          unity --version
 
-      - name: Install pinned Unity 6000.6.5f1 on the free hosted runner
-        uses: buildalon/unity-setup@30fcbcb56c10ea5d64298e970d952b8d29bc268b # v2.6.0
-        with:
-          version-file: ProjectSettings/ProjectVersion.txt
-          unity-version: 6000.6.5f1
-          cache-installation: false
+      - name: Install exact Unity Editor with official Unity CLI
+        shell: bash
+        env:
+          UNITY_NON_INTERACTIVE: '1'
+          UNITY_NO_UPDATE_CHECK: '1'
+          UNITY_NO_CONSENT_PROMPT: '1'
+        run: |
+          set -euo pipefail
+          # No build modules required for Unity EditMode/PlayMode test runner.
+          timeout 3600s unity install 6000.6.5f1 -c 3ff58d469c8a --format ndjson
+          editor="$(find "$HOME" -type f -path '*/6000.6.5f1/Editor/Unity' -print -quit)"
+          [[ -n "$editor" && -x "$editor" ]] || {
+            echo "::error::Unity CLI returned without a runnable 6000.6.5f1 Editor"
+            exit 1
+          }
+          printf 'UNITY_EDITOR_PATH=%s\n' "$editor" >> "$GITHUB_ENV"
+          echo 'UNITY_EDITOR_6000_6_5f1_INSTALL=PASS'
+          unity editors -i --format tsv
 
       - name: Activate Unity Personal via user-requested GitHub Marketplace action
         uses: RageAgainstThePixel/activate-unity-license@e73ff1f81db81a2595f86642123ce2b73b9a9258 # v2.2.2
