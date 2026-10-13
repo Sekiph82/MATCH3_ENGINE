@@ -184,6 +184,7 @@ public static class M00PinnedSampleGameplayProbe
 
     private static void BuildCandidates(IUnityGridSlot[] slots)
     {
+        Candidates.Clear();
         var byPosition = slots.ToDictionary(slot => Key(slot.GridPosition));
         foreach (var slot in slots.OrderBy(item => item.GridPosition.RowIndex).ThenBy(item => item.GridPosition.ColumnIndex))
         {
@@ -197,6 +198,64 @@ public static class M00PinnedSampleGameplayProbe
             AddCandidate(byPosition, slot, new GridPosition(row, column + 1));
             AddCandidate(byPosition, slot, new GridPosition(row + 1, column));
         }
+
+        // Choose a genuine 3+ match before trial swaps. Trying board edges in
+        // coordinate order often exhausts the editor watchdog on invalid swaps.
+        // This is an independent board-read probe, not a replacement game rule.
+        var ordered = Candidates.OrderByDescending(candidate =>
+            ProducesMatchOfThree(byPosition, candidate.First, candidate.Second)).ToArray();
+        var expectedMatches = ordered.Count(candidate =>
+            ProducesMatchOfThree(byPosition, candidate.First, candidate.Second));
+        Candidates.Clear();
+        Candidates.AddRange(ordered);
+        Debug.Log("M00_SAMPLE_PREDICTED_MATCH_CANDIDATES=" + expectedMatches +
+                  " TOTAL_CANDIDATES=" + Candidates.Count);
+    }
+
+    private static bool ProducesMatchOfThree(IDictionary<string, IUnityGridSlot> board,
+        IUnityGridSlot first, IUnityGridSlot second)
+    {
+        if (!first.HasItem || !second.HasItem || first.Item.ContentId == second.Item.ContentId)
+        {
+            return false;
+        }
+        return MakesLine(board, first.GridPosition, first, second, 1, 0) ||
+               MakesLine(board, first.GridPosition, first, second, 0, 1) ||
+               MakesLine(board, second.GridPosition, first, second, 1, 0) ||
+               MakesLine(board, second.GridPosition, first, second, 0, 1);
+    }
+
+    private static bool MakesLine(IDictionary<string, IUnityGridSlot> board,
+        GridPosition position, IUnityGridSlot first, IUnityGridSlot second, int dr, int dc)
+    {
+        int expectedId = position.Equals(first.GridPosition)
+            ? second.Item.ContentId : first.Item.ContentId;
+        int count = 1;
+        foreach (int sign in new[] { -1, 1 })
+        {
+            int row = position.RowIndex + sign * dr;
+            int col = position.ColumnIndex + sign * dc;
+            while (true)
+            {
+                var probe = new GridPosition(row, col);
+                int? actual = ContentAfterSwap(board, probe, first, second);
+                if (!actual.HasValue || actual.Value != expectedId) break;
+                count++;
+                row += sign * dr;
+                col += sign * dc;
+            }
+        }
+        return count >= 3;
+    }
+
+    private static int? ContentAfterSwap(IDictionary<string, IUnityGridSlot> board,
+        GridPosition position, IUnityGridSlot first, IUnityGridSlot second)
+    {
+        if (position.Equals(first.GridPosition)) return second.Item.ContentId;
+        if (position.Equals(second.GridPosition)) return first.Item.ContentId;
+        IUnityGridSlot slot;
+        return board.TryGetValue(Key(position), out slot) && slot.HasItem
+            ? (int?)slot.Item.ContentId : null;
     }
 
     private static void AddCandidate(IDictionary<string, IUnityGridSlot> byPosition, IUnityGridSlot first, GridPosition secondPosition)
