@@ -298,19 +298,26 @@ jobs:
               'DuplicateAndConflictingFeatureFlagsAreRejected',
               'ProfileCatalogRejectsUnknownMissingAndDuplicateProfiles',
               'VersionRulesDoNotAcceptIncompatibleMajorOrNegativeSegments',
+              'EnabledPluginFactoryCreatesNeutralUnitWithoutOwningBoard',
+              'DisabledPluginAndWrongKindCannotResolveFactory',
+              'DuplicatePluginIdAndIncorrectFactoryOutputFailClosed',
+              'EventStreamIsOrderedReadOnlyAndDoesNotLetObserverFailuresAlterAuthority',
+              'EventProtocolRejectsOutOfOrderAndAnythingAfterWinOrLoss',
+              'StateMachineSupportsOnlyAuthorizedLifecycleAndTerminalOnce',
+              'PauseResumeAndCancellationFenceDiscardStaleAsyncCompletion',
           }
           found = {}
           for path in sys.argv[1:]:
               root = ET.parse(path).getroot()
               for case in root.findall('.//test-case'):
                   fullname = case.get('fullname', '')
-                  if 'GameProfileContractTests.' not in fullname:
+                  if not any(c in fullname for c in ('GameProfileContractTests.', 'EngineAuthorityContractTests.')):
                       continue
                   short = fullname.rsplit('.', 1)[-1]
                   found.setdefault(short, set()).add(case.get('result', 'Missing'))
           if set(found) != expected or any(states != {'Passed'} for states in found.values()):
               raise SystemExit('FAIL: M01 new contract suite missing, skipped or failed: ' + str(found))
-          print('UNITY_M01_PROFILE_CONTRACTS=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          print('UNITY_M01_PROFILE_AND_AUTHORITY_CONTRACTS=PASS DISCOVERED=%d SKIPPED=0' % len(found))
           PY
 
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
