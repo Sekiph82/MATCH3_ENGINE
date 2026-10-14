@@ -692,8 +692,10 @@ namespace Match3.Engine.Runtime
             IReadOnlyList<EggOutput> outputs, uint seed)
         {
             if (egg == null) throw new ArgumentNullException(nameof(egg));
-            if (outputs == null || outputs.Count == 0)
-                throw new ArgumentException("Egg output catalog required.", nameof(outputs));
+            if (outputs == null || outputs.Count == 0 || outputs.Count > 256)
+                throw new ArgumentException(
+                    "Egg output catalog must contain 1..256 entries.",
+                    nameof(outputs));
             if (seed == 0) throw new ArgumentOutOfRangeException(nameof(seed));
             long total = 0;
             foreach (var output in outputs) total += output.Weight;
