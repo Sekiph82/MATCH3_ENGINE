@@ -36,12 +36,20 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentOutOfRangeException(nameof(maximumCandidates));
 
             var specialKind = ToSpecialKind(kind);
-            var candidates = topology.ActivePositions()
-                .Where(p => topology.HasOccupant(p) && !topology.IsLocked(p))
+            var candidates = new List<BoardPosition>();
+            foreach (var pair in topology.Occupants)
+            {
+                var p = pair.Key;
+                if (topology.IsLocked(p) || topology.IsHole(p))
+                    continue;
+                candidates.Add(p);
+                if (candidates.Count > maximumCandidates)
+                    break;
+            }
+            candidates = candidates
                 .OrderBy(p => p.Layer)
                 .ThenBy(p => p.Row)
                 .ThenBy(p => p.Column)
-                .Take(maximumCandidates + 1)
                 .ToList();
 
             if (candidates.Count > maximumCandidates)
@@ -310,10 +318,21 @@ namespace Match3.Engine.Runtime
         private static BoosterBoardTransformPlan PlanShuffle(BoardTopology topology,
             uint seed, int maximumMovableCells)
         {
-            var positions = topology.Occupants.Keys
-                .Where(x => !topology.IsLocked(x) && !topology.IsHole(x))
-                .OrderBy(x => x.Layer).ThenBy(x => x.Row).ThenBy(x => x.Column)
-                .Take(maximumMovableCells + 1).ToList();
+            var positions = new List<BoardPosition>();
+            foreach (var pair in topology.Occupants)
+            {
+                var p = pair.Key;
+                if (topology.IsLocked(p) || topology.IsHole(p))
+                    continue;
+                positions.Add(p);
+                if (positions.Count > maximumMovableCells)
+                    break;
+            }
+            positions = positions
+                .OrderBy(x => x.Layer)
+                .ThenBy(x => x.Row)
+                .ThenBy(x => x.Column)
+                .ToList();
             if (positions.Count > maximumMovableCells)
                 throw new InvalidOperationException("Shuffle cell budget exceeded.");
             if (positions.Count < 2)
