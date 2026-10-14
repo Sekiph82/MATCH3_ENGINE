@@ -415,6 +415,29 @@ jobs:
           print('UNITY_M02_CANONICAL_MOVE_CANDIDATES=PASS DISCOVERED=%d SKIPPED=0' % len(found))
           PY
 
+      - name: Confirm real SDK atomic pointer integration PlayMode passes with adversarial duplicates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'RapidDuplicateTapForwardsExactlyOneGenuineSdkMove',
+              'DragAndTapBothForwardSameSdkWinningSwapWithoutRulesFork',
+              'ModalAndInvalidPointerDoNotInvokeOrSpendSdkSwap',
+          }
+          root = ET.parse(sys.argv[1]).getroot()
+          matches = {}
+          for test in root.findall('.//test-case'):
+              fullname = test.get('fullname', '')
+              if 'DemoSdkAtomicInputBridgePlayModeTests.' in fullname:
+                  matches.setdefault(fullname.rsplit('.', 1)[-1], []).append(test.get('result'))
+          if set(matches) != expected or any(v != ['Passed'] for v in matches.values()):
+              raise SystemExit('FAIL: real SDK M02 input bridge cases absent/failed/skipped: '+str(matches))
+          print('UNITY_M02_ORIGINAL_SDK_ATOMIC_INPUT=PASS DISCOVERED=%d SKIPPED=0' % len(matches))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
