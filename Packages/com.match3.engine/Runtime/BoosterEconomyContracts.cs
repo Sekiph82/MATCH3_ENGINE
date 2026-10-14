@@ -87,11 +87,30 @@ namespace Match3.Engine.Runtime
                     if (tx == null)
                         throw new ArgumentException("Null booster transaction.",
                             nameof(transactions));
+                    if (txMap.Count >= 100000)
+                        throw new ArgumentException(
+                            "Booster transaction history limit exceeded.",
+                            nameof(transactions));
                     if (txMap.ContainsKey(tx.SourceId))
                         throw new ArgumentException("Duplicate booster transaction source.",
                             nameof(transactions));
                     txMap.Add(tx.SourceId, tx);
                 }
+            }
+
+            foreach (var kind in Enum.GetValues(typeof(BoosterKind))
+                .Cast<BoosterKind>())
+            {
+                var held = txMap.Values
+                    .Where(x => x.Kind == kind &&
+                        x.State == BoosterTransactionState.Reserved)
+                    .Sum(x => x.Amount);
+                int balance;
+                if (!balanceMap.TryGetValue(kind, out balance)) balance = 0;
+                if (held > balance)
+                    throw new ArgumentException(
+                        "Reserved booster amount exceeds inventory balance.",
+                        nameof(transactions));
             }
 
             _balances = new ReadOnlyDictionary<BoosterKind, int>(balanceMap);
