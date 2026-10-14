@@ -7,6 +7,7 @@ on:
   # ENG-M04 final acceptance refresh after callback-atomicity and 0x presentation hardening.
   # ENG-M05 final acceptance refresh after frozen obstacle lifecycle hardening.
   # ENG-M05 final source refresh after replay-idempotency and bounded-loop hardening.
+  # ENG-M06 final acceptance refresh after booster lifecycle and replay-journal hardening.
   push:
     branches: [main]
     paths:
