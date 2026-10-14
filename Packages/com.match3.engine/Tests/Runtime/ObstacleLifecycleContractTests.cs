@@ -193,6 +193,9 @@ namespace Match3.Engine.Tests
             Assert.That(first.GoalReceipts[0].ReceiptId, Is.EqualTo("wave-3|coral-instance-9"));
             Assert.That(replay.GoalReceipts[0].ReceiptId,
                 Is.EqualTo(first.GoalReceipts[0].ReceiptId));
+            var reapplyCommittedResult = ObstacleDamagePlanner.Plan(
+                first.Result, new[] { coral }, hit);
+            Assert.That(reapplyCommittedResult.GoalReceipts, Is.Empty);
             Assert.That(new HashSet<string>(new[]
             {
                 first.GoalReceipts[0].ReceiptId, replay.GoalReceipts[0].ReceiptId
