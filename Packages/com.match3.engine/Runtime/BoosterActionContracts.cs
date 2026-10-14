@@ -397,6 +397,8 @@ namespace Match3.Engine.Runtime
         public BoosterEconomySnapshot ReservedEconomy { get; }
         public BoosterEffectPlan EffectPlan { get; }
         public BoosterBoardTransformPlan TransformPlan { get; }
+        public string LogicalHash =>
+            EffectPlan != null ? EffectPlan.LogicalHash : TransformPlan.LogicalHash;
 
         internal PreparedBoosterAction(BoosterActionRequest request,
             BoosterEconomySnapshot reservedEconomy,
@@ -411,6 +413,101 @@ namespace Match3.Engine.Runtime
             if ((effectPlan == null) == (transformPlan == null))
                 throw new ArgumentException(
                     "Prepared booster action must contain exactly one logical plan.");
+        }
+    }
+
+    public sealed class BoosterActionJournalSnapshot
+    {
+        private readonly ReadOnlyDictionary<string, string> _applied;
+
+        public IReadOnlyDictionary<string, string> AppliedActions => _applied;
+
+        public BoosterActionJournalSnapshot(
+            IEnumerable<KeyValuePair<string, string>> appliedActions = null)
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (appliedActions != null)
+            {
+                foreach (var pair in appliedActions)
+                {
+                    if (map.Count >= 100000)
+                        throw new ArgumentException(
+                            "Booster action journal limit exceeded.",
+                            nameof(appliedActions));
+                    if (string.IsNullOrWhiteSpace(pair.Key) ||
+                        string.IsNullOrWhiteSpace(pair.Value))
+                        throw new ArgumentException(
+                            "Booster action journal fields required.",
+                            nameof(appliedActions));
+                    if (map.ContainsKey(pair.Key))
+                        throw new ArgumentException(
+                            "Duplicate booster action journal ID.",
+                            nameof(appliedActions));
+                    map.Add(pair.Key, pair.Value);
+                }
+            }
+            _applied = new ReadOnlyDictionary<string, string>(map);
+        }
+    }
+
+    public sealed class BoosterActionJournalPlan
+    {
+        public BoosterActionJournalSnapshot Result { get; }
+        public bool Applied { get; }
+
+        internal BoosterActionJournalPlan(
+            BoosterActionJournalSnapshot result, bool applied)
+        {
+            Result = result;
+            Applied = applied;
+        }
+    }
+
+    public static class BoosterActionJournalPlanner
+    {
+        public static BoosterActionJournalPlan RecordApplied(
+            BoosterActionJournalSnapshot snapshot,
+            string actionId, string logicalHash)
+        {
+            if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            if (string.IsNullOrWhiteSpace(actionId))
+                throw new ArgumentException("Action ID required.", nameof(actionId));
+            if (string.IsNullOrWhiteSpace(logicalHash))
+                throw new ArgumentException("Logical hash required.", nameof(logicalHash));
+
+            string existing;
+            if (snapshot.AppliedActions.TryGetValue(actionId, out existing))
+            {
+                if (!string.Equals(existing, logicalHash, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "Action ID is already bound to a different logical effect.");
+                return new BoosterActionJournalPlan(snapshot, false);
+            }
+
+            var map = snapshot.AppliedActions
+                .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+            map.Add(actionId, logicalHash);
+            return new BoosterActionJournalPlan(
+                new BoosterActionJournalSnapshot(map), true);
+        }
+    }
+
+    public sealed class BoosterActionCommitPlan
+    {
+        public BoosterEconomySnapshot Economy { get; }
+        public BoosterActionJournalSnapshot Journal { get; }
+        public bool EconomyChanged { get; }
+        public bool JournalChanged { get; }
+
+        internal BoosterActionCommitPlan(
+            BoosterEconomySnapshot economy,
+            BoosterActionJournalSnapshot journal,
+            bool economyChanged, bool journalChanged)
+        {
+            Economy = economy;
+            Journal = journal;
+            EconomyChanged = economyChanged;
+            JournalChanged = journalChanged;
         }
     }
 
@@ -471,6 +568,21 @@ namespace Match3.Engine.Runtime
                     "Current economy does not contain the prepared reservation.");
             return BoosterEconomyPlanner.Confirm(
                 currentEconomy, prepared.Request.ActionId);
+        }
+
+        public static BoosterActionCommitPlan Commit(
+            PreparedBoosterAction prepared,
+            BoosterEconomySnapshot currentEconomy,
+            BoosterActionJournalSnapshot currentJournal)
+        {
+            if (currentJournal == null)
+                throw new ArgumentNullException(nameof(currentJournal));
+            var economy = Confirm(prepared, currentEconomy);
+            var journal = BoosterActionJournalPlanner.RecordApplied(
+                currentJournal, prepared.Request.ActionId, prepared.LogicalHash);
+            return new BoosterActionCommitPlan(
+                economy.Result, journal.Result,
+                economy.Receipt.Applied, journal.Applied);
         }
 
         public static BoosterEconomyPlan Cancel(PreparedBoosterAction prepared,
