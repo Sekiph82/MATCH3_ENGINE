@@ -39,7 +39,7 @@ namespace Match3.Engine.Demo.Tests
             var found = probe.FindRealLegalMoves(board.Occupants);
             Assert.That(found.HasMoves, Is.True);
             Assert.That(found.Accepted, Does.Contain(new SwapCandidate(P(1, 0), P(2, 0))));
-            Assert.That(found.Accepted, Does.Not.Contain(new SwapCandidate(P(0, 0), P(0, 1))));
+            Assert.That(found.Accepted.Contains(new SwapCandidate(P(0, 0), P(0, 1))), Is.False);
             Assert.That(found.Accepted.Distinct().Count(), Is.EqualTo(found.Accepted.Count));
 
             Assert.That(game.GetSnapshot(), Is.EqualTo(before));
