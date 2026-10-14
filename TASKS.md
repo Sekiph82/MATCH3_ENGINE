@@ -254,8 +254,12 @@
 - [x] **ENG-M05-014 Advanced obstacle cross-product matrix** `PASS/CLOSED: INDEPENDENT UNITY 6.6 + WIN64 AUDIT`. **Acceptance:** explicit support matrix, structured rejection of ambiguous unsupported combinations before play. **Audit R01:** https://docs.google.com/document/d/1FGjCOIn1h1PfHk3IIfe7xs_6hGW0z84dAUlD1J3RMxQ/edit.
 **Milestone closure:** PASS/CLOSED. All 14 child receipts and master audit independently verified; ENG-M06 unlocked.
 
-### ENG-M06 | Boosters and abilities
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+### ENG-M06 | Boosters and abilities | IN_PROGRESS | 2026-10-14
+**State:** IN_PROGRESS / 0 of 11 independently audited PASS. **Exit gate:** 11/11 independent audit PASS + real Unity/Win64 closure; ENG-M07 remains gated.
+**FROZEN IMPLEMENTATION SPEC:** https://docs.google.com/document/d/1vcrH9BEFGga_H-UrqvvTlLdzyOSwRLu1HRKvcJ1LZ4Q/edit
+**FROZEN MASTER CRITERIA:** https://docs.google.com/document/d/1sSzXitPQgiOBlzSG_zxVjR1At29480cgMOR3IFDE0rE/edit
+**FROZEN 11-CHILD ACCEPTANCE:** https://docs.google.com/document/d/1Fp4QVuSFc2HxZCINScjSJ7okupkkuLk020MGodcocW4/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M06_IMPLEMENT_AND_INDEPENDENT_AUDIT. **ENTRY BASE:** ENG-M05 closure `952e6ecad4ad19599d0d66bc301abf9bacbfc617`.
 
 - [ ] **ENG-M06-001 Prelevel boosts** `PLANNED`. **Contract:** Inventory reservation and valid deterministic startup placement. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M06-002 Hammer action** `PLANNED`. **Contract:** Click target validation and single-cell damage. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
