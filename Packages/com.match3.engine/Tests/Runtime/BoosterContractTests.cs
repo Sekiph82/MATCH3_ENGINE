@@ -64,6 +64,19 @@ namespace Match3.Engine.Tests
             Assert.That(a.SpecialKind, Is.EqualTo(SpecialActivationKind.Area));
             Assert.That(economy.Balance(BoosterKind.Area), Is.EqualTo(1));
 
+            var manyA = PrelevelBoosterPlanner.PlanMany(
+                board,
+                new[] { BoosterKind.Area, BoosterKind.HorizontalLine },
+                456u);
+            var manyB = PrelevelBoosterPlanner.PlanMany(
+                board,
+                new[] { BoosterKind.Area, BoosterKind.HorizontalLine },
+                456u);
+            Assert.That(manyA.Select(x => x.Position).ToArray(),
+                Is.EqualTo(manyB.Select(x => x.Position).ToArray()));
+            Assert.That(manyA.Select(x => x.Position).Distinct().Count(),
+                Is.EqualTo(2));
+
             var committed = BoosterEconomyPlanner.Confirm(
                 reserved.Result, "prelevel-1");
             Assert.That(committed.Result.Balance(BoosterKind.Area), Is.EqualTo(0));
