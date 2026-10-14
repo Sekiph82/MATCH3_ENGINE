@@ -45,6 +45,23 @@ namespace Match3.Engine.Demo
             return _solver.Solve(board, points).SolvedSequences.Count > 0;
         }
 
+        // This is a read-only projection of the pinned SDK's detected
+        // sequences, NOT a second matcher or rule owner. A fresh clone
+        // prevents SDK special detectors from touching live board state.
+        public IReadOnlyList<int> GetSdkRunLengths(
+            IReadOnlyDictionary<BoardPosition, string> contents)
+        {
+            var board = Clone(contents);
+            var cells = new List<GridPosition>();
+            for (var row = 0; row < _topology.Rows; row++)
+                for (var column = 0; column < _topology.Columns; column++)
+                    cells.Add(new GridPosition(row, column));
+            var result = _solver.Solve(board, cells.ToArray());
+            var lengths = result.SolvedSequences.Select(x => x.SolvedGridSlots.Count)
+                .OrderBy(x => x).ToArray();
+            return Array.AsReadOnly(lengths);
+        }
+
         public CandidateScanResult FindRealLegalMoves(
             IReadOnlyDictionary<BoardPosition, string> contents)
         {
