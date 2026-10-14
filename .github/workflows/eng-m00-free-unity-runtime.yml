@@ -683,6 +683,57 @@ jobs:
           print('UNITY_M04_001_004_GRAVITY_REFILL=PASS DISCOVERED=%d SKIPPED=0' % len(found))
           PY
 
+      - name: Require real Unity ENG-M04 transport portal contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'ConveyorMovesAcyclicChainSimultaneouslyInStableOrder',
+              'ConveyorCollisionUsesPriorityAndRejectsCyclesLocksAndAmbiguousSources',
+              'ConveyorSchemaRoundTripsCanonicallyAndRejectsVersionDrift',
+              'PortalTeleportsAtMostOncePerPhaseAndBlockedPairDoesNotOverwrite',
+              'PortalRegistryAndSchemaRejectMalformedPairsAndRoundTripStableIds',
+          }
+          found = {}
+          for path in sys.argv[1:]:
+              for case in ET.parse(path).getroot().findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  if 'TransportContractTests.' in fullname:
+                      found.setdefault(fullname.rsplit('.', 1)[-1], []).append(case.get('result'))
+          if set(found) != expected or any(v != ['Passed'] for v in found.values()):
+              raise SystemExit('FAIL: M04 transport/portal cases missing, skipped or failed: '+str(found))
+          print('UNITY_M04_009_010_TRANSPORT_PORTAL=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
+      - name: Require real Unity ENG-M04 cascade lifecycle performance and mixed-settle contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'CascadePlannerUsesAuthoritativeCallbackUntilStableAndCapsWaves',
+              'PresentationSpeedAndSkipNeverChangeLogicalTimelineHash',
+              'PauseInvalidatesStaleCompletionAndResumeCannotDoubleCommit',
+              'GravityWorkAndManagedMemoryStayBoundedAtNineTwelveAndTwentyBoards',
+              'MixedPipelineCombinesConveyorPortalGravityAndRefillWithoutDuplicatesOrMutation',
+              'MixedPipelineFailsClosedOnInvalidTransportInsteadOfLooping',
+          }
+          found = {}
+          for path in sys.argv[1:]:
+              for case in ET.parse(path).getroot().findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  if 'CascadeLifecycleContractTests.' in fullname:
+                      found.setdefault(fullname.rsplit('.', 1)[-1], []).append(case.get('result'))
+          if set(found) != expected or any(v != ['Passed'] for v in found.values()):
+              raise SystemExit('FAIL: M04 cascade/lifecycle cases missing, skipped or failed: '+str(found))
+          print('UNITY_M04_005_008_011_CASCADE_LIFECYCLE=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
