@@ -163,22 +163,25 @@ namespace Match3.Engine.Tests
         public void PresentationSpeedAndSkipNeverChangeLogicalTimelineHash()
         {
             var timeline = CascadeCoordinator.Plan(wave => wave == 0, 3);
+            var zero = TimelinePresentation.Project(timeline, 0.0, false);
             var normal = TimelinePresentation.Project(timeline, 1.0, false);
             var fast = TimelinePresentation.Project(timeline, 2.0, false);
             var skipped = TimelinePresentation.Project(timeline, 1.0, true);
 
+            Assert.That(zero.LogicalHash, Is.EqualTo(timeline.LogicalHash));
             Assert.That(normal.LogicalHash, Is.EqualTo(timeline.LogicalHash));
             Assert.That(fast.LogicalHash, Is.EqualTo(timeline.LogicalHash));
             Assert.That(skipped.LogicalHash, Is.EqualTo(timeline.LogicalHash));
             Assert.That(normal.Frames.Select(x => x.LogicalEvent.Sequence),
                 Is.EqualTo(fast.Frames.Select(x => x.LogicalEvent.Sequence)));
+            Assert.That(zero.Frames.All(x => x.DelaySeconds == 0.0), Is.True);
             Assert.That(skipped.Frames.All(x => x.DelaySeconds == 0.0), Is.True);
             Assert.That(normal.Frames.Any(x => x.DelaySeconds > 0.0), Is.True);
             Assert.That(fast.Frames.Where(x => x.DelaySeconds > 0.0)
                 .Zip(normal.Frames.Where(x => x.DelaySeconds > 0.0),
                     (a,b) => a.DelaySeconds < b.DelaySeconds).All(x => x), Is.True);
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                TimelinePresentation.Project(timeline, 0.0, false));
+                TimelinePresentation.Project(timeline, -1.0, false));
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 TimelinePresentation.Project(timeline, Double.NaN, false));
         }
