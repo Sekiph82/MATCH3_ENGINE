@@ -1,5 +1,6 @@
 name: ENG-M06 Real Windows Player Release Firewall
   # ENG-M06 final guarded-interruption source-parity refresh.
+  # ENG-M06 final journal-aware recovery and refund-boundary source-parity refresh.
 on:
   workflow_dispatch:
   # ENG-M06 FINAL frozen booster/ability source plus inherited M00-M05 runtime: real Unity Win64 build, strict release scanner.
