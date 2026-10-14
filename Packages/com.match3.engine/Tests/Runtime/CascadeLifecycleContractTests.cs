@@ -44,6 +44,122 @@ namespace Match3.Engine.Tests
         }
 
         [Test]
+        public void CascadeCallbacksPlanCanonicalStagesAndCommitOnlyCompleteWaves()
+        {
+            var order = new List<string>();
+            var callbacks = new CascadePlanningCallbacks(
+                wave =>
+                {
+                    order.Add("detect" + wave);
+                    return wave < 2;
+                },
+                wave =>
+                {
+                    order.Add("damage" + wave);
+                    return "damage-" + wave;
+                },
+                wave =>
+                {
+                    order.Add("settle" + wave);
+                    return "settle-" + wave;
+                },
+                wave =>
+                {
+                    order.Add("refill" + wave);
+                    return "refill-" + wave;
+                },
+                () => true);
+
+            var plan = CascadeCoordinator.PlanWithCallbacks(callbacks, 4);
+
+            Assert.That(order, Is.EqualTo(new[]
+            {
+                "detect0", "damage0", "settle0", "refill0",
+                "detect1", "damage1", "settle1", "refill1",
+                "detect2"
+            }));
+            Assert.That(plan.Timeline.ResolvedWaves, Is.EqualTo(2));
+            Assert.That(plan.Proposals.Count, Is.EqualTo(6));
+            Assert.That(plan.Proposals.Select(x => x.Phase), Is.EqualTo(new[]
+            {
+                CascadePhase.Damage, CascadePhase.Settle, CascadePhase.Refill,
+                CascadePhase.Damage, CascadePhase.Settle, CascadePhase.Refill
+            }));
+            Assert.That(plan.Proposals.Select(x => x.ProposalId), Is.EqualTo(new[]
+            {
+                "damage-0", "settle-0", "refill-0",
+                "damage-1", "settle-1", "refill-1"
+            }));
+        }
+
+        [Test]
+        public void CascadeCallbacksRejectStaleOrPartialWaveWithoutReturningCommitPlan()
+        {
+            var current = true;
+            var order = new List<string>();
+            var staleCallbacks = new CascadePlanningCallbacks(
+                wave =>
+                {
+                    order.Add("detect");
+                    return true;
+                },
+                wave =>
+                {
+                    order.Add("damage");
+                    current = false;
+                    return "damage";
+                },
+                wave =>
+                {
+                    order.Add("settle");
+                    return "settle";
+                },
+                wave =>
+                {
+                    order.Add("refill");
+                    return "refill";
+                },
+                () => current);
+
+            Assert.Throws<OperationCanceledException>(() =>
+                CascadeCoordinator.PlanWithCallbacks(staleCallbacks, 2));
+            Assert.That(order, Is.EqualTo(new[] { "detect", "damage" }));
+
+            var throwingOrder = new List<string>();
+            var throwingCallbacks = new CascadePlanningCallbacks(
+                wave => true,
+                wave =>
+                {
+                    throwingOrder.Add("damage");
+                    return "damage";
+                },
+                wave =>
+                {
+                    throwingOrder.Add("settle");
+                    throw new InvalidOperationException("settle proposal failed");
+                },
+                wave =>
+                {
+                    throwingOrder.Add("refill");
+                    return "refill";
+                },
+                () => true);
+
+            Assert.Throws<InvalidOperationException>(() =>
+                CascadeCoordinator.PlanWithCallbacks(throwingCallbacks, 2));
+            Assert.That(throwingOrder, Is.EqualTo(new[] { "damage", "settle" }));
+
+            var invalidCallbacks = new CascadePlanningCallbacks(
+                wave => true,
+                wave => "damage",
+                wave => "",
+                wave => "refill",
+                () => true);
+            Assert.Throws<InvalidOperationException>(() =>
+                CascadeCoordinator.PlanWithCallbacks(invalidCallbacks, 2));
+        }
+
+        [Test]
         public void PresentationSpeedAndSkipNeverChangeLogicalTimelineHash()
         {
             var timeline = CascadeCoordinator.Plan(wave => wave == 0, 3);
