@@ -279,8 +279,12 @@
 - [x] **ENG-M06-011 Score-to-power optional alternative mode** `PASS/CLOSED: INDEPENDENT UNITY 6.6 + WIN64 AUDIT`. **Implementation and acceptance:** Design score earned in a special optional timed/endless mode as nonpremium power meter and limited earnable boost (JAG-style concept only, no Qt/C++ copy); disabled in standard campaign, no replay farming or child pressure. **Proof:** Git/UPM version evidence, executed positive-negative tests, Drive audit and owner approval for optional production SDKs. **Audit R01:** https://docs.google.com/document/d/1qAEmOEnvCF4nd75eTPhorfK6RlUHPrVaYSVT2gc5O_s/edit.
 **Milestone closure:** PASS/CLOSED. All 11 child receipts and master audit independently verified; ENG-M07 unlocked.
 
-### ENG-M07 | Goals score win lose
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+### ENG-M07 | Goals score win lose | IN_PROGRESS | 2026-10-14
+**State:** IN_PROGRESS / 0 of 10 independently audited PASS. **Exit gate:** 10/10 independent audit PASS + real Unity/Win64 closure; ENG-M08 remains gated.
+**FROZEN IMPLEMENTATION SPEC:** https://docs.google.com/document/d/18ebIrq5pQrEJBRwZ_ZV9uC-OqJuqv9Mnwz1MFYyluqI/edit
+**FROZEN MASTER CRITERIA:** https://docs.google.com/document/d/1mSsDwQtS92DGGSbdLoG2jb4T7km1iw82Mty95R97bbE/edit
+**FROZEN 10-CHILD ACCEPTANCE:** https://docs.google.com/document/d/1RkULsVd4RUiH7SrTSbRwYjBpEV7OpTjx4ipujM-BUS4/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M07_IMPLEMENT_AND_INDEPENDENT_AUDIT. **ENTRY BASE:** ENG-M06 closure `c195e9bfd366dd6aba30521cc0d82ebbca06e3b3`.
 
 - [ ] **ENG-M07-001 Goal registry** `PLANNED`. **Contract:** Collect pieces clear obstacles rescue/drop and composite targets. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M07-002 Move/time goals** `PLANNED`. **Contract:** Move budget canonical; optional time mode only where enabled. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
