@@ -303,8 +303,12 @@
 - [x] **ENG-M07-010 Post-win score and celebration configuration** `PASS/CLOSED: INDEPENDENT UNITY 6.6 + WIN64 AUDIT`. **Implementation and independent acceptance:** Deterministic settle of final-turn goals, optional leftover moves conversion to specials and scoring; skip/reduced-motion suppresses animation only, not rewards, stars or progression. **Proof:** deterministic positive and negative tests, actual Unity 6000.6.5f1 source commit, redacted Drive evidence, Factory schema parity where relevant, and ChatGPT audit PASS before closure. **Audit R01:** https://docs.google.com/document/d/1u5cfiuxD2GxrfUwzoCjZh437Rst167vsxVWJyzKywXg/edit.
 **Milestone closure:** PASS/CLOSED. All 10 child receipts and master audit independently verified; ENG-M08 unlocked.
 
-### ENG-M08 | Shared world-map and progression
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+### ENG-M08 | Shared world-map and progression | IN_PROGRESS | 2026-10-14
+**State:** IN_PROGRESS / 0 of 19 independently audited PASS. **Exit gate:** 19/19 independent audit PASS + real Unity/Win64 closure; ENG-M09 remains gated.
+**FROZEN IMPLEMENTATION SPEC:** https://docs.google.com/document/d/1qZfslXrLMSjAkGNuWBIRJBYbFTY5wdyjnu8vl3CG__0/edit
+**FROZEN MASTER CRITERIA:** https://docs.google.com/document/d/1H0fYX6gVydccgOH5zOoMAMV5g5fI8p-_Z-OqShyIvAg/edit
+**FROZEN 19-CHILD ACCEPTANCE:** https://docs.google.com/document/d/1NDzMFeoqkFwItqISsEIqNBav4xwcYJPJ9DvMoEMYzKA/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M08_IMPLEMENT_AND_INDEPENDENT_AUDIT. **ENTRY BASE:** ENG-M07 closure `31dda566b5e907453874dee251dbe3fc31f406ea`.
 
 - [ ] **ENG-M08-001 World chapter level identifiers** `PLANNED`. **Contract:** Same graph schema for all five games. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M08-002 Navigation** `PLANNED`. **Contract:** Home→World→Chapter→Level→Result→Map common implementation. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
