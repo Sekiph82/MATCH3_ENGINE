@@ -637,6 +637,7 @@ namespace Match3.Engine.Runtime
         public CommittedWinSnapshot Outcome { get; }
         public IReadOnlyList<FinalePresentationEvent> Events { get; }
         public int PresentationScoreDelta { get; }
+        public int FinalScore => checked(Outcome.AuthoritativeScore + PresentationScoreDelta);
         public int AuthoritativeRewardDelta => 0;
 
         internal WinFinalePlan(CommittedWinSnapshot outcome,
