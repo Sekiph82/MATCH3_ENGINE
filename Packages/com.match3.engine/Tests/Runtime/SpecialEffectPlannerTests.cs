@@ -54,6 +54,20 @@ namespace Match3.Engine.Tests
             var obstacle = plan.Hits.Single(x => x.Position.Equals(P(0, 3)));
             Assert.That(obstacle.ObstacleLayersBefore, Is.EqualTo(2));
             Assert.That(obstacle.ObstacleLayersAfter, Is.EqualTo(1));
+
+            var verticalBoard = Full(5, 1, (r, c) =>
+            {
+                if (r == 1) return new SpecialCellState(P(r, c), "B", immune: true);
+                if (r == 3) return new SpecialCellState(P(r, c), "D",
+                    obstacleLayers: 2, stopsLinePropagation: true);
+                return new SpecialCellState(P(r, c), "A");
+            });
+            var vertical = SpecialEffectPlanner.Resolve(verticalBoard,
+                new SpecialActivation(SpecialActivationKind.VerticalLine, P(2, 0)));
+            Assert.That(vertical.Hits.Select(x => x.Position).ToArray(),
+                Is.EqualTo(new[] { P(2, 0), P(0, 0), P(3, 0) }));
+            Assert.That(vertical.Hits.Any(x => x.Position.Equals(P(1, 0))), Is.False);
+            Assert.That(vertical.Hits.Any(x => x.Position.Equals(P(4, 0))), Is.False);
         }
 
         [Test]
@@ -312,11 +326,18 @@ namespace Match3.Engine.Tests
                     new FeatureFlag("match_2x2", EngineCompatibility.MinimumCapability),
                     new FeatureFlag("targeted_missile", EngineCompatibility.MinimumCapability)
                 });
+            var before = board.Cells.OrderBy(x => x.Key.Row)
+                .ThenBy(x => x.Key.Column)
+                .Select(x => x.Key + "=" + x.Value.ContentId).ToArray();
             var candidates = OptionalSquareSpecialDetector.Detect(board, enabled,
                 preferredAnchors: new[] { P(1, 1) });
             Assert.That(candidates.Count, Is.EqualTo(1));
             Assert.That(candidates[0].Anchor, Is.EqualTo(P(1, 1)));
             Assert.That(candidates[0].Cells.Count, Is.EqualTo(4));
+            var after = board.Cells.OrderBy(x => x.Key.Row)
+                .ThenBy(x => x.Key.Column)
+                .Select(x => x.Key + "=" + x.Value.ContentId).ToArray();
+            Assert.That(after, Is.EqualTo(before));
 
             Assert.That(OptionalSquareSpecialDetector.Detect(board, enabled,
                 sdkReservedCells: new[] { P(0, 0) }), Is.Empty);
@@ -403,6 +424,7 @@ namespace Match3.Engine.Tests
             Assert.That(plan.Outcome.AuthoritativeScore, Is.EqualTo(1250));
             Assert.That(plan.Outcome.FirstClearAwarded, Is.True);
             Assert.That(plan.PresentationScoreDelta, Is.EqualTo(300));
+            Assert.That(plan.FinalScore, Is.EqualTo(1550));
             Assert.That(plan.AuthoritativeRewardDelta, Is.EqualTo(0));
             Assert.That(plan.Events.Count(x =>
                 x.Kind == FinalePresentationKind.ConvertMoveToSpecial), Is.EqualTo(3));
