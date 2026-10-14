@@ -134,6 +134,7 @@
 **Milestone closure:** every M01 child audited; no unresolved blocker; ChatGPT updates only this TASKS.md.
 
 ### ENG-M02 | Deterministic board and input
+**Batch A implementation READY_FOR_REAL_UNITY_AUDIT (NOT PASS):** ENG-M02-001/002 pure immutable BoardTopology and BoardPosition/BoardOccupant (holes/layers/locks/unique occupancy, no match logic), explicit xorshift32 SeededRandom with nonzero seed and bounded NextIndex; 7 positive and adversarial NUnit tests `BoardTopologyAndRandomTests`, source commit `f4eb7aeb0052029719494c3a05acc47f58909677`, test commit `b2333bd8bd8b467423c6f033c25e58ec5340b80d`; Unity .meta GUIDs and original M01 untouched. Explicit GitHub-hosted Unity 6000.6.5f1 gate commit `ba71485a728cd65ca8cf88beccc98ef5839e75d7`, run https://github.com/Sekiph82/MATCH3_ENGINE/actions/runs/38506131630. **NOT AUDITED**: do not check 001/002 until real 7 new NUnit results (plus all M00/M01 regressions and original SDK sample) independently PASS. Other M02 tasks 003..011 still PLANNED.
 **State:** IN_PROGRESS / 0 of 11 independent PASS. **Exit gate:** 11/11 independently audited with complete Drive evidence, true Unity 6.6 replay/SDK parity, latest real Windows64 player/firewall; M03 gated.
 **MASTER SPEC frozen before implementation:** https://docs.google.com/document/d/1-zWxKJ7Ayq46Lequ4yW1Sww8-M5S1GDvCmUt4SrqZq4/edit
 **MASTER INDEPENDENT CRITERIA frozen before implementation:** https://docs.google.com/document/d/19flX1kyVd1mQES09WIwpXCBj3BNgJcD36GbfmspS2hI/edit
