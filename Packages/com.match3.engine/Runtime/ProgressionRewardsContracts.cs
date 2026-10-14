@@ -106,21 +106,34 @@ namespace Match3.Engine.Runtime
     {
         private readonly ReadOnlyCollection<string> _processedEventIds;
 
+        public string GameId { get; }
+        public string ProfileId { get; }
+        public string ModeId { get; }
         public int Streak { get; }
         public int ShieldCharges { get; }
         public long HighWaterDayId { get; }
         public IReadOnlyList<string> ProcessedEventIds => _processedEventIds;
 
-        public WinStreakSnapshot(int streak = 0,
+        public WinStreakSnapshot(string gameId, string profileId,
+            string modeId, int streak = 0,
             int shieldCharges = 0, long highWaterDayId = 0,
             IEnumerable<string> processedEventIds = null)
         {
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                throw new ArgumentException("Unknown game ID.", nameof(gameId));
+            if (string.IsNullOrWhiteSpace(profileId))
+                throw new ArgumentException("Profile ID required.", nameof(profileId));
+            if (string.IsNullOrWhiteSpace(modeId))
+                throw new ArgumentException("Mode ID required.", nameof(modeId));
             if (streak < 0 || streak > 100000)
                 throw new ArgumentOutOfRangeException(nameof(streak));
             if (shieldCharges < 0 || shieldCharges > 100)
                 throw new ArgumentOutOfRangeException(nameof(shieldCharges));
             if (highWaterDayId < 0)
                 throw new ArgumentOutOfRangeException(nameof(highWaterDayId));
+            GameId = gameId;
+            ProfileId = profileId;
+            ModeId = modeId;
             Streak = streak;
             ShieldCharges = shieldCharges;
             HighWaterDayId = highWaterDayId;
@@ -171,6 +184,11 @@ namespace Match3.Engine.Runtime
             if (!result.Verified)
                 throw new InvalidOperationException(
                     "Unverified result cannot mutate win streak.");
+            if (!StringComparer.Ordinal.Equals(snapshot.GameId, result.GameId) ||
+                !StringComparer.Ordinal.Equals(snapshot.ProfileId, result.ProfileId) ||
+                !StringComparer.Ordinal.Equals(snapshot.ModeId, result.ModeId))
+                throw new InvalidOperationException(
+                    "Win streak result belongs to another game/profile/mode.");
             if (result.CanonicalDayId < snapshot.HighWaterDayId)
                 throw new InvalidOperationException(
                     "Win streak day rollback detected.");
@@ -203,6 +221,9 @@ namespace Match3.Engine.Runtime
             }
 
             var next = new WinStreakSnapshot(
+                snapshot.GameId,
+                snapshot.ProfileId,
+                snapshot.ModeId,
                 streak,
                 shields,
                 Math.Max(snapshot.HighWaterDayId, result.CanonicalDayId),
@@ -249,6 +270,9 @@ namespace Match3.Engine.Runtime
                 policy.MaximumShields, snapshot.ShieldCharges + amount);
             return new WinStreakPlan(
                 new WinStreakSnapshot(
+                    snapshot.GameId,
+                    snapshot.ProfileId,
+                    snapshot.ModeId,
                     snapshot.Streak, shields,
                     snapshot.HighWaterDayId,
                     snapshot.ProcessedEventIds.Concat(new[] { sourceId })),
@@ -278,6 +302,9 @@ namespace Match3.Engine.Runtime
             var streak = reset ? 0 : snapshot.Streak;
             return new WinStreakPlan(
                 new WinStreakSnapshot(
+                    snapshot.GameId,
+                    snapshot.ProfileId,
+                    snapshot.ModeId,
                     streak,
                     snapshot.ShieldCharges,
                     Math.Max(snapshot.HighWaterDayId, canonicalDayId),
@@ -530,10 +557,18 @@ namespace Match3.Engine.Runtime
             if (snapshot.Progress > definition.Cap)
                 throw new InvalidOperationException(
                     "Progress meter snapshot exceeds cap.");
+            if (snapshot.State == ProgressMeterState.Locked &&
+                snapshot.Progress >= definition.Target)
+                throw new InvalidOperationException(
+                    "Locked meter snapshot already reached its target.");
             if (snapshot.State == ProgressMeterState.Claimable &&
                 snapshot.Progress < definition.Target)
                 throw new InvalidOperationException(
                     "Claimable meter snapshot is below target.");
+            if (snapshot.State == ProgressMeterState.Claimed &&
+                snapshot.Progress < definition.Target)
+                throw new InvalidOperationException(
+                    "Claimed meter snapshot is below target.");
         }
     }
 
