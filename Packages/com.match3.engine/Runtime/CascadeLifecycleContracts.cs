@@ -272,11 +272,15 @@ namespace Match3.Engine.Runtime
         {
             if (timeline == null) throw new ArgumentNullException(nameof(timeline));
             if (Double.IsNaN(speedMultiplier) || Double.IsInfinity(speedMultiplier) ||
-                speedMultiplier <= 0.0)
+                speedMultiplier < 0.0)
                 throw new ArgumentOutOfRangeException(nameof(speedMultiplier));
 
+            // 0x is an explicit animation-disabled mode, distinct from skip UI
+            // intent but identical in logical authority: both carry zero delay.
             var frames = timeline.Events.Select(x => new PresentationFrame(
-                x, skip ? 0.0 : BaseDelay(x.Phase) / speedMultiplier)).ToArray();
+                x, skip || speedMultiplier == 0.0
+                    ? 0.0
+                    : BaseDelay(x.Phase) / speedMultiplier)).ToArray();
             return new PresentationSchedule(timeline.LogicalHash, frames);
         }
 
