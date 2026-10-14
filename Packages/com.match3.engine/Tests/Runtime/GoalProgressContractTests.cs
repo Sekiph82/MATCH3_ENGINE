@@ -140,15 +140,28 @@ namespace Match3.Engine.Tests
             Assert.That(GoalQaFixtureGenerator.Hash(a),
                 Is.Not.EqualTo(GoalQaFixtureGenerator.Hash(c)));
 
-            foreach (var fixture in a.Take(64))
+            var qaRegistry = new GoalRegistry(new[]
+            {
+                new GoalDefinition("qa-goal", GoalKind.CollectPiece, "qa", 1)
+            });
+            var incomplete = GoalProgressPlanner.Create(qaRegistry);
+            var complete = GoalProgressPlanner.Apply(
+                qaRegistry, incomplete,
+                new GoalProgressEvent("qa-complete", 1, "qa-goal", 1)).Result;
+
+            foreach (var fixture in a)
             {
                 Assert.DoesNotThrow(() =>
                     DeterministicScorePlanner.ScoreEvent(
                         fixture.BasePoints, fixture.ComboDepth));
-                Assert.DoesNotThrow(() =>
-                    LevelTerminalArbitrator.Resolve(
-                        true, fixture.GoalsComplete,
-                        new LevelBudgetSnapshot(fixture.Moves)));
+                var progress = fixture.GoalsComplete ? complete : incomplete;
+                var resolution = LevelTerminalArbitrator.Resolve(
+                    true, qaRegistry, progress,
+                    new LevelBudgetSnapshot(fixture.Moves));
+                Assert.That(resolution.Outcome,
+                    Is.EqualTo(fixture.GoalsComplete
+                        ? LevelTerminalOutcome.Win
+                        : LevelTerminalOutcome.None));
             }
         }
 
