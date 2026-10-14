@@ -131,6 +131,30 @@ namespace Match3.Engine.Tests
         }
 
         [Test]
+        public void PortalRejectsLockedOrHoledEndpointsInsteadOfTeleportingThroughTopology()
+        {
+            var lockedBoard = new BoardTopology(2, 2,
+                locked: new[] { P(1,1) },
+                occupants: new[] { new BoardOccupant(P(0,0), "A") });
+            var lockedRegistry = new PortalRegistry(new[]
+            {
+                new PortalPair("locked", P(0,0), P(1,1))
+            });
+            Assert.Throws<ArgumentException>(() =>
+                PortalPlanner.Plan(lockedBoard, lockedBoard.Occupants, lockedRegistry));
+
+            var holedBoard = new BoardTopology(2, 2,
+                holes: new[] { P(1,1) },
+                occupants: new[] { new BoardOccupant(P(0,0), "A") });
+            var holedRegistry = new PortalRegistry(new[]
+            {
+                new PortalPair("hole", P(0,0), P(1,1))
+            });
+            Assert.Throws<ArgumentException>(() =>
+                PortalPlanner.Plan(holedBoard, holedBoard.Occupants, holedRegistry));
+        }
+
+        [Test]
         public void PortalRegistryAndSchemaRejectMalformedPairsAndRoundTripStableIds()
         {
             var registry = new PortalRegistry(new[]
