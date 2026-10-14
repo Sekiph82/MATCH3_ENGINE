@@ -177,6 +177,24 @@ namespace Match3.Engine.Runtime
             }
         }
 
+        public static SpecialEffectPlan ResolveColorWithNormal(
+            SpecialBoardSnapshot board, SpecialActivation colorSpecial,
+            BoardPosition normalCell, uint seed = 1u,
+            int maximumActivations = 128, int maximumTargetCandidates = 4096)
+        {
+            if (board == null) throw new ArgumentNullException(nameof(board));
+            if (colorSpecial.Kind != SpecialActivationKind.Color)
+                throw new ArgumentException("Color special required.", nameof(colorSpecial));
+            SpecialCellState cell;
+            if (!board.TryGet(normalCell, out cell) || cell.Immune ||
+                string.IsNullOrEmpty(cell.ContentId))
+                throw new ArgumentException("Eligible normal colored cell required.", nameof(normalCell));
+            return Resolve(board, new SpecialActivation(
+                SpecialActivationKind.Color, colorSpecial.Origin,
+                colorSpecial.Radius, cell.ContentId), null, seed,
+                maximumActivations, maximumTargetCandidates);
+        }
+
         public static SpecialEffectPlan Resolve(SpecialBoardSnapshot board,
             SpecialActivation first, SpecialActivation? second = null,
             uint seed = 1u, int maximumActivations = 128,
