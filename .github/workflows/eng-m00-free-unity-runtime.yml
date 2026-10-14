@@ -256,6 +256,22 @@ jobs:
               # Unity's raw log can contain licensing metadata, user paths, or
               # other secrets. Never echo raw log excerpts into PUBLIC Actions.
               if [[ -f "$log" ]]; then
+                # Emit ONLY compiler diagnostic codes, relative basenames and
+                # line numbers. Do not print raw Unity log, message bodies,
+                # credentials, activation paths or licensing metadata.
+                python3 - "$log" <<'PY'
+          import re
+          import sys
+          with open(sys.argv[1], encoding="utf-8", errors="replace") as stream:
+              source = stream.read()
+          matches = re.findall(
+              r'([A-Za-z0-9_.-]+\\.cs)\\((\\d+),(\\d+)\\):\\s*error\\s+(CS\\d+)',
+              source, re.I)
+          print('UNITY_COMPILER_DIAGNOSTIC_COUNT=%d' % len(matches))
+          for filename, line, col, code in matches[:30]:
+              print('UNITY_COMPILE_ERROR_FILE=%s LINE=%s COLUMN=%s CODE=%s' %
+                    (filename, line, col, code.upper()))
+          PY
                 echo 'UNITY_RAW_EDITOR_LOG_RETAINED_ON_EPHEMERAL_RUNNER_ONLY'
               fi
               exit 1
