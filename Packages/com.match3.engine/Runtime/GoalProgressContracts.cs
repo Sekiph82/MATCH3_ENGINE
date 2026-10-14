@@ -454,6 +454,41 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    public sealed class CommittedPostWinAuthority
+    {
+        private readonly ReadOnlyCollection<string> _rewardSourceIds;
+
+        public CommittedWinSnapshot Win { get; }
+        public int Stars { get; }
+        public string ProgressionReceiptId { get; }
+        public IReadOnlyList<string> RewardSourceIds => _rewardSourceIds;
+
+        public CommittedPostWinAuthority(CommittedWinSnapshot win,
+            int stars, string progressionReceiptId,
+            IEnumerable<string> rewardSourceIds)
+        {
+            Win = win ?? throw new ArgumentNullException(nameof(win));
+            if (stars < 0 || stars > 3)
+                throw new ArgumentOutOfRangeException(nameof(stars));
+            if (string.IsNullOrWhiteSpace(progressionReceiptId))
+                throw new ArgumentException(
+                    "Progression receipt ID required.",
+                    nameof(progressionReceiptId));
+            var ids = (rewardSourceIds ?? Enumerable.Empty<string>())
+                .Take(1025).ToList();
+            if (ids.Count > 1024 ||
+                ids.Any(string.IsNullOrWhiteSpace) ||
+                ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+                throw new ArgumentException(
+                    "Invalid post-win reward source IDs.",
+                    nameof(rewardSourceIds));
+            Stars = stars;
+            ProgressionReceiptId = progressionReceiptId;
+            _rewardSourceIds = new ReadOnlyCollection<string>(
+                ids.OrderBy(x => x, StringComparer.Ordinal).ToList());
+        }
+    }
+
     public sealed class PostWinPolicy
     {
         public bool ConvertLeftoverMoves { get; }
@@ -480,14 +515,17 @@ namespace Match3.Engine.Runtime
         private readonly ReadOnlyCollection<FinalePresentationEvent> _presentationEvents;
 
         public WinFinalePlan AuthorityPlan { get; }
+        public CommittedPostWinAuthority CommittedAuthority { get; }
         public IReadOnlyList<FinalePresentationEvent> PresentationEvents =>
             _presentationEvents;
 
         internal PostWinResolution(WinFinalePlan authorityPlan,
-            IEnumerable<FinalePresentationEvent> presentationEvents)
+            IEnumerable<FinalePresentationEvent> presentationEvents,
+            CommittedPostWinAuthority committedAuthority = null)
         {
             AuthorityPlan = authorityPlan ??
                 throw new ArgumentNullException(nameof(authorityPlan));
+            CommittedAuthority = committedAuthority;
             _presentationEvents =
                 new ReadOnlyCollection<FinalePresentationEvent>(
                     presentationEvents.ToList());
@@ -496,6 +534,23 @@ namespace Match3.Engine.Runtime
 
     public static class PostWinPlanner
     {
+        public static PostWinResolution Resolve(
+            CommittedPostWinAuthority committed,
+            int leftoverMoves,
+            PostWinPolicy policy,
+            bool skipPresentation = false,
+            bool reducedMotion = false)
+        {
+            if (committed == null) throw new ArgumentNullException(nameof(committed));
+            var basePlan = Resolve(
+                committed.Win, leftoverMoves, policy,
+                skipPresentation, reducedMotion);
+            return new PostWinResolution(
+                basePlan.AuthorityPlan,
+                basePlan.PresentationEvents,
+                committed);
+        }
+
         public static PostWinResolution Resolve(
             CommittedWinSnapshot committed,
             int leftoverMoves,
