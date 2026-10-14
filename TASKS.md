@@ -225,8 +225,12 @@
 - [x] **ENG-M04-011 Mixed gravity and transport hard cases** `PASS/CLOSED: INDEPENDENT UNITY 6.6 + WIN64 AUDIT`. **Implementation and independent acceptance:** Combine teleport, conveyor, diagonal slide, directional gravity zones, special explosions and refill without duplicating occupants, no infinite loops and no visual/logical mismatch. **Proof:** deterministic positive and negative tests, actual Unity 6000.6.5f1 source commit, redacted Drive evidence, Factory schema parity where relevant, and ChatGPT audit PASS before closure. **Audit R01:** https://docs.google.com/document/d/1RtU5Tt0qw1qCjxopQMWBoA1aQtnDEUCkUdSjPrRIWno/edit.
 **Milestone closure:** PASS/CLOSED. All 11 child receipts and master audit independently verified; ENG-M05 unlocked.
 
-### ENG-M05 | Obstacle lifecycle
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+### ENG-M05 | Obstacle lifecycle | IN_PROGRESS | 2026-10-14
+**State:** IN_PROGRESS / 0 of 14 independently audited PASS. **Exit gate:** 14/14 independent audit PASS + real Unity/Win64 closure; ENG-M06 remains gated.
+**FROZEN IMPLEMENTATION SPEC:** https://docs.google.com/document/d/1nh-8Z4bxxim1b0WZ3Nfup3yvJIGjJsSPfnTCoWV5TIc/edit
+**FROZEN MASTER CRITERIA:** https://docs.google.com/document/d/1RE12f5ReeB_tEZVkFLI_nTyMXohrwLztZwB7Rh8vBas/edit
+**FROZEN 14-CHILD ACCEPTANCE:** https://docs.google.com/document/d/142ZPxOQQ5XiO0ToMWII2RjW4gPUFlD6b2B0G9StywYE/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M05_IMPLEMENT_AND_INDEPENDENT_AUDIT. **ENTRY BASE:** ENG-M04 closure `b8d723844e9ac6f5a174f629d976adf6e2e1ef8c`.
 
 - [ ] **ENG-M05-001 Layer model** `PLANNED`. **Contract:** Underlay overlay piece and cell durability semantics. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M05-002 Multi hit obstacles** `PLANNED`. **Contract:** HP stage transitions, ice rust coral rock neutral IDs. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
