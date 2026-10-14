@@ -478,6 +478,26 @@ namespace Match3.Engine.Tests
                 Is.EqualTo(0));
             Assert.That(guardedCommit.Journal.AppliedActions
                 .ContainsKey("current-action"), Is.True);
+            Assert.Throws<InvalidOperationException>(() =>
+                BoosterActionLifecycle.Cancel(
+                    currentPrepared, guardedCommit.Economy));
+
+            var cancelPrepared = BoosterActionLifecycle.PrepareEffect(
+                Economy(BoosterKind.Hammer, 1),
+                adultPolicy, BoosterAcquisitionSource.Owned, true,
+                guardedBoard,
+                new BoosterActionRequest(
+                    "cancel-action", BoosterKind.Hammer, P(0,0)));
+            var cancelled = BoosterActionLifecycle.Cancel(
+                cancelPrepared, cancelPrepared.ReservedEconomy);
+            Assert.That(cancelled.Result.Balance(BoosterKind.Hammer),
+                Is.EqualTo(1));
+            Assert.That(cancelled.Result.Available(BoosterKind.Hammer),
+                Is.EqualTo(1));
+            Assert.That(cancelled.Result.Transactions["cancel-action"].State,
+                Is.EqualTo(BoosterTransactionState.Refunded));
+            Assert.That(BoosterActionLifecycle.Cancel(
+                cancelPrepared, cancelled.Result).Receipt.Applied, Is.False);
 
             var board = SpecialBoard();
             var adult = new BoosterProfilePolicy(false, true, true, true);
