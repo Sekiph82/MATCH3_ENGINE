@@ -526,6 +526,7 @@ jobs:
               'RealSdkCloneDetectsPrematchAndRejectsMalformedProposal',
               'SeededShufflePlansSdkPlayableLayoutWithoutSpendingARealMove',
               'SeededInitialSpawnUsesRealSdkSolverOnEveryCandidate',
+              'FullyLockedOriginalSdkSnapshotReturnsTypedNoMoveWithoutLiveMutation',
           }
           cases = {}
           for test in ET.parse(sys.argv[1]).getroot().findall('.//test-case'):
