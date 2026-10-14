@@ -101,19 +101,22 @@ namespace Match3.Engine.Tests
             Assert.That(valid.CanonicalSpecialPlan, Is.Null);
 
             var economy = Economy(BoosterKind.Hammer, 1);
-            var reservation = BoosterEconomyPlanner.Reserve(
-                economy, BoosterKind.Hammer, "hammer-bad");
+            var adult = new BoosterProfilePolicy(
+                false, true, true, true);
 
             Assert.Throws<InvalidOperationException>(() =>
-                BoosterEffectPlanner.Plan(board,
+                BoosterActionLifecycle.PrepareEffect(
+                    economy, adult, BoosterAcquisitionSource.Owned, true,
+                    board,
                     new BoosterActionRequest(
                         "hammer-bad", BoosterKind.Hammer, P(0,1))));
-            Assert.That(reservation.Result.Balance(BoosterKind.Hammer), Is.EqualTo(1));
-            Assert.That(reservation.Result.Transactions["hammer-bad"].State,
-                Is.EqualTo(BoosterTransactionState.Reserved));
+            Assert.That(economy.Balance(BoosterKind.Hammer), Is.EqualTo(1));
+            Assert.That(economy.Transactions.ContainsKey("hammer-bad"), Is.False);
 
             Assert.Throws<InvalidOperationException>(() =>
-                BoosterEffectPlanner.Plan(board,
+                BoosterActionLifecycle.PrepareEffect(
+                    economy, adult, BoosterAcquisitionSource.Owned, true,
+                    board,
                     new BoosterActionRequest(
                         "hammer-locked", BoosterKind.Hammer, P(0,2))));
         }
@@ -331,24 +334,24 @@ namespace Match3.Engine.Tests
                     radius: 1,
                     targetColor: kind == BoosterKind.Color ? "red" : null,
                     seed: 17u);
-                var plan = BoosterEffectPlanner.Plan(board, request);
-                Assert.That(plan.CanonicalSpecialPlan, Is.Not.Null);
-
                 var economy = Economy(kind, 1);
-                var reserved = BoosterEconomyPlanner.Reserve(
-                    economy, kind, id);
-                var committed = BoosterEconomyPlanner.Confirm(
-                    reserved.Result, id);
+                var adult = new BoosterProfilePolicy(
+                    false, true, true, true);
+                var prepared = BoosterActionLifecycle.PrepareEffect(
+                    economy, adult, BoosterAcquisitionSource.Owned, true,
+                    board, request);
+                Assert.That(prepared.EffectPlan.CanonicalSpecialPlan, Is.Not.Null);
+                Assert.That(prepared.ReservedEconomy.Available(kind), Is.EqualTo(0));
+
+                var committed = BoosterActionLifecycle.Confirm(prepared);
                 Assert.That(committed.Result.Balance(kind), Is.EqualTo(0));
                 Assert.That(BoosterEconomyPlanner.Confirm(
                     committed.Result, id).Receipt.Applied, Is.False);
             }
 
             var shuffleEconomy = Economy(BoosterKind.Shuffle, 1);
-            var shuffleReserve = BoosterEconomyPlanner.Reserve(
-                shuffleEconomy, BoosterKind.Shuffle, "advanced-shuffle");
-            Assert.That(shuffleReserve.Result.Available(BoosterKind.Shuffle),
-                Is.EqualTo(0));
+            var shuffleAdult = new BoosterProfilePolicy(
+                false, true, true, true);
             var transformBoard = new BoardTopology(1, 3,
                 occupants: new[]
                 {
@@ -356,14 +359,19 @@ namespace Match3.Engine.Tests
                     new BoardOccupant(P(0,1), "B"),
                     new BoardOccupant(P(0,2), "C")
                 });
-            var shufflePlan = BoosterBoardTransformPlanner.Plan(
+            var shufflePrepared = BoosterActionLifecycle.PrepareTransform(
+                shuffleEconomy, shuffleAdult,
+                BoosterAcquisitionSource.Owned, true,
                 transformBoard,
                 new BoosterActionRequest(
                     "advanced-shuffle", BoosterKind.Shuffle, P(0,0),
                     seed: 17u));
-            Assert.That(shufflePlan.Kind, Is.EqualTo(BoosterKind.Shuffle));
-            var shuffleCommitted = BoosterEconomyPlanner.Confirm(
-                shuffleReserve.Result, "advanced-shuffle");
+            Assert.That(shufflePrepared.TransformPlan.Kind,
+                Is.EqualTo(BoosterKind.Shuffle));
+            Assert.That(shufflePrepared.ReservedEconomy.Available(
+                BoosterKind.Shuffle), Is.EqualTo(0));
+            var shuffleCommitted = BoosterActionLifecycle.Confirm(
+                shufflePrepared);
             Assert.That(shuffleCommitted.Result.Balance(BoosterKind.Shuffle),
                 Is.EqualTo(0));
         }
