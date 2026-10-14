@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: eng-m00-free-unity-runtime
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   preflight:
