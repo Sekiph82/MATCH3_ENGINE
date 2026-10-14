@@ -400,8 +400,11 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentException("Phase ID required.", nameof(phaseId));
             var defs = ObstacleDefinitions.Validate(definitions);
             var hits = new List<ObstacleHitRequest>();
+            var path = orderedPath.Take(4097).ToList();
+            if (path.Count > 4096)
+                throw new InvalidOperationException("Beam path budget exceeded.");
 
-            foreach (var p in orderedPath)
+            foreach (var p in path)
             {
                 if (!snapshot.Contains(p))
                     throw new ArgumentOutOfRangeException(nameof(orderedPath));
