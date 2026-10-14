@@ -651,6 +651,12 @@ namespace Match3.Engine.Runtime
                 current.Kind != prepared.Request.Kind)
                 throw new InvalidOperationException(
                     "Current economy does not contain the prepared reservation.");
+            if (current.State == BoosterTransactionState.Refunded)
+                return BoosterEconomyPlanner.Refund(
+                    currentEconomy, prepared.Request.ActionId);
+            if (current.State != BoosterTransactionState.Reserved)
+                throw new InvalidOperationException(
+                    "Only an uncommitted booster reservation may be cancelled.");
             return BoosterEconomyPlanner.Refund(
                 currentEconomy, prepared.Request.ActionId);
         }
