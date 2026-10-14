@@ -718,6 +718,8 @@ jobs:
           import xml.etree.ElementTree as ET
           expected = {
               'CascadePlannerUsesAuthoritativeCallbackUntilStableAndCapsWaves',
+              'CascadeCallbacksPlanCanonicalStagesAndCommitOnlyCompleteWaves',
+              'CascadeCallbacksRejectStaleOrPartialWaveWithoutReturningCommitPlan',
               'PresentationSpeedAndSkipNeverChangeLogicalTimelineHash',
               'PauseInvalidatesStaleCompletionAndResumeCannotDoubleCommit',
               'GravityWorkAndManagedMemoryStayBoundedAtNineTwelveAndTwentyBoards',
