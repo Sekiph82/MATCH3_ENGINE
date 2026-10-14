@@ -40,7 +40,10 @@ namespace Match3.Engine.Runtime
 
     // Enumerates possible *geometrical* swaps only. The supplied predicate
     // MUST be wired to the pinned Match3-SDK's authoritative match/special
-    // validator by the host. No custom color matching occurs here.
+    // validator by the host, evaluating an ISOLATED SDK board copy only.
+    // The pinned SDK GameBoardSolver.Solve invokes special-item state
+    // transitions; it must NOT be run against the live mutable board just to
+    // calculate a hint or possible moves. No color matching occurs here.
     public static class CanonicalMoveCandidates
     {
         public static CandidateScanResult Find(
