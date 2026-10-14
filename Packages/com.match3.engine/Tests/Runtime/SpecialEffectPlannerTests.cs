@@ -463,14 +463,22 @@ namespace Match3.Engine.Tests
             Assert.That(plan.Outcome.AuthoritativeScore, Is.EqualTo(1250));
             Assert.That(plan.Outcome.FirstClearAwarded, Is.True);
             Assert.That(plan.PresentationScoreDelta, Is.EqualTo(300));
+            Assert.That(plan.AuthoritativeFinalScore, Is.EqualTo(1550));
             Assert.That(plan.FinalScore, Is.EqualTo(1550));
             Assert.That(plan.AuthoritativeRewardDelta, Is.EqualTo(0));
             Assert.That(plan.Events.Count(x =>
                 x.Kind == FinalePresentationKind.ConvertMoveToSpecial), Is.EqualTo(3));
             Assert.That(plan.Events.Last().Kind, Is.EqualTo(FinalePresentationKind.CelebrationVfx));
 
-            // Skipping/interruption is presentation-only: consuming zero events
-            // leaves the same already committed outcome and award.
+            var replay = WinFinalePlanner.Build(committed, 3, true, 100);
+            Assert.That(replay.AuthoritativeFinalScore, Is.EqualTo(plan.AuthoritativeFinalScore));
+            Assert.That(replay.Events.Select(x => new[] { x.Sequence, (int)x.Kind, x.Value }).ToArray(),
+                Is.EqualTo(plan.Events.Select(x => new[] { x.Sequence, (int)x.Kind, x.Value }).ToArray()));
+
+            // Skip/interruption/cancelled VFX is presentation-only: consuming zero
+            // events does not change the already deterministic authoritative final score.
+            var interruptedBeforePresentation = plan.AuthoritativeFinalScore;
+            Assert.That(interruptedBeforePresentation, Is.EqualTo(1550));
             Assert.That(committed.AuthoritativeScore, Is.EqualTo(1250));
             Assert.That(committed.FirstClearAwarded, Is.True);
             Assert.Throws<ArgumentOutOfRangeException>(() =>
