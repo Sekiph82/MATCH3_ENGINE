@@ -92,6 +92,9 @@ namespace Match3.Engine.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 DailyRewardPlanner.Claim(
                     d103.Result, 102, "rollback", resetPolicy));
+            Assert.Throws<InvalidOperationException>(() =>
+                DailyRewardPlanner.Claim(
+                    d103.Result, 1000, "future-jump", resetPolicy));
 
             var capped = DailyRewardPlanner.Claim(
                 DailyRewardPlanner.Claim(
@@ -125,7 +128,7 @@ namespace Match3.Engine.Tests
             };
 
             var daily = new TaskPeriodSnapshot(
-                TaskPeriodKind.Daily, "day:100");
+                TaskPeriodKind.Daily, "day:100", 100);
             var e1 = TaskProgressPlanner.ApplyEvent(
                 daily, definitions,
                 new TaskProgressEvent(
@@ -157,9 +160,17 @@ namespace Match3.Engine.Tests
             Assert.That(claimReplay.Applied, Is.False);
 
             var reset = TaskProgressPlanner.Reset(
-                claim.Result, "day:101");
+                claim.Result, "day:101", 101);
             Assert.That(reset.Result.Counts, Is.Empty);
             Assert.That(reset.Result.ClaimedTaskIds, Is.Empty);
+            Assert.That(reset.Result.PeriodOrdinal, Is.EqualTo(101));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                TaskProgressPlanner.Reset(
+                    reset.Result, "day:099", 99));
+            Assert.Throws<InvalidOperationException>(() =>
+                TaskProgressPlanner.Reset(
+                    reset.Result, "day:101-other", 101));
 
             Assert.Throws<InvalidOperationException>(() =>
                 TaskProgressPlanner.ApplyEvent(
@@ -168,7 +179,7 @@ namespace Match3.Engine.Tests
                         "wrong-period", "day:100", "match", 1)));
 
             var weekly = new TaskPeriodSnapshot(
-                TaskPeriodKind.Weekly, "week:42");
+                TaskPeriodKind.Weekly, "week:42", 42);
             weekly = TaskProgressPlanner.ApplyEvent(
                 weekly, definitions,
                 new TaskProgressEvent(
