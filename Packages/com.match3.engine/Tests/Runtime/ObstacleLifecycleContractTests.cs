@@ -185,21 +185,25 @@ namespace Match3.Engine.Tests
             };
 
             var first = ObstacleDamagePlanner.Plan(snapshot, new[] { coral }, hit);
-            var replay = ObstacleDamagePlanner.Plan(snapshot, new[] { coral }, hit);
+            var deterministicReplay = ObstacleDamagePlanner.Plan(
+                snapshot, new[] { coral }, hit);
+            var idempotentReplay = ObstacleDamagePlanner.Plan(
+                snapshot, new[] { coral }, hit, first.ProcessedGoalReceiptIds);
 
             Assert.That(first.GoalReceipts.Count, Is.EqualTo(1));
             Assert.That(first.GoalReceipts[0].InstanceId, Is.EqualTo("coral-instance-9"));
             Assert.That(first.GoalReceipts[0].GoalKey, Is.EqualTo("goal.coral"));
             Assert.That(first.GoalReceipts[0].ReceiptId, Is.EqualTo("wave-3|coral-instance-9"));
-            Assert.That(replay.GoalReceipts[0].ReceiptId,
+            Assert.That(first.ProcessedGoalReceiptIds,
+                Does.Contain("wave-3|coral-instance-9"));
+            Assert.That(deterministicReplay.GoalReceipts[0].ReceiptId,
                 Is.EqualTo(first.GoalReceipts[0].ReceiptId));
+            Assert.That(idempotentReplay.GoalReceipts, Is.Empty);
+            Assert.That(idempotentReplay.ProcessedGoalReceiptIds,
+                Is.EqualTo(first.ProcessedGoalReceiptIds));
             var reapplyCommittedResult = ObstacleDamagePlanner.Plan(
-                first.Result, new[] { coral }, hit);
+                first.Result, new[] { coral }, hit, first.ProcessedGoalReceiptIds);
             Assert.That(reapplyCommittedResult.GoalReceipts, Is.Empty);
-            Assert.That(new HashSet<string>(new[]
-            {
-                first.GoalReceipts[0].ReceiptId, replay.GoalReceipts[0].ReceiptId
-            }, StringComparer.Ordinal).Count, Is.EqualTo(1));
         }
 
         [Test]
