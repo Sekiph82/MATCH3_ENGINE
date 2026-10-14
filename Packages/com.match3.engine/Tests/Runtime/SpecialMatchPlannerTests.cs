@@ -49,10 +49,16 @@ namespace Match3.Engine.Tests
             Assert.That(horizontal.Anchor, Is.EqualTo(preferred));
             Assert.That(horizontal.RewardCellCount, Is.EqualTo(4));
 
+            var verticalRun = V("B", 2, 0, 1, 2, 3);
             var vertical = SpecialMatchPlanner.Plan(
-                new[] { V("B", 2, 0, 1, 2, 3) }).Single();
+                new[] { verticalRun }, new[] { P(99, 99) }).Single();
+            Assert.That(vertical.Shape, Is.EqualTo(MatchShapeKind.StraightFour));
             Assert.That(vertical.Special, Is.EqualTo(MatchSpecialKind.VerticalLine));
             Assert.That(vertical.Anchor, Is.EqualTo(P(0, 2)));
+            var verticalReplay = SpecialMatchPlanner.Plan(
+                new[] { verticalRun }, new[] { P(99, 99) }).Single();
+            Assert.That(verticalReplay.Anchor, Is.EqualTo(vertical.Anchor));
+            Assert.That(verticalReplay.RewardCellCount, Is.EqualTo(4));
         }
 
         [Test]
@@ -110,6 +116,22 @@ namespace Match3.Engine.Tests
             Assert.That(t.Anchor, Is.EqualTo(P(2, 2)));
             Assert.That(t.RewardCellCount, Is.EqualTo(5));
 
+            var rotatedL = SpecialMatchPlanner.Plan(new[]
+            {
+                H("R", 4, 0, 1, 2),
+                V("R", 2, 2, 3, 4)
+            }).Single();
+            Assert.That(rotatedL.Shape, Is.EqualTo(MatchShapeKind.L));
+            Assert.That(rotatedL.Anchor, Is.EqualTo(P(4, 2)));
+
+            var rotatedT = SpecialMatchPlanner.Plan(new[]
+            {
+                H("S", 4, 1, 2, 3),
+                V("S", 2, 2, 3, 4)
+            }).Single();
+            Assert.That(rotatedT.Shape, Is.EqualTo(MatchShapeKind.T));
+            Assert.That(rotatedT.Anchor, Is.EqualTo(P(4, 2)));
+
             var disjointSameContent = SpecialMatchPlanner.Plan(new[]
             {
                 H("C", 8, 0, 1, 2),
@@ -117,6 +139,14 @@ namespace Match3.Engine.Tests
             });
             Assert.That(disjointSameContent.Count, Is.EqualTo(2));
             Assert.That(disjointSameContent.All(x => x.Shape == MatchShapeKind.Three), Is.True);
+
+            var nearShape = SpecialMatchPlanner.Plan(new[]
+            {
+                H("N", 12, 0, 1, 2),
+                V("N", 3, 10, 11, 12)
+            });
+            Assert.That(nearShape.Count, Is.EqualTo(2));
+            Assert.That(nearShape.All(x => x.Shape == MatchShapeKind.Three), Is.True);
         }
 
         [Test]
@@ -133,6 +163,12 @@ namespace Match3.Engine.Tests
                     new[] { P(0, 0), P(1, 0), P(1, 0) }));
             Assert.Throws<ArgumentException>(() =>
                 SpecialMatchPlanner.Plan(new MatchRunProjection[] { null }));
+            Assert.Throws<ArgumentException>(() =>
+                new MatchRunProjection(MatchRunAxis.Horizontal, " ",
+                    new[] { P(0, 0), P(0, 1), P(0, 2) }));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new MatchRunProjection((MatchRunAxis)99, "A",
+                    new[] { P(0, 0), P(0, 1), P(0, 2) }));
         }
     }
 }
