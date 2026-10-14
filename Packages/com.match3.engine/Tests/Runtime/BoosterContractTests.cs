@@ -178,15 +178,35 @@ namespace Match3.Engine.Tests
 
             var shuffleRequest = new BoosterActionRequest(
                 "shuffle", BoosterKind.Shuffle, P(0,0), seed: 321u);
-            var first = BoosterBoardTransformPlanner.Plan(board, shuffleRequest);
-            var second = BoosterBoardTransformPlanner.Plan(board, shuffleRequest);
+            var validatorCalls = 0;
+            Func<IReadOnlyDictionary<BoardPosition, string>, bool> accept =
+                proposal =>
+                {
+                    validatorCalls++;
+                    return proposal.Count == board.Occupants.Count;
+                };
+            var first = BoosterBoardTransformPlanner.Plan(
+                board, shuffleRequest, accept);
+            var callsAfterFirst = validatorCalls;
+            validatorCalls = 0;
+            var second = BoosterBoardTransformPlanner.Plan(
+                board, shuffleRequest, accept);
             Assert.That(first.LogicalHash, Is.EqualTo(second.LogicalHash));
+            Assert.That(callsAfterFirst, Is.GreaterThan(0));
+            Assert.That(validatorCalls, Is.EqualTo(callsAfterFirst));
             Assert.That(first.Occupants[P(1,2)], Is.EqualTo("LOCK"));
             Assert.That(first.Occupants.Values.OrderBy(x => x, StringComparer.Ordinal),
                 Is.EqualTo(board.Occupants.Values
                     .OrderBy(x => x, StringComparer.Ordinal)));
             Assert.That(first.ChangedPositions.All(x =>
                 !board.IsLocked(x) && !board.IsHole(x)), Is.True);
+
+            Assert.Throws<ArgumentNullException>(() =>
+                BoosterBoardTransformPlanner.Plan(board, shuffleRequest));
+            Assert.Throws<InvalidOperationException>(() =>
+                BoosterBoardTransformPlanner.Plan(
+                    board, shuffleRequest, proposal => false,
+                    maximumShuffleAttempts: 4));
 
             var swap = BoosterBoardTransformPlanner.Plan(board,
                 new BoosterActionRequest(
@@ -394,13 +414,23 @@ namespace Match3.Engine.Tests
                     new BoardOccupant(P(0,1), "B"),
                     new BoardOccupant(P(0,2), "C")
                 });
+            Assert.Throws<ArgumentNullException>(() =>
+                BoosterActionLifecycle.PrepareTransform(
+                    shuffleEconomy, shuffleAdult,
+                    BoosterAcquisitionSource.Owned, true,
+                    transformBoard,
+                    new BoosterActionRequest(
+                        "advanced-shuffle-no-validator",
+                        BoosterKind.Shuffle, P(0,0), seed: 17u)));
+
             var shufflePrepared = BoosterActionLifecycle.PrepareTransform(
                 shuffleEconomy, shuffleAdult,
                 BoosterAcquisitionSource.Owned, true,
                 transformBoard,
                 new BoosterActionRequest(
                     "advanced-shuffle", BoosterKind.Shuffle, P(0,0),
-                    seed: 17u));
+                    seed: 17u),
+                proposal => true);
             Assert.That(shufflePrepared.TransformPlan.Kind,
                 Is.EqualTo(BoosterKind.Shuffle));
             Assert.That(shufflePrepared.ReservedEconomy.Available(
