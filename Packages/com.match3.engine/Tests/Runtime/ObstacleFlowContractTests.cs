@@ -89,8 +89,8 @@ namespace Match3.Engine.Tests
             Assert.Throws<ArgumentException>(() =>
                 ObstacleMetadataSchema.Encode(new[]
                 {
-                    new ObstacleMetadataEntry("x", 1, new[] { "a" }),
-                    new ObstacleMetadataEntry("x", 1, new[] { "b" })
+                    new ObstacleMetadataEntry("x", 1, new[] { "layered" }),
+                    new ObstacleMetadataEntry("x", 1, new[] { "spreading" })
                 }));
             Assert.Throws<ArgumentException>(() =>
                 new ObstacleMetadataEntry("bad;id", 1, new[] { "layered" }));
