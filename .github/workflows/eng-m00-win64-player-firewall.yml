@@ -85,9 +85,7 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/eng-m00-windows-player"
           mkdir -p "$out" "$PWD/evidence/eng-m00-win64"
-          pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 \
-            -SourceAssetRoot "$PWD/Assets","$PWD/Packages/com.match3.engine/Runtime" \
-            -ManifestPath "$PWD/evidence/eng-m00-win64/source-assets.sha256.txt"
+          pwsh -NoProfile -Command "& './Tools/ScanUnityReleaseArtifact.ps1' -SourceAssetRoot @('$PWD/Assets', '$PWD/Packages/com.match3.engine/Runtime') -ManifestPath '$PWD/evidence/eng-m00-win64/source-assets.sha256.txt'"
           buildlog="$RUNNER_TEMP/unity-win64-build.log"
           set +e
           timeout 1800s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics -quit \
