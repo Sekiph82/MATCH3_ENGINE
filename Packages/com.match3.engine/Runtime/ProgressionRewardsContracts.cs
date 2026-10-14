@@ -184,6 +184,10 @@ namespace Match3.Engine.Runtime
             if (!result.Verified)
                 throw new InvalidOperationException(
                     "Unverified result cannot mutate win streak.");
+            if (snapshot.Streak > policy.MaximumStreak ||
+                snapshot.ShieldCharges > policy.MaximumShields)
+                throw new InvalidOperationException(
+                    "Win streak snapshot exceeds active policy bounds.");
             if (!StringComparer.Ordinal.Equals(snapshot.GameId, result.GameId) ||
                 !StringComparer.Ordinal.Equals(snapshot.ProfileId, result.ProfileId) ||
                 !StringComparer.Ordinal.Equals(snapshot.ModeId, result.ModeId))
@@ -259,6 +263,10 @@ namespace Match3.Engine.Runtime
             if (string.IsNullOrWhiteSpace(sourceId))
                 throw new ArgumentException("Shield source ID required.",
                     nameof(sourceId));
+            if (snapshot.Streak > policy.MaximumStreak ||
+                snapshot.ShieldCharges > policy.MaximumShields)
+                throw new InvalidOperationException(
+                    "Win streak snapshot exceeds active policy bounds.");
             if (amount < 1 || amount > 100)
                 throw new ArgumentOutOfRangeException(nameof(amount));
             if (snapshot.ProcessedEventIds.Contains(sourceId))
@@ -291,6 +299,10 @@ namespace Match3.Engine.Runtime
             if (string.IsNullOrWhiteSpace(eventId))
                 throw new ArgumentException("Streak lifecycle ID required.",
                     nameof(eventId));
+            if (snapshot.Streak > policy.MaximumStreak ||
+                snapshot.ShieldCharges > policy.MaximumShields)
+                throw new InvalidOperationException(
+                    "Win streak snapshot exceeds active policy bounds.");
             if (canonicalDayId < snapshot.HighWaterDayId)
                 throw new InvalidOperationException(
                     "Win streak day rollback detected.");
