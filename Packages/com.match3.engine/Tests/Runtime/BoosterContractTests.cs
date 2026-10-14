@@ -246,6 +246,20 @@ namespace Match3.Engine.Tests
                 BoosterEconomyPlanner.Grant(
                     granted.Result, BoosterKind.Area, "reward-1", 2));
 
+            var concurrentStart = Economy(BoosterKind.Hammer, 2);
+            var reserveA = BoosterEconomyPlanner.Reserve(
+                concurrentStart, BoosterKind.Hammer, "concurrent-a");
+            var reserveB = BoosterEconomyPlanner.Reserve(
+                reserveA.Result, BoosterKind.Hammer, "concurrent-b");
+            var confirmA = BoosterEconomyPlanner.Confirm(
+                reserveB.Result, "concurrent-a");
+            Assert.That(confirmA.Result.Transactions.ContainsKey("concurrent-b"),
+                Is.True);
+            Assert.That(confirmA.Result.Transactions["concurrent-b"].State,
+                Is.EqualTo(BoosterTransactionState.Reserved));
+            Assert.That(confirmA.Result.Balance(BoosterKind.Hammer), Is.EqualTo(1));
+            Assert.That(confirmA.Result.Available(BoosterKind.Hammer), Is.EqualTo(0));
+
             Assert.Throws<ArgumentException>(() =>
                 new BoosterEconomySnapshot(
                     new Dictionary<BoosterKind, int>
@@ -343,7 +357,8 @@ namespace Match3.Engine.Tests
                 Assert.That(prepared.EffectPlan.CanonicalSpecialPlan, Is.Not.Null);
                 Assert.That(prepared.ReservedEconomy.Available(kind), Is.EqualTo(0));
 
-                var committed = BoosterActionLifecycle.Confirm(prepared);
+                var committed = BoosterActionLifecycle.Confirm(
+                    prepared, prepared.ReservedEconomy);
                 Assert.That(committed.Result.Balance(kind), Is.EqualTo(0));
                 Assert.That(BoosterEconomyPlanner.Confirm(
                     committed.Result, id).Receipt.Applied, Is.False);
@@ -371,7 +386,7 @@ namespace Match3.Engine.Tests
             Assert.That(shufflePrepared.ReservedEconomy.Available(
                 BoosterKind.Shuffle), Is.EqualTo(0));
             var shuffleCommitted = BoosterActionLifecycle.Confirm(
-                shufflePrepared);
+                shufflePrepared, shufflePrepared.ReservedEconomy);
             Assert.That(shuffleCommitted.Result.Balance(BoosterKind.Shuffle),
                 Is.EqualTo(0));
         }
