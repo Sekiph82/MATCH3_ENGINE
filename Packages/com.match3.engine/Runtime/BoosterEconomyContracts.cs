@@ -214,8 +214,25 @@ namespace Match3.Engine.Runtime
             var existing = RequireTransaction(snapshot, sourceId);
             if (existing.State == BoosterTransactionState.Refunded)
                 return Noop(snapshot, existing);
+            if (existing.State != BoosterTransactionState.Reserved)
+                throw new InvalidOperationException(
+                    "Only an uncommitted reservation may use the public refund path.");
+
+            return WithTransaction(snapshot,
+                existing.WithState(BoosterTransactionState.Refunded),
+                true, 0);
+        }
+
+        internal static BoosterEconomyPlan RecoverFailedCommit(
+            BoosterEconomySnapshot snapshot, string sourceId)
+        {
+            RequireSnapshot(snapshot);
+            var existing = RequireTransaction(snapshot, sourceId);
+            if (existing.State == BoosterTransactionState.Refunded)
+                return Noop(snapshot, existing);
             if (existing.State == BoosterTransactionState.Granted)
-                throw new InvalidOperationException("A grant cannot be refunded as a spend.");
+                throw new InvalidOperationException(
+                    "A grant cannot be recovered as a failed spend.");
 
             var restore = existing.State == BoosterTransactionState.Committed
                 ? existing.Amount
@@ -466,7 +483,7 @@ namespace Match3.Engine.Runtime
             if (journal.AppliedActions.ContainsKey(sourceId))
                 throw new InvalidOperationException(
                     "An already-applied booster action cannot be refunded.");
-            return BoosterEconomyPlanner.Refund(economy, sourceId);
+            return BoosterEconomyPlanner.RecoverFailedCommit(economy, sourceId);
         }
     }
 
