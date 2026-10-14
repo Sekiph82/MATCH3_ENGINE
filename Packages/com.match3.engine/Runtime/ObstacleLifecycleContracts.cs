@@ -448,13 +448,17 @@ namespace Match3.Engine.Runtime
     {
         public ObstacleSnapshot Result { get; }
         public IReadOnlyList<ObstacleState> Spawned { get; }
+        public IReadOnlyList<string> ProcessedTurnIds { get; }
         public int CandidateCount { get; }
 
         internal SpreadPlan(ObstacleSnapshot result,
-            IEnumerable<ObstacleState> spawned, int candidates)
+            IEnumerable<ObstacleState> spawned, int candidates,
+            IEnumerable<string> processedTurnIds)
         {
             Result = result;
             Spawned = new ReadOnlyCollection<ObstacleState>(spawned.ToList());
+            ProcessedTurnIds = new ReadOnlyCollection<string>(
+                processedTurnIds.OrderBy(x => x, StringComparer.Ordinal).ToList());
             CandidateCount = candidates;
         }
     }
@@ -463,7 +467,8 @@ namespace Match3.Engine.Runtime
     {
         public static SpreadPlan Plan(ObstacleSnapshot snapshot,
             IEnumerable<ObstacleDefinition> definitions, TurnReceipt turn,
-            uint seed, int maximumNewCells = 1, int maximumTotalObstacles = 4096)
+            uint seed, int maximumNewCells = 1, int maximumTotalObstacles = 4096,
+            IEnumerable<string> processedTurnIds = null)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (turn == null) throw new ArgumentNullException(nameof(turn));
@@ -475,10 +480,14 @@ namespace Match3.Engine.Runtime
             var defs = ObstacleDefinitions.Validate(definitions);
             foreach (var state in snapshot.States)
                 ObstacleDefinitions.Require(defs, state);
+            var processed = new HashSet<string>(
+                processedTurnIds ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
 
-            if (!turn.IsLegitimatePlayerTurn || maximumNewCells == 0 ||
-                snapshot.States.Count >= maximumTotalObstacles)
-                return new SpreadPlan(snapshot, new ObstacleState[0], 0);
+            if (!turn.IsLegitimatePlayerTurn || processed.Contains(turn.TurnId) ||
+                maximumNewCells == 0 || snapshot.States.Count >= maximumTotalObstacles)
+                return new SpreadPlan(snapshot, new ObstacleState[0], 0, processed);
+
+            processed.Add(turn.TurnId);
 
             var sources = snapshot.States.Where(x =>
                 ObstacleDefinitions.Require(defs, x).Spreads)
@@ -531,7 +540,7 @@ namespace Match3.Engine.Runtime
             return new SpreadPlan(
                 new ObstacleSnapshot(snapshot.Rows, snapshot.Columns,
                     snapshot.States.Concat(spawned), snapshot.Layers),
-                spawned, candidates.Count);
+                spawned, candidates.Count, processed);
         }
 
         private static IEnumerable<BoardPosition> Orthogonal(
