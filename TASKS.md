@@ -134,7 +134,11 @@
 **Milestone closure:** every M01 child audited; no unresolved blocker; ChatGPT updates only this TASKS.md.
 
 ### ENG-M02 | Deterministic board and input
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+**State:** IN_PROGRESS / 0 of 11 independent PASS. **Exit gate:** 11/11 independently audited with complete Drive evidence, true Unity 6.6 replay/SDK parity, latest real Windows64 player/firewall; M03 gated.
+**MASTER SPEC frozen before implementation:** https://docs.google.com/document/d/1-zWxKJ7Ayq46Lequ4yW1Sww8-M5S1GDvCmUt4SrqZq4/edit
+**MASTER INDEPENDENT CRITERIA frozen before implementation:** https://docs.google.com/document/d/19flX1kyVd1mQES09WIwpXCBj3BNgJcD36GbfmspS2hI/edit
+**ALL 11 CHILD CRITERIA:** Drive 03_AUDIT_CRITERIA `ENG-M02-001..011_INDEPENDENT_AUDIT_CRITERIA_V01` frozen. Treat any missing true runtime as OPEN. Keep LibraStack pinned SDK sole match/refill authority, do not introduce second resolver or charge players on automatic recovery.
+**CURRENT_OWNER:** CHATGPT_ENG_M02_DIRECT_GITHUB_IMPLEMENTATION_AND_INDEPENDENT_AUDIT. **NEXT:** build minimal pure-C# topology/seeded RNG/intent contracts and actual negative NUnit, run free GitHub-hosted Unity6.6 with full M00/M01 regression, then inspect original XML before child PASS.
 
 - [ ] **ENG-M02-001 Grid topology** `PLANNED`. **Contract:** Board dimensions holes layers lock and unique occupancy. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M02-002 Seeded RNG** `PLANNED`. **Contract:** Reproducible init spawn and cascade with no unseeded randomness. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
