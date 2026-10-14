@@ -700,6 +700,11 @@ namespace Match3.Engine.Runtime
             if (total < 1 || total > Int32.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(outputs));
 
+            // A final-stage egg is already resolved. Replaying the same
+            // logical state must never hatch or award output a second time.
+            if (egg.Stage >= egg.FinalStage)
+                return new EggResolution(egg.Stage, false, null);
+
             var nextStage = Math.Min(egg.FinalStage, egg.Stage + 1);
             if (nextStage < egg.FinalStage)
                 return new EggResolution(nextStage, false, null);
