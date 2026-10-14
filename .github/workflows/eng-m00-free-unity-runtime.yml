@@ -739,6 +739,14 @@ jobs:
           print('UNITY_M04_005_008_011_CASCADE_LIFECYCLE=PASS DISCOVERED=%d SKIPPED=0' % len(found))
           PY
 
+      - name: Require real Unity ENG-M05 obstacle lifecycle 14-child contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tools/AssertM05ObstacleTests.py \
+            "$PWD/artifacts/editmode-results.xml" \
+            "$PWD/artifacts/playmode-results.xml"
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
