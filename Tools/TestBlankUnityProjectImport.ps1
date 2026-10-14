@@ -38,9 +38,25 @@ $start.FileName = $EditorPath
 $start.UseShellExecute = $false
 $start.CreateNoWindow = $true
 foreach ($argument in @('-batchmode','-nographics','-quit','-projectPath',$project,'-logFile',$logPath)) { [void]$start.ArgumentList.Add($argument) }
-$process = [System.Diagnostics.Process]::Start($start)
-$process.WaitForExit()
-$exitCode = $process.ExitCode
+function Invoke-BlankUnityImport {
+    param([System.Diagnostics.ProcessStartInfo] $StartInfo)
+    $process = [System.Diagnostics.Process]::Start($StartInfo)
+    $process.WaitForExit()
+    return $process.ExitCode
+}
+
+$exitCode = Invoke-BlankUnityImport -StartInfo $start
+
+# Unity 6000.6 hosted runners can transiently return 198 when a prior
+# batchmode Editor process has not fully released its activation/editor lock.
+# Retry exactly once only for that specific startup code. All package,
+# compiler, lockfile and other exit failures remain fail-closed.
+if ($exitCode -eq 198) {
+    Write-Output 'UNITY_BLANK_PROJECT_EXIT_198_RETRY=1'
+    Start-Sleep -Seconds 8
+    $exitCode = Invoke-BlankUnityImport -StartInfo $start
+}
+
 if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) { throw "Unity produced no blank-import log (exit $exitCode)." }
 if ($exitCode -ne 0) { throw "Blank-project Unity import exited $exitCode. See $logPath" }
 
