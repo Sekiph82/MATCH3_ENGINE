@@ -4,6 +4,7 @@ on:
   # ENG-M05 FINAL frozen obstacle-lifecycle source plus inherited M00-M04 runtime: real Unity Win64 build, strict release scanner.
   # Run once when this tightly scoped workflow is created or adjusted.
   # ENG-M05 final source-parity refresh after frozen obstacle lifecycle hardening.
+  # ENG-M05 final source refresh after replay-idempotency and bounded-loop hardening.
   # No automatic player builds for unrelated source or TASKS.md commits.
   push:
     branches: [main]
