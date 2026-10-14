@@ -76,6 +76,11 @@ namespace Match3.Engine.Tests
             Assert.That(lockedLine.Hits.Select(x => x.Position).ToArray(),
                 Is.EqualTo(new[] { P(0, 0), P(0, 2) }));
             Assert.That(lockedLine.Hits.Any(x => x.Position.Equals(P(0, 1))), Is.False);
+
+            var replay = SpecialEffectPlanner.Resolve(board,
+                new SpecialActivation(SpecialActivationKind.HorizontalLine, P(0, 2)));
+            Assert.That(SpecialGoldenHasher.HashEffectPlan(replay),
+                Is.EqualTo(SpecialGoldenHasher.HashEffectPlan(plan)));
         }
 
         [Test]
@@ -99,6 +104,13 @@ namespace Match3.Engine.Tests
             Assert.That(edge.Hits.All(x => x.Position.Row <= 2 && x.Position.Column <= 2), Is.True);
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 new SpecialActivation(SpecialActivationKind.Area, P(0, 0), radius: 0));
+
+            var immuneCenter = Full(3, 3, (r, col) =>
+                new SpecialCellState(P(r, col), "A", immune: r == 1 && col == 1));
+            var immuneArea = SpecialEffectPlanner.Resolve(immuneCenter,
+                new SpecialActivation(SpecialActivationKind.Area, P(1, 1), radius: 1));
+            Assert.That(immuneArea.Hits.Count, Is.EqualTo(8));
+            Assert.That(immuneArea.Hits.Any(x => x.Position.Equals(P(1, 1))), Is.False);
         }
 
         [Test]
@@ -135,6 +147,26 @@ namespace Match3.Engine.Tests
             Assert.Throws<ArgumentException>(() =>
                 SpecialEffectPlanner.ResolveColorWithNormal(board,
                     new SpecialActivation(SpecialActivationKind.Color, P(1, 2)), P(1, 1)));
+
+            var tieBoard = new SpecialBoardSnapshot(2, 2, new[]
+            {
+                new SpecialCellState(P(0,0), "B"),
+                new SpecialCellState(P(0,1), "A"),
+                new SpecialCellState(P(1,0), "B"),
+                new SpecialCellState(P(1,1), "A")
+            });
+            var tie = SpecialEffectPlanner.Resolve(tieBoard,
+                new SpecialActivation(SpecialActivationKind.Color, P(0, 0)));
+            Assert.That(tie.SelectedColor, Is.EqualTo("A"));
+
+            var lockedTargetBoard = new SpecialBoardSnapshot(1, 2, new[]
+            {
+                new SpecialCellState(P(0,0), null),
+                new SpecialCellState(P(0,1), "B", locked: true)
+            });
+            Assert.Throws<ArgumentException>(() =>
+                SpecialEffectPlanner.ResolveColorWithNormal(lockedTargetBoard,
+                    new SpecialActivation(SpecialActivationKind.Color, P(0,0)), P(0,1)));
         }
 
         [Test]
@@ -157,6 +189,27 @@ namespace Match3.Engine.Tests
                 new SpecialActivation(SpecialActivationKind.Area, P(2, 2)));
             Assert.That(rocketBomb.Hits.Count, Is.EqualTo(21));
             Assert.That(rocketBomb.Hits.Select(x => x.Position).Distinct().Count(), Is.EqualTo(21));
+
+            var edgeObstacle = Full(3, 3, (r, col) =>
+                new SpecialCellState(P(r, col), "A",
+                    obstacleLayers: r == 0 && col == 1 ? 2 : 0,
+                    stopsLinePropagation: r == 0 && col == 1));
+            var edgeCombo = SpecialEffectPlanner.Resolve(edgeObstacle,
+                new SpecialActivation(SpecialActivationKind.HorizontalLine, P(0, 0)),
+                new SpecialActivation(SpecialActivationKind.Area, P(0, 0)));
+            Assert.That(edgeCombo.Hits.Select(x => x.Position).Distinct().Count(),
+                Is.EqualTo(edgeCombo.Hits.Count));
+            var edgeLayer = edgeCombo.Hits.Single(x => x.Position.Equals(P(0, 1)));
+            Assert.That(edgeLayer.ObstacleLayersBefore, Is.EqualTo(2));
+            Assert.That(edgeLayer.ObstacleLayersAfter, Is.EqualTo(1));
+
+            var reversed = SpecialEffectPlanner.Resolve(board,
+                new SpecialActivation(SpecialActivationKind.Area, P(2, 2)),
+                new SpecialActivation(SpecialActivationKind.HorizontalLine, P(2, 2)));
+            Assert.That(reversed.Hits.Select(x => x.Position).Distinct().Count(),
+                Is.EqualTo(reversed.Hits.Count));
+            Assert.That(reversed.Hits.Select(x => x.Position).OrderBy(x => x.Row).ThenBy(x => x.Column).ToArray(),
+                Is.EqualTo(rocketBomb.Hits.Select(x => x.Position).OrderBy(x => x.Row).ThenBy(x => x.Column).ToArray()));
         }
 
         [Test]
@@ -174,6 +227,20 @@ namespace Match3.Engine.Tests
             Assert.That(plan.Activations.Any(x =>
                 x.Kind == SpecialActivationKind.Area && x.Origin.Equals(P(2, 3))), Is.True);
             Assert.That(plan.Bounded, Is.True);
+
+            var blockedBoard = Full(3, 3, (r, col) =>
+                new SpecialCellState(P(r, col), "A",
+                    obstacleLayers: r == 0 && col == 0 ? 2 : 0,
+                    locked: r == 2 && col == 2));
+            var blocked = SpecialEffectPlanner.Resolve(blockedBoard,
+                new SpecialActivation(SpecialActivationKind.Area, P(1, 1)),
+                new SpecialActivation(SpecialActivationKind.Area, P(1, 1)));
+            Assert.That(blocked.Hits.Any(x => x.Position.Equals(P(2, 2))), Is.False);
+            var layered = blocked.Hits.Single(x => x.Position.Equals(P(0, 0)));
+            Assert.That(layered.ObstacleLayersBefore, Is.EqualTo(2));
+            Assert.That(layered.ObstacleLayersAfter, Is.EqualTo(1));
+            Assert.That(blocked.Hits.Select(x => x.Position).Distinct().Count(),
+                Is.EqualTo(blocked.Hits.Count));
         }
 
         [Test]
@@ -207,6 +274,16 @@ namespace Match3.Engine.Tests
                 new SpecialActivation(SpecialActivationKind.Color, P(0, 0)));
             Assert.That(all.SelectedColor, Is.EqualTo("*"));
             Assert.That(all.Hits.Count, Is.EqualTo(9));
+
+            var noTarget = new SpecialBoardSnapshot(1, 2, new[]
+            {
+                new SpecialCellState(P(0,0), null, locked: true),
+                new SpecialCellState(P(0,1), null, immune: true)
+            });
+            var emptyColor = SpecialEffectPlanner.Resolve(noTarget,
+                new SpecialActivation(SpecialActivationKind.Color, P(0, 0)));
+            Assert.That(emptyColor.SelectedColor, Is.Null);
+            Assert.That(emptyColor.Hits, Is.Empty);
         }
 
         [Test]
@@ -345,11 +422,21 @@ namespace Match3.Engine.Tests
             hashes.Add(new KeyValuePair<string, string>("SQH",
                 SpecialGoldenHasher.HashEffectPlan(squareLine)));
 
-            var matrixHash = SpecialGoldenHasher.HashNamedMatrix(hashes);
+            var matrixHash = SpecialGoldenHasher.HashRequiredPairMatrix(hashes);
             Assert.That(matrixHash,
                 Is.EqualTo("ea5816c5f26b53f932b823015ef4b78ad99a40a683e4eb314b4604c6d95c714d"));
             Assert.That(SpecialGoldenHasher.BindToCorpusVersion(matrixHash),
                 Is.EqualTo("febdd294b4d2e3e9666c4f3e4500e60fcbd4bceda19ba797925beb6f0b72d49a"));
+
+            var missingFixture = hashes.Where(x => x.Key != "SQH").ToArray();
+            Assert.Throws<ArgumentException>(() =>
+                SpecialGoldenHasher.HashRequiredPairMatrix(missingFixture));
+            var duplicateFixture = hashes.Concat(new[]
+            {
+                new KeyValuePair<string, string>("HH", hashes.First(x => x.Key == "HH").Value)
+            }).ToArray();
+            Assert.Throws<ArgumentException>(() =>
+                SpecialGoldenHasher.HashRequiredPairMatrix(duplicateFixture));
         }
 
         [Test]
@@ -391,6 +478,17 @@ namespace Match3.Engine.Tests
             var lockedSquare = Full(2, 2, (r, col) =>
                 new SpecialCellState(P(r, col), "A", locked: r == 1 && col == 1));
             Assert.That(OptionalSquareSpecialDetector.Detect(lockedSquare, enabled), Is.Empty);
+
+            var overlapping = Full(3, 3);
+            var first = OptionalSquareSpecialDetector.Detect(overlapping, enabled,
+                preferredAnchors: new[] { P(0, 1) });
+            var second = OptionalSquareSpecialDetector.Detect(overlapping, enabled,
+                preferredAnchors: new[] { P(0, 1) });
+            Assert.That(first.Count, Is.EqualTo(1));
+            Assert.That(first[0].Anchor, Is.EqualTo(P(0, 1)));
+            Assert.That(second.Count, Is.EqualTo(1));
+            Assert.That(second[0].Anchor, Is.EqualTo(first[0].Anchor));
+            Assert.That(second[0].Cells, Is.EqualTo(first[0].Cells));
         }
 
         [Test]
@@ -493,6 +591,12 @@ namespace Match3.Engine.Tests
             Assert.That(interruptedBeforePresentation, Is.EqualTo(1550));
             Assert.That(committed.AuthoritativeScore, Is.EqualTo(1250));
             Assert.That(committed.FirstClearAwarded, Is.True);
+            Assert.That(plan.Events.Select(x => x.Sequence).ToArray(),
+                Is.EqualTo(Enumerable.Range(1, plan.Events.Count).ToArray()));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                var ignored = plan.Events[plan.Events.Count];
+            });
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 WinFinalePlanner.Build(committed, -1, true, 100));
         }
