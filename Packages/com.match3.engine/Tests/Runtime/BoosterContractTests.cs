@@ -427,11 +427,12 @@ namespace Match3.Engine.Tests
             Assert.That(gate.PendingCount, Is.EqualTo(0));
             Assert.That(gate.Resume(), Is.True);
 
-            var recovered = BoosterRecoveryPlanner.RecoverReservation(
-                committed.Result, "interrupt-action");
+            var recoveryJournal = new BoosterActionJournalSnapshot();
+            var recovered = BoosterRecoveryPlanner.RecoverFailedAction(
+                committed.Result, recoveryJournal, "interrupt-action");
             Assert.That(recovered.Result.Balance(BoosterKind.Hammer), Is.EqualTo(1));
-            var replayRecovery = BoosterRecoveryPlanner.RecoverReservation(
-                recovered.Result, "interrupt-action");
+            var replayRecovery = BoosterRecoveryPlanner.RecoverFailedAction(
+                recovered.Result, recoveryJournal, "interrupt-action");
             Assert.That(replayRecovery.Receipt.Applied, Is.False);
             Assert.That(replayRecovery.Result.Balance(BoosterKind.Hammer),
                 Is.EqualTo(1));
@@ -513,6 +514,10 @@ namespace Match3.Engine.Tests
             Assert.That(firstCommit.Economy.Balance(BoosterKind.Hammer),
                 Is.EqualTo(0));
             Assert.That(firstCommit.JournalChanged, Is.True);
+            Assert.Throws<InvalidOperationException>(() =>
+                BoosterRecoveryPlanner.RecoverFailedAction(
+                    firstCommit.Economy, firstCommit.Journal,
+                    "journal-action"));
 
             var replayCommit = BoosterActionLifecycle.Commit(
                 prepared, firstCommit.Economy, firstCommit.Journal);
