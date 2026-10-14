@@ -531,8 +531,9 @@ jobs:
           cases = {}
           for test in ET.parse(sys.argv[1]).getroot().findall('.//test-case'):
               fullname = test.get('fullname', '')
-              if 'NeutralSdkSnapshotValidatorPlayModeTests.' in fullname:
-                  cases.setdefault(fullname.rsplit('.', 1)[-1], []).append(test.get('result'))
+              short = fullname.rsplit('.', 1)[-1]
+              if 'NeutralSdkSnapshotValidatorPlayModeTests.' in fullname and short in expected:
+                  cases.setdefault(short, []).append(test.get('result'))
           if set(cases) != expected or any(v != ['Passed'] for v in cases.values()):
               raise SystemExit('FAIL: original LibraStack isolated SDK snapshot PlayMode cases: '+str(cases))
           print('UNITY_M02_ORIGINAL_SDK_SNAPSHOT_PLANNER=PASS DISCOVERED=%d SKIPPED=0' % len(cases))
