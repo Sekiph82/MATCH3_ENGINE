@@ -588,6 +588,42 @@ jobs:
           print('UNITY_M02_SAFE_RECOVERY_BOUNDARY=PASS DISCOVERED=%d SKIPPED=0' % len(found))
           PY
 
+      - name: Require real Unity ENG-M03 SDK projection and special arbitration cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          pure_expected = {
+              'ThreeMatchDeduplicatesSdkRunsAndOrdersEventsStably',
+              'StraightFourUsesSdkOrientationAndPreferredAnchorDeterministically',
+              'FivePlusHasColorPriorityAndDuplicateProjectionCannotDuplicateReward',
+              'LAndTIntersectionsCreateOneAreaPlanAndCountSharedCellOnce',
+              'MalformedOrSubthresholdSdkProjectionFailsClosed',
+          }
+          sdk_expected = {
+              'PinnedSdkProjectionFeedsThreeFourFivePlansWithoutRivalMatcher',
+              'PinnedSdkCrossProjectionCreatesSingleLOrTPlanWithoutDoubleReward',
+          }
+          pure = {}
+          sdk = {}
+          for path in sys.argv[1:]:
+              for case in ET.parse(path).getroot().findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  short = fullname.rsplit('.', 1)[-1]
+                  if 'SpecialMatchPlannerTests.' in fullname:
+                      pure.setdefault(short, []).append(case.get('result'))
+                  if 'NeutralSdkSnapshotValidatorPlayModeTests.' in fullname and short in sdk_expected:
+                      sdk.setdefault(short, []).append(case.get('result'))
+          if set(pure) != pure_expected or any(v != ['Passed'] for v in pure.values()):
+              raise SystemExit('FAIL: M03 pure SDK-projection arbitration cases missing/failed: '+str(pure))
+          if set(sdk) != sdk_expected or any(v != ['Passed'] for v in sdk.values()):
+              raise SystemExit('FAIL: M03 real pinned-SDK projection cases missing/failed: '+str(sdk))
+          print('UNITY_M03_001_004_PINNED_SDK_SPECIAL_MATCH=PASS PURE=%d SDK=%d SKIPPED=0' %
+                (len(pure), len(sdk)))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
