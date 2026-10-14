@@ -440,6 +440,45 @@ namespace Match3.Engine.Tests
             gate.Interrupt();
             Assert.That(gate.TryCommit(fresh), Is.False);
 
+            var guardedBoard = SpecialBoard();
+            var adultPolicy = new BoosterProfilePolicy(false, true, true, true);
+            var guardedPrepared = BoosterActionLifecycle.PrepareEffect(
+                Economy(BoosterKind.Hammer, 1),
+                adultPolicy, BoosterAcquisitionSource.Owned, true,
+                guardedBoard,
+                new BoosterActionRequest(
+                    "guarded-action", BoosterKind.Hammer, P(0,0)));
+            var guardedGate = new BoosterActionGate();
+            var guardedToken = guardedGate.Begin("guarded-action");
+            guardedGate.Interrupt();
+            Assert.Throws<OperationCanceledException>(() =>
+                BoosterActionLifecycle.CommitGuarded(
+                    guardedPrepared, guardedPrepared.ReservedEconomy,
+                    new BoosterActionJournalSnapshot(),
+                    guardedGate, guardedToken));
+            Assert.That(guardedPrepared.ReservedEconomy
+                .Balance(BoosterKind.Hammer), Is.EqualTo(1));
+            Assert.That(guardedPrepared.ReservedEconomy
+                .Transactions["guarded-action"].State,
+                Is.EqualTo(BoosterTransactionState.Reserved));
+
+            var currentPrepared = BoosterActionLifecycle.PrepareEffect(
+                Economy(BoosterKind.Hammer, 1),
+                adultPolicy, BoosterAcquisitionSource.Owned, true,
+                guardedBoard,
+                new BoosterActionRequest(
+                    "current-action", BoosterKind.Hammer, P(0,0)));
+            var currentGate = new BoosterActionGate();
+            var currentToken = currentGate.Begin("current-action");
+            var guardedCommit = BoosterActionLifecycle.CommitGuarded(
+                currentPrepared, currentPrepared.ReservedEconomy,
+                new BoosterActionJournalSnapshot(),
+                currentGate, currentToken);
+            Assert.That(guardedCommit.Economy.Balance(BoosterKind.Hammer),
+                Is.EqualTo(0));
+            Assert.That(guardedCommit.Journal.AppliedActions
+                .ContainsKey("current-action"), Is.True);
+
             var board = SpecialBoard();
             var adult = new BoosterProfilePolicy(false, true, true, true);
             var prepared = BoosterActionLifecycle.PrepareEffect(
