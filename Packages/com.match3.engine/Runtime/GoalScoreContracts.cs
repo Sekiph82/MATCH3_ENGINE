@@ -74,8 +74,10 @@ namespace Match3.Engine.Runtime
     public sealed class GoalRegistry
     {
         private readonly ReadOnlyDictionary<string, GoalDefinition> _byId;
+        private readonly ReadOnlyCollection<string> _rootGoalIds;
 
         public IReadOnlyDictionary<string, GoalDefinition> ById => _byId;
+        public IReadOnlyList<string> RootGoalIds => _rootGoalIds;
 
         public GoalRegistry(IEnumerable<GoalDefinition> goals)
         {
@@ -110,6 +112,15 @@ namespace Match3.Engine.Runtime
                 Visit(goal.GoalId, map, state);
 
             _byId = new ReadOnlyDictionary<string, GoalDefinition>(map);
+            var referenced = new HashSet<string>(
+                array.SelectMany(x => x.ChildGoalIds), StringComparer.Ordinal);
+            _rootGoalIds = new ReadOnlyCollection<string>(
+                array.Select(x => x.GoalId)
+                    .Where(x => !referenced.Contains(x))
+                    .OrderBy(x => x, StringComparer.Ordinal)
+                    .ToList());
+            if (_rootGoalIds.Count == 0)
+                throw new ArgumentException("Goal registry has no root goals.");
         }
 
         private static void Visit(string id,
@@ -347,6 +358,19 @@ namespace Match3.Engine.Runtime
 
     public static class LevelTerminalArbitrator
     {
+        public static LevelTerminalResolution Resolve(
+            bool finalSettleComplete,
+            GoalRegistry registry,
+            GoalProgressSnapshot progress,
+            LevelBudgetSnapshot budget)
+        {
+            if (registry == null) throw new ArgumentNullException(nameof(registry));
+            if (progress == null) throw new ArgumentNullException(nameof(progress));
+            var allRootsComplete = registry.RootGoalIds.All(x =>
+                GoalProgressPlanner.IsComplete(registry, progress, x));
+            return Resolve(finalSettleComplete, allRootsComplete, budget);
+        }
+
         public static LevelTerminalResolution Resolve(
             bool finalSettleComplete,
             bool allGoalsComplete,
