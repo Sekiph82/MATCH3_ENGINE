@@ -438,6 +438,38 @@ jobs:
           print('UNITY_M02_ORIGINAL_SDK_ATOMIC_INPUT=PASS DISCOVERED=%d SKIPPED=0' % len(matches))
           PY
 
+      - name: Verify real M02 deterministic replay codec and original SDK replay tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'CanonicalReplayIsByteIdenticalAcrossIndependentEncodes',
+              'ReplayReceiptsVerifyEveryActualAuthoritativeSnapshot',
+              'ForgedPayloadChecksumAndTrailingBytesAreRejected',
+              'ReplayRejectsWrongGameAndDifferentLevelConfiguration',
+              'ReplayRejectsMissingDuplicateOrNonOrthogonalActionOrder',
+              'FutureSchemaUnknownDigestAndOversizedLogsFailClosed',
+              'ReplayHashChangesOnSnapshotChangeAndCannotBeMutable',
+              'ActualSdkMoveRoundTripsThroughCanonicalReplayAndReproducesWin',
+              'WrongSdkBoardOrGameConfigCannotSatisfyReplayReceipt',
+          }
+          found = {}
+          for path in sys.argv[1:]:
+              root = ET.parse(path).getroot()
+              for case in root.findall('.//test-case'):
+                  name = case.get('fullname', '')
+                  if any(tag in name for tag in (
+                      'DeterministicReplayContractTests.',
+                      'DemoSdkReplayPlayModeTests.')):
+                      found.setdefault(name.rsplit('.', 1)[-1], []).append(case.get('result'))
+          if set(found) != expected or any(v != ['Passed'] for v in found.values()):
+              raise SystemExit('FAIL: M02 replay true Unity cases absent/skipped/failed: '+str(found))
+          print('UNITY_M02_REPLAY_CODEC_AND_REAL_SDK=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
