@@ -696,6 +696,7 @@ jobs:
               'ConveyorSchemaRoundTripsCanonicallyAndRejectsVersionDrift',
               'PortalTeleportsAtMostOncePerPhaseAndBlockedPairDoesNotOverwrite',
               'PortalRegistryAndSchemaRejectMalformedPairsAndRoundTripStableIds',
+              'PortalRejectsLockedOrHoledEndpointsInsteadOfTeleportingThroughTopology',
           }
           found = {}
           for path in sys.argv[1:]:
@@ -721,6 +722,7 @@ jobs:
               'PauseInvalidatesStaleCompletionAndResumeCannotDoubleCommit',
               'GravityWorkAndManagedMemoryStayBoundedAtNineTwelveAndTwentyBoards',
               'MixedPipelineCombinesConveyorPortalGravityAndRefillWithoutDuplicatesOrMutation',
+              'AuthoritativeSpecialDamageVacancyFeedsMixedSettlementWithoutOwningMatchTruth',
               'MixedPipelineFailsClosedOnInvalidTransportInsteadOfLooping',
           }
           found = {}
