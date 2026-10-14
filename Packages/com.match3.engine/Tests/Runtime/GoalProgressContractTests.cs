@@ -109,6 +109,19 @@ namespace Match3.Engine.Tests
                     new GoalCapacity(GoalKind.CollectPiece, "piece.red", 6),
                     new GoalCapacity(GoalKind.ClearObstacle, "rock", 4)
                 }));
+
+            var rescueRegistry = new GoalRegistry(new[]
+            {
+                new GoalDefinition("drop-fish", GoalKind.RescueDrop, "fish", 2)
+            });
+            Assert.Throws<InvalidOperationException>(() =>
+                LevelGoalValidator.RequirePlayable(
+                    rescueRegistry, new GoalCapacity[0]));
+            Assert.DoesNotThrow(() =>
+                LevelGoalValidator.RequirePlayable(rescueRegistry, new[]
+                {
+                    new GoalCapacity(GoalKind.RescueDrop, "fish", 2)
+                }));
         }
 
         [Test]
@@ -190,8 +203,15 @@ namespace Match3.Engine.Tests
         [Test]
         public void M07_010_SkipAndReducedMotionSuppressPresentationOnlyNotFinalScoreStarsOrRewards()
         {
-            var committed = new CommittedWinSnapshot(
+            var win = new CommittedWinSnapshot(
                 "win-final", 2000, true);
+            var committed = new CommittedPostWinAuthority(
+                win, 3, "progress:L-001:attempt-9",
+                new[]
+                {
+                    "firstclear:L-001:coins",
+                    "firstclear:L-001:tasks"
+                });
             var policy = new PostWinPolicy(true, 4, 125);
 
             var normal = PostWinPlanner.Resolve(
@@ -216,6 +236,14 @@ namespace Match3.Engine.Tests
             Assert.That(normal.AuthorityPlan.Outcome.FirstClearAwarded, Is.True);
             Assert.That(skipped.AuthorityPlan.Outcome.FirstClearAwarded, Is.True);
             Assert.That(reduced.AuthorityPlan.Outcome.FirstClearAwarded, Is.True);
+            Assert.That(normal.CommittedAuthority, Is.SameAs(committed));
+            Assert.That(skipped.CommittedAuthority, Is.SameAs(committed));
+            Assert.That(reduced.CommittedAuthority, Is.SameAs(committed));
+            Assert.That(normal.CommittedAuthority.Stars, Is.EqualTo(3));
+            Assert.That(skipped.CommittedAuthority.ProgressionReceiptId,
+                Is.EqualTo("progress:L-001:attempt-9"));
+            Assert.That(reduced.CommittedAuthority.RewardSourceIds,
+                Is.EqualTo(committed.RewardSourceIds));
             Assert.That(normal.PresentationEvents.Count, Is.GreaterThan(0));
             Assert.That(skipped.PresentationEvents, Is.Empty);
             Assert.That(reduced.PresentationEvents, Is.Empty);
