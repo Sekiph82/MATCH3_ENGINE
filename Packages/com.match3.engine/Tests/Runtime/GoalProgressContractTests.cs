@@ -168,12 +168,13 @@ namespace Match3.Engine.Tests
         [Test]
         public void M07_009_FirstClearRewardsAreExactlyOnceAndReplayOnlyImprovesBestPolicy()
         {
+            var thresholds = new StarThresholds(500, 1000, 1500);
             var start = new LevelProgressionSnapshot("L-001");
             var firstAttempt = new LevelResultAttempt(
                 "attempt-1", "L-001", true, 1200, 2, true);
 
             var first = FirstClearProgressionPlanner.Apply(
-                start, firstAttempt);
+                start, firstAttempt, thresholds);
             Assert.That(first.FirstClearApplied, Is.True);
             Assert.That(first.RewardSourceIds, Is.EqualTo(new[]
             {
@@ -187,14 +188,15 @@ namespace Match3.Engine.Tests
             Assert.That(first.Result.HighestStars, Is.EqualTo(2));
 
             var duplicateAttempt = FirstClearProgressionPlanner.Apply(
-                first.Result, firstAttempt);
+                first.Result, firstAttempt, thresholds);
             Assert.That(duplicateAttempt.Applied, Is.False);
             Assert.That(duplicateAttempt.RewardSourceIds, Is.Empty);
 
             var replay = FirstClearProgressionPlanner.Apply(
                 first.Result,
                 new LevelResultAttempt("attempt-2", "L-001",
-                    true, 1800, 3, true));
+                    true, 1800, 3, true),
+                thresholds);
             Assert.That(replay.FirstClearApplied, Is.False);
             Assert.That(replay.RewardSourceIds, Is.Empty);
             Assert.That(replay.PersonalBestImproved, Is.True);
@@ -210,7 +212,14 @@ namespace Match3.Engine.Tests
                 FirstClearProgressionPlanner.Apply(
                     replay.Result,
                     new LevelResultAttempt("forged", "L-001",
-                        true, 999999, 3, false)));
+                        true, 999999, 3, false),
+                    thresholds));
+            Assert.Throws<InvalidOperationException>(() =>
+                FirstClearProgressionPlanner.Apply(
+                    replay.Result,
+                    new LevelResultAttempt("bad-stars", "L-001",
+                        true, 600, 3, true),
+                    thresholds));
         }
 
         [Test]
