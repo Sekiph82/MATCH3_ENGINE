@@ -189,7 +189,10 @@ namespace Match3.Engine.Runtime
         {
             if (ingredients == null) throw new ArgumentNullException(nameof(ingredients));
             if (collector == null) throw new ArgumentNullException(nameof(collector));
-            var items = ingredients.ToList();
+            var items = ingredients.Take(65537).ToList();
+            if (items.Count > 65536)
+                throw new InvalidOperationException(
+                    "Ingredient collection item budget exceeded.");
             if (items.Any(x => x == null))
                 throw new ArgumentException("Null ingredient.", nameof(ingredients));
             if (items.GroupBy(x => x.InstanceId, StringComparer.Ordinal)
@@ -347,7 +350,10 @@ namespace Match3.Engine.Runtime
         public static string Encode(IEnumerable<ObstacleMetadataEntry> entries)
         {
             if (entries == null) throw new ArgumentNullException(nameof(entries));
-            var list = entries.ToList();
+            var list = entries.Take(4097).ToList();
+            if (list.Count > 4096)
+                throw new InvalidOperationException(
+                    "Obstacle metadata entry budget exceeded.");
             if (list.Any(x => x == null))
                 throw new ArgumentException("Null obstacle metadata.");
             if (list.GroupBy(x => x.Id, StringComparer.Ordinal).Any(x => x.Count() > 1))
@@ -518,7 +524,10 @@ namespace Match3.Engine.Runtime
             IEnumerable<ObstacleCrossProductCase> cases)
         {
             if (cases == null) throw new ArgumentNullException(nameof(cases));
-            var list = cases.ToList();
+            var list = cases.Take(65537).ToList();
+            if (list.Count > 65536)
+                throw new InvalidOperationException(
+                    "Obstacle cross-product case budget exceeded.");
             if (list.GroupBy(x => x.CellKey, StringComparer.Ordinal).Any(x => x.Count() > 1))
                 throw new ArgumentException("Duplicate cross-product cell declaration.");
             var errors = new List<ObstacleValidationError>();
