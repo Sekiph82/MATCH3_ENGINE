@@ -464,17 +464,22 @@ namespace Match3.Engine.Runtime
     {
         public static UnlockPlan ApplyVerifiedWin(
             ProgressionGraph graph, UnlockSnapshot snapshot,
-            LevelResultAttempt attempt)
+            LevelResultAttempt attempt, StarThresholds thresholds)
         {
             if (graph == null) throw new ArgumentNullException(nameof(graph));
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (attempt == null) throw new ArgumentNullException(nameof(attempt));
+            if (thresholds == null) throw new ArgumentNullException(nameof(thresholds));
             if (!attempt.Verified || !attempt.Won)
                 throw new InvalidOperationException(
                     "Only verified wins can update unlock progression.");
             if (!graph.Levels.ContainsKey(attempt.LevelId))
                 throw new ArgumentException(
                     "Attempt references unknown level.");
+            var canonicalStars = thresholds.StarsFor(attempt.Score);
+            if (attempt.Stars != canonicalStars)
+                throw new InvalidOperationException(
+                    "Unlock attempt stars do not match canonical score thresholds.");
 
             if (snapshot.ProcessedAttemptIds.Contains(attempt.AttemptId))
                 return new UnlockPlan(snapshot, false, new string[0]);
