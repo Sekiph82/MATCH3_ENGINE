@@ -749,6 +749,14 @@ jobs:
             "$PWD/artifacts/editmode-results.xml" \
             "$PWD/artifacts/playmode-results.xml"
 
+      - name: Require real Unity ENG-M06 booster 11-child contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tools/AssertM06BoosterTests.py \
+            "$PWD/artifacts/editmode-results.xml" \
+            "$PWD/artifacts/playmode-results.xml"
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
