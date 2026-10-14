@@ -70,7 +70,7 @@ namespace Match3.Engine.Tests
             var entries = new[]
             {
                 new ObstacleMetadataEntry("rock", 3,
-                    new[] { "layered", "special", "layered" }),
+                    new[] { "layered", "special_damage", "layered" }),
                 new ObstacleMetadataEntry("ice", 2,
                     new[] { "immobilizer" })
             };
@@ -79,10 +79,10 @@ namespace Match3.Engine.Tests
             var decoded = ObstacleMetadataSchema.Decode(encoded);
 
             Assert.That(encoded, Is.EqualTo(
-                "v1|ice,2,immobilizer;rock,3,layered+special"));
+                "v1|ice,2,immobilizer;rock,3,layered+special_damage"));
             Assert.That(ObstacleMetadataSchema.Encode(decoded), Is.EqualTo(encoded));
             Assert.That(decoded.Single(x => x.Id == "rock").Capabilities,
-                Is.EqualTo(new[] { "layered", "special" }));
+                Is.EqualTo(new[] { "layered", "special_damage" }));
 
             Assert.Throws<FormatException>(() =>
                 ObstacleMetadataSchema.Decode("v2|rock,3,layered"));
@@ -93,9 +93,11 @@ namespace Match3.Engine.Tests
                     new ObstacleMetadataEntry("x", 1, new[] { "b" })
                 }));
             Assert.Throws<ArgumentException>(() =>
-                new ObstacleMetadataEntry("bad;id", 1, new[] { "a" }));
+                new ObstacleMetadataEntry("bad;id", 1, new[] { "layered" }));
+            Assert.Throws<ArgumentException>(() =>
+                new ObstacleMetadataEntry("x", 1, new[] { "unknown_capability" }));
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new ObstacleMetadataEntry("x", 0, new[] { "a" }));
+                new ObstacleMetadataEntry("x", 0, new[] { "layered" }));
         }
 
         [Test]
@@ -120,13 +122,26 @@ namespace Match3.Engine.Tests
             incomplete[0] = new ObstacleSkinBinding(incomplete[0].GameId,
                 new Dictionary<string, string>
                 {
-                    { "ice", "only.ice" }
+                    { "ice", incomplete[0].GameId + ".ice" }
                 });
             Assert.Throws<InvalidOperationException>(() =>
                 FiveTitleObstacleSkinRegistry.Validate(incomplete, required));
             Assert.Throws<ArgumentException>(() =>
                 new ObstacleSkinBinding("Unknown_Title",
                     new Dictionary<string, string> { { "ice", "x" } }));
+            Assert.Throws<ArgumentException>(() =>
+                new ObstacleSkinBinding(GameProfileCatalog.Ids[0],
+                    new Dictionary<string, string>
+                    {
+                        { "ice", GameProfileCatalog.Ids[0] + ".same" },
+                        { "rock", GameProfileCatalog.Ids[0] + ".same" }
+                    }));
+            Assert.Throws<ArgumentException>(() =>
+                new ObstacleSkinBinding(GameProfileCatalog.Ids[0],
+                    new Dictionary<string, string>
+                    {
+                        { "ice", GameProfileCatalog.Ids[1] + ".ice" }
+                    }));
 
             var publicProps = typeof(ObstacleSkinBinding)
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
