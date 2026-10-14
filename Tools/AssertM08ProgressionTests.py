@@ -7,6 +7,12 @@ EXPECTED = {
     "M08_002_NavigationFollowsCommonRouteAndRejectsMismatchIllegalOrDuplicateTransitions",
     "M08_003_UnlockRulesAreCanonicalStarGatedMonotonicAndReplaySafe",
     "M08_004_HeartsReconcileOfflineTimeClampRollbackCapAndExactlyOnceLedger",
+    "M08_005_GameEconomyIsPerGameIdempotentAndRejectsCrossGameSourceReuse",
+    "M08_006_DailyRewardsClaimOnceClampRollbackAndHonorMissedDayPolicy",
+    "M08_007_DailyWeeklyTasksDeduplicateProgressResetAndClaimExactlyOnce",
+    "M08_008_RestorationMilestonesUseNeutralProgressAndThemeBindingsOnly",
+    "M08_009_SaveMigrationBacksUpHashesSequentiallyAndFailsAtomically",
+    "M08_010_PrivacyIsOptInChildSafeReplaySafeAndNeverBlocksLocalPlay",
 }
 
 def main(paths):
@@ -15,7 +21,8 @@ def main(paths):
         root = ET.parse(path).getroot()
         for case in root.findall(".//test-case"):
             fullname = case.get("fullname", "")
-            if "ProgressionGraphContractTests." in fullname:
+            if ("ProgressionGraphContractTests." in fullname or
+                    "ProgressionServicesContractTests." in fullname):
                 short = fullname.rsplit(".", 1)[-1]
                 found.setdefault(short, []).append(case.get("result"))
     if set(found) != EXPECTED or any(v != ["Passed"] for v in found.values()):
@@ -23,7 +30,7 @@ def main(paths):
             "FAIL: M08 progression cases missing, skipped, duplicated or failed: "
             + repr(found)
         )
-    print("UNITY_M08_001_004_PROGRESSION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
+    print("UNITY_M08_001_010_PROGRESSION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
