@@ -129,6 +129,18 @@ namespace Match3.Engine.Runtime
                         throw new ArgumentException(
                             "Level references missing prerequisite: " +
                             dependency);
+
+                    var targetChapter = _chapters[level.ChapterId];
+                    var dependencyChapter = _chapters[
+                        _levels[dependency].ChapterId];
+                    var targetGame = _worlds[
+                        targetChapter.WorldId].GameId;
+                    var dependencyGame = _worlds[
+                        dependencyChapter.WorldId].GameId;
+                    if (!StringComparer.Ordinal.Equals(
+                        targetGame, dependencyGame))
+                        throw new ArgumentException(
+                            "Level prerequisite cannot cross game profiles.");
                 }
             }
 
@@ -324,6 +336,7 @@ namespace Match3.Engine.Runtime
             if (state.ProcessedRouteIds.Contains(next.RouteId))
                 return new NavigationPlan(state, false);
 
+            ValidateRoute(graph, state.Current);
             ValidateRoute(graph, next);
             if (!IsAllowed(state.Current.Kind, next.Kind))
                 throw new InvalidOperationException(
@@ -476,6 +489,12 @@ namespace Match3.Engine.Runtime
             if (!graph.Levels.ContainsKey(attempt.LevelId))
                 throw new ArgumentException(
                     "Attempt references unknown level.");
+            if (snapshot.UnlockedLevelIds.Any(
+                    id => !graph.Levels.ContainsKey(id)) ||
+                snapshot.HighestStars.Keys.Any(
+                    id => !graph.Levels.ContainsKey(id)))
+                throw new ArgumentException(
+                    "Unlock snapshot references unknown level.");
             var canonicalStars = thresholds.StarsFor(attempt.Score);
             if (attempt.Stars != canonicalStars)
                 throw new InvalidOperationException(
