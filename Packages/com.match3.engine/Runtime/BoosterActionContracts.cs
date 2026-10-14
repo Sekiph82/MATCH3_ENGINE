@@ -53,14 +53,16 @@ namespace Match3.Engine.Runtime
             var specialKinds = requested.Select(ToSpecialKind).ToArray();
 
             var candidates = new List<BoardPosition>();
+            var inspected = 0;
             foreach (var pair in topology.Occupants)
             {
+                if (++inspected > maximumCandidates)
+                    throw new InvalidOperationException(
+                        "Prelevel booster scan budget exceeded.");
                 var p = pair.Key;
                 if (topology.IsLocked(p) || topology.IsHole(p))
                     continue;
                 candidates.Add(p);
-                if (candidates.Count > maximumCandidates)
-                    break;
             }
             candidates = candidates
                 .OrderBy(p => p.Layer)
@@ -343,14 +345,16 @@ namespace Match3.Engine.Runtime
             uint seed, int maximumMovableCells)
         {
             var positions = new List<BoardPosition>();
+            var inspected = 0;
             foreach (var pair in topology.Occupants)
             {
+                if (++inspected > maximumMovableCells)
+                    throw new InvalidOperationException(
+                        "Shuffle scan budget exceeded.");
                 var p = pair.Key;
                 if (topology.IsLocked(p) || topology.IsHole(p))
                     continue;
                 positions.Add(p);
-                if (positions.Count > maximumMovableCells)
-                    break;
             }
             positions = positions
                 .OrderBy(x => x.Layer)
