@@ -416,15 +416,23 @@ namespace Match3.Engine.Runtime
     {
         public static FirstClearProgressionPlan Apply(
             LevelProgressionSnapshot snapshot,
-            LevelResultAttempt attempt)
+            LevelResultAttempt attempt,
+            StarThresholds thresholds)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (attempt == null) throw new ArgumentNullException(nameof(attempt));
+            if (thresholds == null) throw new ArgumentNullException(nameof(thresholds));
             if (!StringComparer.Ordinal.Equals(snapshot.LevelId, attempt.LevelId))
                 throw new ArgumentException("Attempt level does not match progression.");
             if (!attempt.Verified)
                 throw new InvalidOperationException(
                     "Unverified attempt cannot mutate progression.");
+            var canonicalStars = attempt.Won
+                ? thresholds.StarsFor(attempt.Score)
+                : 0;
+            if (attempt.Stars != canonicalStars)
+                throw new InvalidOperationException(
+                    "Attempt stars do not match deterministic score thresholds.");
             if (snapshot.ProcessedAttemptIds.Contains(attempt.AttemptId))
                 return new FirstClearProgressionPlan(
                     snapshot, false, false, false, false, new string[0]);
