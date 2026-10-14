@@ -334,6 +334,38 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    public sealed class EarnedPackReceipt
+    {
+        public string ReceiptId { get; }
+        public string PackId { get; }
+        public RewardSourceKind SourceKind { get; }
+        public bool Verified { get; }
+
+        public EarnedPackReceipt(string receiptId, string packId,
+            RewardSourceKind sourceKind, bool verified = true)
+        {
+            if (string.IsNullOrWhiteSpace(receiptId))
+                throw new ArgumentException(
+                    "Earned pack receipt ID required.", nameof(receiptId));
+            if (string.IsNullOrWhiteSpace(packId))
+                throw new ArgumentException(
+                    "Earned pack ID required.", nameof(packId));
+            if (!Enum.IsDefined(typeof(RewardSourceKind), sourceKind))
+                throw new ArgumentOutOfRangeException(nameof(sourceKind));
+            if (sourceKind == RewardSourceKind.Purchase ||
+                sourceKind == RewardSourceKind.Replay ||
+                sourceKind == RewardSourceKind.RewardedVerified ||
+                sourceKind == RewardSourceKind.Pack)
+                throw new ArgumentException(
+                    "Random pack opening cannot originate from paid, replay, ad-randomized or recursive pack sources.",
+                    nameof(sourceKind));
+            ReceiptId = receiptId;
+            PackId = packId;
+            SourceKind = sourceKind;
+            Verified = verified;
+        }
+    }
+
     public sealed class EarnedPackPlan
     {
         private readonly ReadOnlyCollection<string> _itemIds;
@@ -358,21 +390,27 @@ namespace Match3.Engine.Runtime
         public static EarnedPackPlan Open(
             CollectionCatalog catalog, CollectionSnapshot collection,
             EarnedPackDefinition definition, EarnedPackSnapshot snapshot,
-            string earnedReceiptId, uint seed)
+            EarnedPackReceipt receipt, uint seed)
         {
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
             if (collection == null) throw new ArgumentNullException(nameof(collection));
             if (definition == null) throw new ArgumentNullException(nameof(definition));
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
-            if (string.IsNullOrWhiteSpace(earnedReceiptId))
-                throw new ArgumentException("Earned receipt ID required.",
-                    nameof(earnedReceiptId));
+            if (receipt == null)
+                throw new ArgumentNullException(nameof(receipt));
+            if (!receipt.Verified)
+                throw new InvalidOperationException(
+                    "Unverified earned receipt cannot open a pack.");
+            if (!StringComparer.Ordinal.Equals(
+                receipt.PackId, definition.PackId))
+                throw new InvalidOperationException(
+                    "Earned receipt belongs to another pack.");
             if (seed == 0)
                 throw new ArgumentOutOfRangeException(nameof(seed));
             if (definition.ItemIds.Any(x => !catalog.Items.ContainsKey(x)))
                 throw new ArgumentException("Pack pool references unknown collection item.");
 
-            if (snapshot.ProcessedReceiptIds.Contains(earnedReceiptId))
+            if (snapshot.ProcessedReceiptIds.Contains(receipt.ReceiptId))
                 return new EarnedPackPlan(snapshot, false, new string[0], false);
 
             var rng = new SeededRandom(seed);
@@ -403,7 +441,7 @@ namespace Match3.Engine.Runtime
                 new EarnedPackSnapshot(
                     pity,
                     snapshot.ProcessedReceiptIds.Concat(
-                        new[] { earnedReceiptId })),
+                        new[] { receipt.ReceiptId })),
                 true, draws, guarantee);
         }
     }
@@ -1050,13 +1088,43 @@ namespace Match3.Engine.Runtime
     public static class ReentryPlanner
     {
         public static ReentryPlan Resolve(
+            ProgressionGraph graph,
             ReentryAuthoritySnapshot authority,
             ReentryReason reason, string presentationToken = null)
         {
+            if (graph == null)
+                throw new ArgumentNullException(nameof(graph));
             if (authority == null)
                 throw new ArgumentNullException(nameof(authority));
             if (!Enum.IsDefined(typeof(ReentryReason), reason))
                 throw new ArgumentOutOfRangeException(nameof(reason));
+            if (!graph.Levels.ContainsKey(authority.FrontierLevelId) ||
+                !StringComparer.Ordinal.Equals(
+                    graph.GameIdForLevel(authority.FrontierLevelId),
+                    authority.GameId))
+                throw new InvalidOperationException(
+                    "Re-entry frontier does not belong to authority game.");
+
+            NavigationPlanner.ValidateRoute(graph, authority.CurrentRoute);
+            NavigationPlanner.ValidateRoute(graph, authority.FrontierMapRoute);
+
+            var frontier = graph.Levels[authority.FrontierLevelId];
+            var chapter = graph.Chapters[frontier.ChapterId];
+            if (!StringComparer.Ordinal.Equals(
+                    authority.FrontierMapRoute.ChapterId,
+                    frontier.ChapterId) ||
+                !StringComparer.Ordinal.Equals(
+                    authority.FrontierMapRoute.WorldId,
+                    chapter.WorldId))
+                throw new InvalidOperationException(
+                    "Re-entry map route does not contain the frontier level.");
+
+            if (authority.CurrentRoute.LevelId != null &&
+                !StringComparer.Ordinal.Equals(
+                    graph.GameIdForLevel(authority.CurrentRoute.LevelId),
+                    authority.GameId))
+                throw new InvalidOperationException(
+                    "Current re-entry route belongs to another game.");
 
             NavigationRoute target;
             switch (reason)
