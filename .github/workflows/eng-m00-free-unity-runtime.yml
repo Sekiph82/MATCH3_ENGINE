@@ -5,6 +5,7 @@ on:
   # One workflow-only push lets the current Unity CI preflight run without
   # changing game code, secrets, licensing, or local owner files.
   # ENG-M04 final acceptance refresh after callback-atomicity and 0x presentation hardening.
+  # ENG-M05 final acceptance refresh after frozen obstacle lifecycle hardening.
   push:
     branches: [main]
     paths:
