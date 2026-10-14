@@ -265,7 +265,7 @@ jobs:
           with open(sys.argv[1], encoding="utf-8", errors="replace") as stream:
               source = stream.read()
           matches = re.findall(
-              r'([A-Za-z0-9_.-]+\\.cs)\\((\\d+),(\\d+)\\):\\s*error\\s+(CS\\d+)',
+              r'([A-Za-z0-9_.-]+\.cs)\((\d+),(\d+)\):\s*error\s+(CS\d+)',
               source, re.I)
           print('UNITY_COMPILER_DIAGNOSTIC_COUNT=%d' % len(matches))
           for filename, line, col, code in matches[:30]:
