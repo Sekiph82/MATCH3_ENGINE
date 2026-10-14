@@ -247,8 +247,15 @@ namespace Match3.Engine.Tests
                 new MatchRunProjection(MatchRunAxis.Vertical, "E",
                     new[] { P(6,1), P(7,1), P(8,1) })
             });
-            Assert.That(SpecialGoldenHasher.HashMatchPlans(matchPlans),
+            var matchHash = SpecialGoldenHasher.HashMatchPlans(matchPlans);
+            Assert.That(matchHash,
                 Is.EqualTo("2b4cc56855bd574d56640cc90eb5078c9aec26727eed1f6c01791c6390dbd316"));
+            Assert.That(SpecialGoldenHasher.CorpusVersion, Is.EqualTo("ENG-M03-GOLDEN-V1"));
+            Assert.That(SpecialGoldenHasher.BindToCorpusVersion(matchHash),
+                Is.EqualTo("61a05b64be14d8d427528a12aa6a0a2dadf4fd6fc4499fe86f180634903de882"));
+            Assert.That(SpecialGoldenHasher.BindToCorpusVersion(
+                    matchHash, "ENG-M03-GOLDEN-V2"),
+                Is.Not.EqualTo(SpecialGoldenHasher.BindToCorpusVersion(matchHash)));
 
             var cross = SpecialEffectPlanner.Resolve(Full(3, 3),
                 new SpecialActivation(SpecialActivationKind.HorizontalLine, P(1, 1)),
@@ -256,6 +263,8 @@ namespace Match3.Engine.Tests
             var crossHash = SpecialGoldenHasher.HashEffectPlan(cross);
             Assert.That(crossHash,
                 Is.EqualTo("fdf090be5de2825f0163f7cb4d9f41bfcdab3074dcfce050fae6db983876dbb8"));
+            Assert.That(SpecialGoldenHasher.BindToCorpusVersion(crossHash),
+                Is.EqualTo("6ec9af3bd39be42466d9efdfe4bf7a23082fd6643556ff183d89b0259c39f98e"));
             var tampered = SpecialEffectPlanner.Resolve(Full(3, 3),
                 new SpecialActivation(SpecialActivationKind.HorizontalLine, P(0, 1)),
                 new SpecialActivation(SpecialActivationKind.VerticalLine, P(0, 1)));
@@ -336,8 +345,11 @@ namespace Match3.Engine.Tests
             hashes.Add(new KeyValuePair<string, string>("SQH",
                 SpecialGoldenHasher.HashEffectPlan(squareLine)));
 
-            Assert.That(SpecialGoldenHasher.HashNamedMatrix(hashes),
+            var matrixHash = SpecialGoldenHasher.HashNamedMatrix(hashes);
+            Assert.That(matrixHash,
                 Is.EqualTo("ea5816c5f26b53f932b823015ef4b78ad99a40a683e4eb314b4604c6d95c714d"));
+            Assert.That(SpecialGoldenHasher.BindToCorpusVersion(matrixHash),
+                Is.EqualTo("febdd294b4d2e3e9666c4f3e4500e60fcbd4bceda19ba797925beb6f0b72d49a"));
         }
 
         [Test]
