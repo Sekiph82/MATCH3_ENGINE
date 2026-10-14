@@ -254,23 +254,29 @@ jobs:
             # Unity 6000.6 Test Framework forbids -quit alongside -runTests:
             # -quit causes exit 0 BEFORE writing the NUnit XML result.
             # -runTests terminates Editor itself after test completion.
-            timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics \
-              -projectPath "$PWD" -runTests -testPlatform "$mode" \
-              -testResults "$results" -logFile "$log"
-            exit_code=$?
-            # Hosted Unity occasionally returns 198 immediately on the second
-            # Editor launch while the prior batch process is still releasing
-            # its activation/editor lock. Retry exactly once only when no NUnit
-            # XML exists and the first process returned that specific code.
-            # All compiler, NUnit, timeout, and other exit codes remain fail-closed.
-            if [[ "$mode" == "PlayMode" && "$exit_code" -eq 198 && ! -s "$results" ]]; then
-              echo "UNITY_PLAYMODE_EXIT_198_RETRY=1"
-              sleep 8
+            #
+            # Hosted disposable runners can return exit 198 immediately after
+            # another Unity batch process releases the activation/editor lock.
+            # Retry ONLY that exact no-XML launch failure, for either mode,
+            # with a strict three-attempt bound. Compiler/NUnit/timeout/other
+            # failures are never retried or masked.
+            exit_code=198
+            for launch_attempt in 1 2 3; do
+              rm -f -- "$results"
               timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics \
                 -projectPath "$PWD" -runTests -testPlatform "$mode" \
                 -testResults "$results" -logFile "$log"
               exit_code=$?
-            fi
+              if (( exit_code == 0 )) && [[ -s "$results" ]]; then
+                break
+              fi
+              if (( exit_code == 198 )) && [[ ! -s "$results" ]] && (( launch_attempt < 3 )); then
+                echo "UNITY_${mode^^}_EXIT_198_RETRY=$launch_attempt"
+                sleep $((launch_attempt * 8))
+                continue
+              fi
+              break
+            done
             set -e
             if (( exit_code != 0 )) || [[ ! -s "$results" ]]; then
               echo "::error::Unity $mode failed or produced no NUnit XML (exit $exit_code)"
