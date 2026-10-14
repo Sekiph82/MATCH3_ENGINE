@@ -242,11 +242,15 @@ namespace Match3.Engine.Tests
             Assert.That(BoosterEconomyPlanner.Confirm(
                 committed.Result, "spend-1").Receipt.Applied, Is.False);
 
-            var refunded = BoosterEconomyPlanner.Refund(
-                committed.Result, "spend-1");
+            Assert.Throws<InvalidOperationException>(() =>
+                BoosterEconomyPlanner.Refund(
+                    committed.Result, "spend-1"));
+            var refunded = BoosterRecoveryPlanner.RecoverFailedAction(
+                committed.Result, new BoosterActionJournalSnapshot(), "spend-1");
             Assert.That(refunded.Result.Balance(BoosterKind.Hammer), Is.EqualTo(2));
-            Assert.That(BoosterEconomyPlanner.Refund(
-                refunded.Result, "spend-1").Receipt.Applied, Is.False);
+            Assert.That(BoosterRecoveryPlanner.RecoverFailedAction(
+                refunded.Result, new BoosterActionJournalSnapshot(), "spend-1")
+                .Receipt.Applied, Is.False);
 
             var granted = BoosterEconomyPlanner.Grant(
                 refunded.Result, BoosterKind.Hammer, "reward-1", 2);
@@ -530,6 +534,12 @@ namespace Match3.Engine.Tests
                 BoosterActionJournalPlanner.RecordApplied(
                     firstCommit.Journal, "journal-action",
                     new string('f', 64)));
+            Assert.Throws<ArgumentException>(() =>
+                new BoosterActionJournalSnapshot(new[]
+                {
+                    new KeyValuePair<string, string>(
+                        "malformed-action", "not-a-canonical-digest")
+                }));
         }
 
         [Test]
