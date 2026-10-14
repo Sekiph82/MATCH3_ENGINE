@@ -30,12 +30,28 @@ namespace Match3.Engine.Runtime
         public static PrelevelBoosterPlacementPlan Plan(BoardTopology topology,
             BoosterKind kind, uint seed, int maximumCandidates = 4096)
         {
+            return PlanMany(topology, new[] { kind }, seed, maximumCandidates)[0];
+        }
+
+        public static IReadOnlyList<PrelevelBoosterPlacementPlan> PlanMany(
+            BoardTopology topology, IEnumerable<BoosterKind> kinds,
+            uint seed, int maximumCandidates = 4096,
+            int maximumBoosters = 16)
+        {
             if (topology == null) throw new ArgumentNullException(nameof(topology));
+            if (kinds == null) throw new ArgumentNullException(nameof(kinds));
             if (seed == 0) throw new ArgumentOutOfRangeException(nameof(seed));
             if (maximumCandidates < 1 || maximumCandidates > 65536)
                 throw new ArgumentOutOfRangeException(nameof(maximumCandidates));
+            if (maximumBoosters < 1 || maximumBoosters > 64)
+                throw new ArgumentOutOfRangeException(nameof(maximumBoosters));
 
-            var specialKind = ToSpecialKind(kind);
+            var requested = kinds.Take(maximumBoosters + 1).ToList();
+            if (requested.Count == 0 || requested.Count > maximumBoosters)
+                throw new ArgumentException(
+                    "Prelevel booster selection count is invalid.", nameof(kinds));
+            var specialKinds = requested.Select(ToSpecialKind).ToArray();
+
             var candidates = new List<BoardPosition>();
             foreach (var pair in topology.Occupants)
             {
@@ -55,14 +71,22 @@ namespace Match3.Engine.Runtime
             if (candidates.Count > maximumCandidates)
                 throw new InvalidOperationException(
                     "Prelevel booster candidate budget exceeded.");
-            if (candidates.Count == 0)
+            if (candidates.Count < requested.Count)
                 throw new InvalidOperationException(
-                    "No valid prelevel booster placement exists.");
+                    "Not enough unique prelevel booster placements exist.");
 
             var rng = new SeededRandom(seed);
-            var selected = candidates[rng.NextIndex(candidates.Count)];
-            return new PrelevelBoosterPlacementPlan(
-                kind, selected, specialKind, candidates.Count);
+            var available = candidates.ToList();
+            var result = new List<PrelevelBoosterPlacementPlan>();
+            for (var i = 0; i < requested.Count; i++)
+            {
+                var index = rng.NextIndex(available.Count);
+                var selected = available[index];
+                available.RemoveAt(index);
+                result.Add(new PrelevelBoosterPlacementPlan(
+                    requested[i], selected, specialKinds[i], candidates.Count));
+            }
+            return new ReadOnlyCollection<PrelevelBoosterPlacementPlan>(result);
         }
 
         private static SpecialActivationKind ToSpecialKind(BoosterKind kind)
