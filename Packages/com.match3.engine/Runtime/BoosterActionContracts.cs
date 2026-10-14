@@ -391,6 +391,87 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    public sealed class PreparedBoosterAction
+    {
+        public BoosterActionRequest Request { get; }
+        public BoosterEconomySnapshot ReservedEconomy { get; }
+        public BoosterEffectPlan EffectPlan { get; }
+        public BoosterBoardTransformPlan TransformPlan { get; }
+
+        internal PreparedBoosterAction(BoosterActionRequest request,
+            BoosterEconomySnapshot reservedEconomy,
+            BoosterEffectPlan effectPlan,
+            BoosterBoardTransformPlan transformPlan)
+        {
+            Request = request ?? throw new ArgumentNullException(nameof(request));
+            ReservedEconomy = reservedEconomy ??
+                throw new ArgumentNullException(nameof(reservedEconomy));
+            EffectPlan = effectPlan;
+            TransformPlan = transformPlan;
+            if ((effectPlan == null) == (transformPlan == null))
+                throw new ArgumentException(
+                    "Prepared booster action must contain exactly one logical plan.");
+        }
+    }
+
+    public static class BoosterActionLifecycle
+    {
+        public static PreparedBoosterAction PrepareEffect(
+            BoosterEconomySnapshot economy,
+            BoosterProfilePolicy policy,
+            BoosterAcquisitionSource acquisitionSource,
+            bool explicitConfirmation,
+            SpecialBoardSnapshot board,
+            BoosterActionRequest request)
+        {
+            if (economy == null) throw new ArgumentNullException(nameof(economy));
+            BoosterSafetyPolicy.ValidateUse(
+                policy, acquisitionSource, explicitConfirmation, false);
+
+            // Logical validation happens before a reservation is returned.
+            // All planners are pure, so a thrown validation leaves the caller's
+            // original economy snapshot untouched.
+            var effect = BoosterEffectPlanner.Plan(board, request);
+            var reserved = BoosterEconomyPlanner.Reserve(
+                economy, request.Kind, request.ActionId);
+            return new PreparedBoosterAction(
+                request, reserved.Result, effect, null);
+        }
+
+        public static PreparedBoosterAction PrepareTransform(
+            BoosterEconomySnapshot economy,
+            BoosterProfilePolicy policy,
+            BoosterAcquisitionSource acquisitionSource,
+            bool explicitConfirmation,
+            BoardTopology board,
+            BoosterActionRequest request)
+        {
+            if (economy == null) throw new ArgumentNullException(nameof(economy));
+            BoosterSafetyPolicy.ValidateUse(
+                policy, acquisitionSource, explicitConfirmation, false);
+
+            var transform = BoosterBoardTransformPlanner.Plan(board, request);
+            var reserved = BoosterEconomyPlanner.Reserve(
+                economy, request.Kind, request.ActionId);
+            return new PreparedBoosterAction(
+                request, reserved.Result, null, transform);
+        }
+
+        public static BoosterEconomyPlan Confirm(PreparedBoosterAction prepared)
+        {
+            if (prepared == null) throw new ArgumentNullException(nameof(prepared));
+            return BoosterEconomyPlanner.Confirm(
+                prepared.ReservedEconomy, prepared.Request.ActionId);
+        }
+
+        public static BoosterEconomyPlan Cancel(PreparedBoosterAction prepared)
+        {
+            if (prepared == null) throw new ArgumentNullException(nameof(prepared));
+            return BoosterEconomyPlanner.Refund(
+                prepared.ReservedEconomy, prepared.Request.ActionId);
+        }
+    }
+
     public enum BoosterPresentationPhase
     {
         Preview = 0,
