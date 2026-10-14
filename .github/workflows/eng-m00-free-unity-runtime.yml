@@ -640,6 +640,7 @@ jobs:
               'ColorCombinesWithNormalRocketBombAndColorWithoutDuplicateHits',
               'ChainOrderIsStableAndActivationBudgetFailsClosedBeforeInfiniteReaction',
               'GoldenCorpusLocksThreeFourFiveLTCasesAndRocketPairTransition',
+              'GoldenSpecialPairMatrixLocksEverySupportedTransitionIncludingSquareTargetedLine',
               'OptionalSquareGenerationIsProfileGatedDeterministicAndYieldsToSdkMatches',
               'TargetedMissilePrioritizesGoalsUsesSeededTiesAndHandlesZeroTargetImmunityAndLayers',
               'ExtendedTargetedCombosRetargetRocketBombAndColorWithUniqueMultiStageDamage',
