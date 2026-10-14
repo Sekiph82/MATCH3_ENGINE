@@ -22,12 +22,13 @@ namespace Match3.Engine.Runtime
         public string ContentId { get; }
         public int ObstacleLayers { get; }
         public bool Immune { get; }
+        public bool Locked { get; }
         public bool StopsLinePropagation { get; }
         public int GoalPriority { get; }
         public SpecialActivationKind? Special { get; }
 
         public SpecialCellState(BoardPosition position, string contentId = null,
-            int obstacleLayers = 0, bool immune = false,
+            int obstacleLayers = 0, bool immune = false, bool locked = false,
             bool stopsLinePropagation = false, int goalPriority = 0,
             SpecialActivationKind? special = null)
         {
@@ -39,6 +40,7 @@ namespace Match3.Engine.Runtime
             ContentId = contentId;
             ObstacleLayers = obstacleLayers;
             Immune = immune;
+            Locked = locked;
             StopsLinePropagation = stopsLinePropagation;
             GoalPriority = goalPriority;
             Special = special;
@@ -187,7 +189,7 @@ namespace Match3.Engine.Runtime
             if (colorSpecial.Kind != SpecialActivationKind.Color)
                 throw new ArgumentException("Color special required.", nameof(colorSpecial));
             SpecialCellState cell;
-            if (!board.TryGet(normalCell, out cell) || cell.Immune ||
+            if (!board.TryGet(normalCell, out cell) || cell.Immune || cell.Locked ||
                 string.IsNullOrEmpty(cell.ContentId))
                 throw new ArgumentException("Eligible normal colored cell required.", nameof(normalCell));
             return Resolve(board, new SpecialActivation(
@@ -330,7 +332,7 @@ namespace Match3.Engine.Runtime
                     other.Kind == SpecialActivationKind.Area)
                 {
                     foreach (var cell in Ordered(board.Cells.Values)
-                        .Where(x => x.ContentId == chosen && !x.Immune))
+                        .Where(x => x.ContentId == chosen && !x.Immune && !x.Locked))
                     {
                         conversions.Add(new SpecialConversion(cell.Position, other.Kind));
                         queue.Enqueue(new Pending(new SpecialActivation(
@@ -452,7 +454,7 @@ namespace Match3.Engine.Runtime
             HashSet<BoardPosition> hitCells)
         {
             SpecialCellState cell;
-            if (!board.TryGet(position, out cell) || cell.Immune ||
+            if (!board.TryGet(position, out cell) || cell.Immune || cell.Locked ||
                 !hitCells.Add(position)) return;
             hits.Add(new SpecialHit(position, source, stage, cell.ObstacleLayers));
             if (cell.Special.HasValue)
@@ -464,7 +466,7 @@ namespace Match3.Engine.Runtime
             SeededRandom rng, int maximumTargetCandidates)
         {
             var candidates = Ordered(board.Cells.Values)
-                .Where(x => !x.Immune).ToList();
+                .Where(x => !x.Immune && !x.Locked).ToList();
             if (candidates.Count > maximumTargetCandidates)
                 throw new InvalidOperationException("Target candidate budget exceeded.");
             if (candidates.Count == 0) return null;
@@ -487,13 +489,13 @@ namespace Match3.Engine.Runtime
         private static bool IsTargetEligible(SpecialBoardSnapshot board, BoardPosition p)
         {
             SpecialCellState cell;
-            return board.TryGet(p, out cell) && !cell.Immune;
+            return board.TryGet(p, out cell) && !cell.Immune && !cell.Locked;
         }
 
         private static string SelectColor(SpecialBoardSnapshot board)
         {
             return board.Cells.Values
-                .Where(x => !x.Immune && !string.IsNullOrEmpty(x.ContentId))
+                .Where(x => !x.Immune && !x.Locked && !string.IsNullOrEmpty(x.ContentId))
                 .GroupBy(x => x.ContentId, StringComparer.Ordinal)
                 .OrderByDescending(x => x.Count())
                 .ThenBy(x => x.Key, StringComparer.Ordinal)
@@ -568,7 +570,7 @@ namespace Match3.Engine.Runtime
                         foreach (var p in square)
                         {
                             SpecialCellState cell;
-                            if (!board.TryGet(p, out cell) || cell.Immune ||
+                            if (!board.TryGet(p, out cell) || cell.Immune || cell.Locked ||
                                 string.IsNullOrEmpty(cell.ContentId))
                             {
                                 valid = false;
