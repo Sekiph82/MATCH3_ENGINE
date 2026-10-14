@@ -70,8 +70,9 @@ namespace Match3.Engine.Runtime
                 if (cell == null) throw new ArgumentException("Null special cell.", nameof(cells));
                 if (!Contains(cell.Position))
                     throw new ArgumentOutOfRangeException(nameof(cells), "Special cell outside board.");
-                if (!map.TryAdd(cell.Position, cell))
+                if (map.ContainsKey(cell.Position))
                     throw new ArgumentException("Duplicate special cell.", nameof(cells));
+                map.Add(cell.Position, cell);
             }
             _cells = new ReadOnlyDictionary<BoardPosition, SpecialCellState>(map);
         }
@@ -693,6 +694,23 @@ namespace Match3.Engine.Runtime
                 "#" + string.Join(";", plan.Conversions.Select(c =>
                     c.Position + "|" + ((int)c.ToKind))) +
                 "#" + (plan.SelectedColor ?? string.Empty);
+            return Sha256(canonical);
+        }
+
+        public static string HashNamedMatrix(
+            IEnumerable<KeyValuePair<string, string>> namedHashes)
+        {
+            if (namedHashes == null) throw new ArgumentNullException(nameof(namedHashes));
+            var entries = namedHashes.ToList();
+            if (entries.Any(x => string.IsNullOrWhiteSpace(x.Key) ||
+                string.IsNullOrWhiteSpace(x.Value)))
+                throw new ArgumentException("Named golden hashes require nonempty keys and values.",
+                    nameof(namedHashes));
+            if (entries.GroupBy(x => x.Key, StringComparer.Ordinal).Any(x => x.Count() > 1))
+                throw new ArgumentException("Duplicate golden matrix key.", nameof(namedHashes));
+            var canonical = string.Join(";", entries
+                .OrderBy(x => x.Key, StringComparer.Ordinal)
+                .Select(x => x.Key + "=" + x.Value));
             return Sha256(canonical);
         }
 
