@@ -625,7 +625,7 @@ jobs:
                 (len(pure), len(sdk)))
           PY
 
-      - name: Require real Unity ENG-M03 complete special effects combo targeted square golden and finale cases
+      - name: Require real Unity ENG-M03 frozen 001-016 special effects combo targeted square golden and finale cases
         shell: bash
         run: |
           set -euo pipefail
