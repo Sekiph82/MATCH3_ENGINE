@@ -59,6 +59,24 @@ namespace Match3.Engine.Tests
 
             Assert.Throws<ArgumentException>(() =>
                 new WorldDefinition("w", "Unknown_Game"));
+
+            Assert.Throws<ArgumentException>(() =>
+                new ProgressionGraph(
+                    new[]
+                    {
+                        new WorldDefinition("wa", GameProfileCatalog.Ids[0]),
+                        new WorldDefinition("wb", GameProfileCatalog.Ids[1])
+                    },
+                    new[]
+                    {
+                        new ChapterDefinition("ca", "wa"),
+                        new ChapterDefinition("cb", "wb")
+                    },
+                    new[]
+                    {
+                        new LevelDefinition("la", "ca"),
+                        new LevelDefinition("lb", "cb", new[] { "la" })
+                    }));
         }
 
         [Test]
@@ -112,6 +130,17 @@ namespace Match3.Engine.Tests
             Assert.Throws<ArgumentException>(() =>
                 new NavigationRoute(NavigationRouteKind.Level,
                     "bad-shape", "w", "c"));
+
+            Assert.Throws<ArgumentException>(() =>
+                NavigationPlanner.Transition(
+                    graph,
+                    new NavigationState(
+                        new NavigationRoute(
+                            NavigationRouteKind.World,
+                            "bad-current", "missing-world")),
+                    new NavigationRoute(
+                        NavigationRouteKind.Chapter,
+                        "next", "w", "c")));
         }
 
         [Test]
@@ -173,6 +202,15 @@ namespace Match3.Engine.Tests
                     graph, win2.Result,
                     new LevelResultAttempt(
                         "loss", "L2", false, 0, 0, true),
+                    thresholds));
+
+            Assert.Throws<ArgumentException>(() =>
+                UnlockPlanner.ApplyVerifiedWin(
+                    graph,
+                    new UnlockSnapshot(
+                        unlockedLevelIds: new[] { "UNKNOWN" }),
+                    new LevelResultAttempt(
+                        "attempt-malformed", "L1", true, 150, 1, true),
                     thresholds));
         }
 
