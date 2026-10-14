@@ -281,6 +281,32 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    public static class ObstacleCapabilityCatalog
+    {
+        private static readonly ReadOnlyCollection<string> Known =
+            Array.AsReadOnly(new[]
+            {
+                "beam_absorber",
+                "collector",
+                "countdown",
+                "egg",
+                "generator",
+                "immobilizer",
+                "ingredient_exit",
+                "layered",
+                "portal",
+                "special_damage",
+                "spreading",
+                "targeted_2x2",
+                "conveyor"
+            });
+
+        public static IReadOnlyList<string> Ids => Known;
+
+        public static bool IsKnown(string id) =>
+            !string.IsNullOrWhiteSpace(id) && Known.Contains(id);
+    }
+
     public sealed class ObstacleMetadataEntry
     {
         public string Id { get; }
@@ -296,11 +322,17 @@ namespace Match3.Engine.Runtime
             if (maxDurability < 1 || maxDurability > 1024)
                 throw new ArgumentOutOfRangeException(nameof(maxDurability));
             if (capabilities == null) throw new ArgumentNullException(nameof(capabilities));
-            var caps = capabilities.Distinct(StringComparer.Ordinal)
+            var rawCaps = capabilities.ToList();
+            if (rawCaps.Count > 32)
+                throw new ArgumentException(
+                    "Obstacle metadata supports at most 32 capabilities.",
+                    nameof(capabilities));
+            var caps = rawCaps.Distinct(StringComparer.Ordinal)
                 .OrderBy(x => x, StringComparer.Ordinal).ToList();
             if (caps.Any(x => string.IsNullOrWhiteSpace(x) ||
-                x.IndexOfAny(new[] { ';', '|', ',', '+', '=' }) >= 0))
-                throw new ArgumentException("Invalid obstacle capability.",
+                x.IndexOfAny(new[] { ';', '|', ',', '+', '=' }) >= 0 ||
+                !ObstacleCapabilityCatalog.IsKnown(x)))
+                throw new ArgumentException("Unknown or invalid obstacle capability.",
                     nameof(capabilities));
             Id = id;
             MaxDurability = maxDurability;
@@ -369,6 +401,17 @@ namespace Match3.Engine.Runtime
             if (presentationKeys.Any(x => string.IsNullOrWhiteSpace(x.Key) ||
                 string.IsNullOrWhiteSpace(x.Value)))
                 throw new ArgumentException("Skin map IDs and presentation keys required.");
+            if (presentationKeys.Values.Distinct(StringComparer.Ordinal).Count() !=
+                presentationKeys.Count)
+                throw new ArgumentException(
+                    "Each neutral obstacle requires a distinct presentation key.",
+                    nameof(presentationKeys));
+            var prefix = gameId + ".";
+            if (presentationKeys.Values.Any(x =>
+                !x.StartsWith(prefix, StringComparison.Ordinal)))
+                throw new ArgumentException(
+                    "Presentation keys must belong to the selected game profile.",
+                    nameof(presentationKeys));
             GameId = gameId;
             PresentationKeys = new ReadOnlyDictionary<string, string>(
                 new Dictionary<string, string>(presentationKeys,
