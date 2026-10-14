@@ -74,6 +74,31 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(metrics.MovesRemaining, Is.EqualTo(2));
         }
 
+        [Test]
+        public void FullyLockedOriginalSdkSnapshotReturnsTypedNoMoveWithoutLiveMutation()
+        {
+            var occupants = new List<BoardOccupant>();
+            var locks = new List<BoardPosition>();
+            for (var row = 0; row < 3; row++)
+                for (var col = 0; col < 3; col++)
+                {
+                    var cell = P(row, col);
+                    locks.Add(cell);
+                    occupants.Add(new BoardOccupant(cell,
+                        ((char)('A' + (row + col) % 3)).ToString()));
+                }
+
+            var board = new BoardTopology(3, 3, locked: locks, occupants: occupants);
+            var probe = new NeutralSdkSnapshotValidator(board);
+            var snapshot = SafeRecoveryBoundary.HashBoard(board.Occupants);
+            var noMoves = probe.FindRealLegalMoves(board.Occupants);
+            Assert.That(noMoves.HasMoves, Is.False);
+            Assert.That(noMoves.CandidatesChecked, Is.EqualTo(0));
+            Assert.That(noMoves.Accepted, Is.Empty);
+            Assert.That(SafeRecoveryBoundary.HashBoard(board.Occupants),
+                Is.EqualTo(snapshot));
+        }
+
         [UnityTest]
         public IEnumerator SeededShufflePlansSdkPlayableLayoutWithoutSpendingARealMove()
         {
