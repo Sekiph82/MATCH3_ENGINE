@@ -759,7 +759,12 @@ namespace Match3.Engine.Runtime
                     new[] { result.ResultId }));
 
             var recommendations = new List<FailRecoveryRecommendation>();
-            if (failures >= policy.FailureThreshold && !result.Won)
+            var genuineFrontierFailure =
+                !result.Replay && !result.Won && result.IsFrontier &&
+                StringComparer.Ordinal.Equals(
+                    snapshot.FrontierLevelId, result.LevelId);
+            if (failures >= policy.FailureThreshold &&
+                genuineFrontierFailure)
             {
                 var list = candidates.Take(257).ToArray();
                 if (list.Length > 256 || list.Any(x => x == null) ||
@@ -915,8 +920,15 @@ namespace Match3.Engine.Runtime
             var defs = definitions.Take(257).ToArray();
             if (defs.Length > 256 || defs.Any(x => x == null) ||
                 defs.GroupBy(x => x.AchievementId, StringComparer.Ordinal)
+                    .Any(x => x.Count() > 1) ||
+                defs.Where(x => x.AppleGameCenterId != null)
+                    .GroupBy(x => x.AppleGameCenterId, StringComparer.Ordinal)
+                    .Any(x => x.Count() > 1) ||
+                defs.Where(x => x.GooglePlayGamesId != null)
+                    .GroupBy(x => x.GooglePlayGamesId, StringComparer.Ordinal)
                     .Any(x => x.Count() > 1))
-                throw new ArgumentException("Invalid achievement definitions.");
+                throw new ArgumentException(
+                    "Invalid or duplicate achievement/platform definitions.");
             var def = defs.SingleOrDefault(x =>
                 StringComparer.Ordinal.Equals(
                     x.AchievementId, progressEvent.AchievementId));
