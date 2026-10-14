@@ -50,7 +50,14 @@ namespace Match3.Engine.Demo
         {
             // Check every piece and ID before running expensive SDK calls.
             RequireSnapshot(contents);
-            return CanonicalMoveCandidates.Find(_topology,
+            // A spawn template may deliberately begin EMPTY. Candidate cells
+            // must be rebuilt from the validated proposed SDK snapshot, not
+            // from the template's original occupants. Keep original locks.
+            var snapshotTopology = new BoardTopology(
+                _topology.Rows, _topology.Columns,
+                locked: _topology.ActivePositions().Where(_topology.IsLocked),
+                occupants: contents.Select(x => new BoardOccupant(x.Key, x.Value)));
+            return CanonicalMoveCandidates.Find(snapshotTopology,
                 candidate => HasMatchAfterSwap(contents, candidate));
         }
 
