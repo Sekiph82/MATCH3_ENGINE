@@ -357,11 +357,14 @@ namespace Match3.Engine.Tests
                 Assert.That(prepared.EffectPlan.CanonicalSpecialPlan, Is.Not.Null);
                 Assert.That(prepared.ReservedEconomy.Available(kind), Is.EqualTo(0));
 
-                var committed = BoosterActionLifecycle.Confirm(
-                    prepared, prepared.ReservedEconomy);
-                Assert.That(committed.Result.Balance(kind), Is.EqualTo(0));
+                var committed = BoosterActionLifecycle.Commit(
+                    prepared, prepared.ReservedEconomy,
+                    new BoosterActionJournalSnapshot());
+                Assert.That(committed.Economy.Balance(kind), Is.EqualTo(0));
+                Assert.That(committed.Journal.AppliedActions.ContainsKey(id),
+                    Is.True);
                 Assert.That(BoosterEconomyPlanner.Confirm(
-                    committed.Result, id).Receipt.Applied, Is.False);
+                    committed.Economy, id).Receipt.Applied, Is.False);
             }
 
             var shuffleEconomy = Economy(BoosterKind.Shuffle, 1);
@@ -385,10 +388,13 @@ namespace Match3.Engine.Tests
                 Is.EqualTo(BoosterKind.Shuffle));
             Assert.That(shufflePrepared.ReservedEconomy.Available(
                 BoosterKind.Shuffle), Is.EqualTo(0));
-            var shuffleCommitted = BoosterActionLifecycle.Confirm(
-                shufflePrepared, shufflePrepared.ReservedEconomy);
-            Assert.That(shuffleCommitted.Result.Balance(BoosterKind.Shuffle),
+            var shuffleCommitted = BoosterActionLifecycle.Commit(
+                shufflePrepared, shufflePrepared.ReservedEconomy,
+                new BoosterActionJournalSnapshot());
+            Assert.That(shuffleCommitted.Economy.Balance(BoosterKind.Shuffle),
                 Is.EqualTo(0));
+            Assert.That(shuffleCommitted.Journal.AppliedActions
+                .ContainsKey("advanced-shuffle"), Is.True);
         }
 
         [Test]
@@ -420,6 +426,33 @@ namespace Match3.Engine.Tests
             var fresh = gate.Begin("fresh-action");
             gate.Interrupt();
             Assert.That(gate.TryCommit(fresh), Is.False);
+
+            var board = SpecialBoard();
+            var adult = new BoosterProfilePolicy(false, true, true, true);
+            var prepared = BoosterActionLifecycle.PrepareEffect(
+                Economy(BoosterKind.Hammer, 1),
+                adult, BoosterAcquisitionSource.Owned, true,
+                board,
+                new BoosterActionRequest(
+                    "journal-action", BoosterKind.Hammer, P(0,0)));
+            var journal = new BoosterActionJournalSnapshot();
+            var firstCommit = BoosterActionLifecycle.Commit(
+                prepared, prepared.ReservedEconomy, journal);
+            Assert.That(firstCommit.Economy.Balance(BoosterKind.Hammer),
+                Is.EqualTo(0));
+            Assert.That(firstCommit.JournalChanged, Is.True);
+
+            var replayCommit = BoosterActionLifecycle.Commit(
+                prepared, firstCommit.Economy, firstCommit.Journal);
+            Assert.That(replayCommit.EconomyChanged, Is.False);
+            Assert.That(replayCommit.JournalChanged, Is.False);
+            Assert.That(replayCommit.Economy.Balance(BoosterKind.Hammer),
+                Is.EqualTo(0));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                BoosterActionJournalPlanner.RecordApplied(
+                    firstCommit.Journal, "journal-action",
+                    new string('f', 64)));
         }
 
         [Test]
