@@ -76,6 +76,13 @@ namespace Match3.Engine.Tests
             Assert.Throws<ArgumentException>(() =>
                 PrelevelBoosterPlanner.Plan(
                     board, BoosterKind.Hammer, 123u));
+
+            var noCandidate = new BoardTopology(1, 1,
+                locked: new[] { P(0,0) },
+                occupants: new[] { new BoardOccupant(P(0,0), "LOCKED") });
+            Assert.Throws<InvalidOperationException>(() =>
+                PrelevelBoosterPlanner.Plan(
+                    noCandidate, BoosterKind.Area, 123u));
         }
 
         [Test]
