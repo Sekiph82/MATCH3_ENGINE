@@ -198,16 +198,23 @@ namespace Match3.Engine.Runtime
     {
         public int MaximumStreak { get; }
         public MissedDayPolicy MissedDayPolicy { get; }
+        public int MaximumForwardJumpDays { get; }
 
         public DailyRewardPolicy(int maximumStreak,
-            MissedDayPolicy missedDayPolicy)
+            MissedDayPolicy missedDayPolicy,
+            int maximumForwardJumpDays = 31)
         {
             if (maximumStreak < 1 || maximumStreak > 3650)
                 throw new ArgumentOutOfRangeException(nameof(maximumStreak));
             if (!Enum.IsDefined(typeof(MissedDayPolicy), missedDayPolicy))
                 throw new ArgumentOutOfRangeException(nameof(missedDayPolicy));
+            if (maximumForwardJumpDays < 1 ||
+                maximumForwardJumpDays > 3650)
+                throw new ArgumentOutOfRangeException(
+                    nameof(maximumForwardJumpDays));
             MaximumStreak = maximumStreak;
             MissedDayPolicy = missedDayPolicy;
+            MaximumForwardJumpDays = maximumForwardJumpDays;
         }
     }
 
@@ -284,6 +291,10 @@ namespace Match3.Engine.Runtime
             if (observedDayId < snapshot.HighWaterDayId)
                 throw new InvalidOperationException(
                     "Daily reward clock rollback detected.");
+            if (observedDayId - snapshot.HighWaterDayId >
+                policy.MaximumForwardJumpDays)
+                throw new InvalidOperationException(
+                    "Daily reward clock jumped too far forward.");
             if (observedDayId == snapshot.LastClaimDayId)
                 return new DailyRewardPlan(snapshot, false, null);
 
@@ -388,11 +399,13 @@ namespace Match3.Engine.Runtime
 
         public TaskPeriodKind Kind { get; }
         public string PeriodId { get; }
+        public long PeriodOrdinal { get; }
         public IReadOnlyDictionary<string, int> Counts => _counts;
         public IReadOnlyList<string> ProcessedEventIds => _processedEventIds;
         public IReadOnlyList<string> ClaimedTaskIds => _claimedTaskIds;
 
         public TaskPeriodSnapshot(TaskPeriodKind kind, string periodId,
+            long periodOrdinal = 0,
             IEnumerable<KeyValuePair<string, int>> counts = null,
             IEnumerable<string> processedEventIds = null,
             IEnumerable<string> claimedTaskIds = null)
@@ -402,6 +415,8 @@ namespace Match3.Engine.Runtime
             if (string.IsNullOrWhiteSpace(periodId))
                 throw new ArgumentException("Task period ID required.",
                     nameof(periodId));
+            if (periodOrdinal < 0)
+                throw new ArgumentOutOfRangeException(nameof(periodOrdinal));
 
             var map = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var pair in counts ??
@@ -424,6 +439,7 @@ namespace Match3.Engine.Runtime
                     FreezeIds(claimedTaskIds, "claimed task"));
             Kind = kind;
             PeriodId = periodId;
+            PeriodOrdinal = periodOrdinal;
         }
 
         private static List<string> FreezeIds(
@@ -491,6 +507,7 @@ namespace Match3.Engine.Runtime
                 new TaskPeriodSnapshot(
                     snapshot.Kind,
                     snapshot.PeriodId,
+                    snapshot.PeriodOrdinal,
                     counts,
                     snapshot.ProcessedEventIds.Concat(
                         new[] { progressEvent.EventId }),
@@ -524,6 +541,7 @@ namespace Match3.Engine.Runtime
                 new TaskPeriodSnapshot(
                     snapshot.Kind,
                     snapshot.PeriodId,
+                    snapshot.PeriodOrdinal,
                     snapshot.Counts,
                     snapshot.ProcessedEventIds,
                     snapshot.ClaimedTaskIds.Concat(
@@ -533,17 +551,27 @@ namespace Match3.Engine.Runtime
         }
 
         public static TaskPeriodPlan Reset(
-            TaskPeriodSnapshot snapshot, string newPeriodId)
+            TaskPeriodSnapshot snapshot, string newPeriodId,
+            long newPeriodOrdinal)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (string.IsNullOrWhiteSpace(newPeriodId))
                 throw new ArgumentException("New task period ID required.",
                     nameof(newPeriodId));
-            if (StringComparer.Ordinal.Equals(
-                snapshot.PeriodId, newPeriodId))
+            if (newPeriodOrdinal < snapshot.PeriodOrdinal)
+                throw new InvalidOperationException(
+                    "Task period rollback detected.");
+            if (newPeriodOrdinal == snapshot.PeriodOrdinal)
+            {
+                if (!StringComparer.Ordinal.Equals(
+                    snapshot.PeriodId, newPeriodId))
+                    throw new InvalidOperationException(
+                        "Task period ID changed without advancing ordinal.");
                 return new TaskPeriodPlan(snapshot, false);
+            }
             return new TaskPeriodPlan(
-                new TaskPeriodSnapshot(snapshot.Kind, newPeriodId),
+                new TaskPeriodSnapshot(
+                    snapshot.Kind, newPeriodId, newPeriodOrdinal),
                 true);
         }
 
