@@ -296,12 +296,17 @@ namespace Match3.Engine.Runtime
     public static class BoosterBoardTransformPlanner
     {
         public static BoosterBoardTransformPlan Plan(BoardTopology topology,
-            BoosterActionRequest request, int maximumMovableCells = 4096)
+            BoosterActionRequest request,
+            Func<IReadOnlyDictionary<BoardPosition, string>, bool> sdkSnapshotValidator = null,
+            int maximumMovableCells = 4096,
+            int maximumShuffleAttempts = 32)
         {
             if (topology == null) throw new ArgumentNullException(nameof(topology));
             if (request == null) throw new ArgumentNullException(nameof(request));
             if (maximumMovableCells < 2 || maximumMovableCells > 65536)
                 throw new ArgumentOutOfRangeException(nameof(maximumMovableCells));
+            if (maximumShuffleAttempts < 1 || maximumShuffleAttempts > 256)
+                throw new ArgumentOutOfRangeException(nameof(maximumShuffleAttempts));
 
             switch (request.Kind)
             {
@@ -310,7 +315,8 @@ namespace Match3.Engine.Runtime
                         RequireSecondary(request));
                 case BoosterKind.Shuffle:
                     return PlanShuffle(topology, request.Seed,
-                        maximumMovableCells);
+                        sdkSnapshotValidator, maximumMovableCells,
+                        maximumShuffleAttempts);
                 default:
                     throw new ArgumentException(
                         "Booster kind is not a board transform.", nameof(request));
@@ -342,63 +348,43 @@ namespace Match3.Engine.Runtime
         }
 
         private static BoosterBoardTransformPlan PlanShuffle(BoardTopology topology,
-            uint seed, int maximumMovableCells)
+            uint seed,
+            Func<IReadOnlyDictionary<BoardPosition, string>, bool> sdkSnapshotValidator,
+            int maximumMovableCells,
+            int maximumShuffleAttempts)
         {
-            var positions = new List<BoardPosition>();
+            if (sdkSnapshotValidator == null)
+                throw new ArgumentNullException(nameof(sdkSnapshotValidator));
+
             var inspected = 0;
             foreach (var pair in topology.Occupants)
             {
-                if (++inspected > maximumMovableCells)
+                inspected++;
+                if (inspected > maximumMovableCells)
                     throw new InvalidOperationException(
                         "Shuffle scan budget exceeded.");
-                var p = pair.Key;
-                if (topology.IsLocked(p) || topology.IsHole(p))
-                    continue;
-                positions.Add(p);
             }
-            positions = positions
-                .OrderBy(x => x.Layer)
-                .ThenBy(x => x.Row)
-                .ThenBy(x => x.Column)
-                .ToList();
-            if (positions.Count > maximumMovableCells)
-                throw new InvalidOperationException("Shuffle cell budget exceeded.");
-            if (positions.Count < 2)
-                throw new InvalidOperationException("Not enough movable cells to shuffle.");
 
-            var original = positions.Select(x => topology.Occupants[x]).ToList();
-            if (original.Distinct(StringComparer.Ordinal).Count() < 2)
+            var original = topology.Occupants
+                .ToDictionary(x => x.Key, x => x.Value);
+            var plan = DeterministicBoardPlanning.TryShuffle(
+                topology, new SeededRandom(seed), sdkSnapshotValidator,
+                maximumShuffleAttempts);
+            if (!plan.Succeeded)
                 throw new InvalidOperationException(
-                    "Shuffle requires at least two distinct movable contents.");
+                    "Authoritative SDK validator rejected all bounded shuffle candidates.");
 
-            var shuffled = original.ToList();
-            var rng = new SeededRandom(seed);
-            for (var i = shuffled.Count - 1; i > 0; i--)
-            {
-                var j = rng.NextIndex(i + 1);
-                var temp = shuffled[i];
-                shuffled[i] = shuffled[j];
-                shuffled[j] = temp;
-            }
-
-            if (shuffled.SequenceEqual(original))
-            {
-                var first = shuffled[0];
-                shuffled.RemoveAt(0);
-                shuffled.Add(first);
-            }
-
-            var result = topology.Occupants.ToDictionary(x => x.Key, x => x.Value);
-            var changed = new List<BoardPosition>();
-            for (var i = 0; i < positions.Count; i++)
-            {
-                result[positions[i]] = shuffled[i];
-                if (!string.Equals(original[i], shuffled[i], StringComparison.Ordinal))
-                    changed.Add(positions[i]);
-            }
+            var changed = plan.Occupants
+                .Where(x => !original.TryGetValue(x.Key, out var before) ||
+                    !string.Equals(before, x.Value, StringComparison.Ordinal))
+                .Select(x => x.Key)
+                .ToList();
 
             return new BoosterBoardTransformPlan(
-                BoosterKind.Shuffle, result, changed, HashOccupants(result));
+                BoosterKind.Shuffle,
+                plan.Occupants.ToDictionary(x => x.Key, x => x.Value),
+                changed,
+                HashOccupants(plan.Occupants));
         }
 
         private static string HashOccupants(
@@ -569,13 +555,15 @@ namespace Match3.Engine.Runtime
             BoosterAcquisitionSource acquisitionSource,
             bool explicitConfirmation,
             BoardTopology board,
-            BoosterActionRequest request)
+            BoosterActionRequest request,
+            Func<IReadOnlyDictionary<BoardPosition, string>, bool> sdkSnapshotValidator = null)
         {
             if (economy == null) throw new ArgumentNullException(nameof(economy));
             BoosterSafetyPolicy.ValidateUse(
                 policy, acquisitionSource, explicitConfirmation, false);
 
-            var transform = BoosterBoardTransformPlanner.Plan(board, request);
+            var transform = BoosterBoardTransformPlanner.Plan(
+                board, request, sdkSnapshotValidator);
             var reserved = BoosterEconomyPlanner.Reserve(
                 economy, request.Kind, request.ActionId);
             return new PreparedBoosterAction(
