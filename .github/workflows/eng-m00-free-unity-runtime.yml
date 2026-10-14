@@ -9,6 +9,7 @@ on:
   # ENG-M06 frozen-source retry after transient PlayMode Editor exit 198 with zero compiler diagnostics.
   # ENG-M06 final SDK-authoritative shuffle acceptance refresh.
   # ENG-M07 final 10-child goals-score acceptance refresh.
+  # ENG-M07 blank-project exit-198 harness retry verification.
   # ENG-M06 final guarded-interruption acceptance refresh.
   # ENG-M06 final journal-aware recovery and refund-boundary acceptance refresh.
   # ENG-M05 final source refresh after replay-idempotency and bounded-loop hardening.
