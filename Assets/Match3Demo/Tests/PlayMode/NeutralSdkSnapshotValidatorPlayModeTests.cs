@@ -137,6 +137,15 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(h4Plan.Anchor, Is.EqualTo(P(0, 2)));
             Assert.That(h4Plan.RewardCellCount, Is.EqualTo(4));
 
+            var v4 = FromRows("ABCD", "ACDB", "ADBC", "ABCD");
+            var v4Runs = new NeutralSdkSnapshotValidator(v4).GetSdkMatchRuns(v4.Occupants);
+            Assert.That(v4Runs.Count, Is.EqualTo(1));
+            var v4Plan = SpecialMatchPlanner.Plan(v4Runs, new[] { P(2, 0) }).Single();
+            Assert.That(v4Plan.Shape, Is.EqualTo(MatchShapeKind.StraightFour));
+            Assert.That(v4Plan.Special, Is.EqualTo(MatchSpecialKind.VerticalLine));
+            Assert.That(v4Plan.Anchor, Is.EqualTo(P(2, 0)));
+            Assert.That(v4Plan.RewardCellCount, Is.EqualTo(4));
+
             var h5 = FromRows("AAAAA", "BCDAB", "CDABC", "DABCD", "ABCDD");
             var h5Probe = new NeutralSdkSnapshotValidator(h5);
             var firstRuns = h5Probe.GetSdkMatchRuns(h5.Occupants);
@@ -148,6 +157,21 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(h5Plan.Special, Is.EqualTo(MatchSpecialKind.Color));
             Assert.That(h5Plan.Anchor, Is.EqualTo(P(0, 3)));
             Assert.That(h5Plan.RewardCellCount, Is.EqualTo(5));
+
+            var h6 = FromRows(
+                "AAAAAA",
+                "BCDABC",
+                "CDABCD",
+                "DABCDA",
+                "ABCDAB",
+                "BCDABC");
+            var h6Runs = new NeutralSdkSnapshotValidator(h6).GetSdkMatchRuns(h6.Occupants);
+            Assert.That(h6Runs.Count, Is.EqualTo(1));
+            var h6Plan = SpecialMatchPlanner.Plan(h6Runs, new[] { P(0, 4) }).Single();
+            Assert.That(h6Plan.Shape, Is.EqualTo(MatchShapeKind.StraightFivePlus));
+            Assert.That(h6Plan.Special, Is.EqualTo(MatchSpecialKind.Color));
+            Assert.That(h6Plan.Anchor, Is.EqualTo(P(0, 4)));
+            Assert.That(h6Plan.RewardCellCount, Is.EqualTo(6));
         }
 
         [Test]
