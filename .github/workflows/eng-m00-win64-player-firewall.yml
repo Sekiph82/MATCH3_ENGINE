@@ -1,7 +1,7 @@
-name: ENG-M02 Real Windows Player Release Firewall
+name: ENG-M03 Real Windows Player Release Firewall
 on:
   workflow_dispatch:
-  # ENG-M02 final deterministic board/replay/SDK-clone/hint/recovery source: real Unity Win64 build, strict release scanner.
+  # ENG-M03 match/special-combination source plus inherited M00-M02 runtime: real Unity Win64 build, strict release scanner.
   # Run once when this tightly scoped workflow is created or adjusted.
   # No automatic player builds for unrelated source or TASKS.md commits.
   push:
@@ -11,8 +11,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: eng-m02-win64-player-firewall
-  cancel-in-progress: false
+  group: eng-m03-win64-player-firewall
+  cancel-in-progress: true
 
 jobs:
   licensed-win64-player:
@@ -86,7 +86,7 @@ jobs:
           out="$RUNNER_TEMP/eng-m00-windows-player"
           mkdir -p "$out" "$PWD/evidence/eng-m00-win64"
           pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 \
-            -SourceAssetRoot "$PWD/Assets" \
+            -SourceAssetRoot "$PWD/Assets","$PWD/Packages/com.match3.engine/Runtime" \
             -ManifestPath "$PWD/evidence/eng-m00-win64/source-assets.sha256.txt"
           buildlog="$RUNNER_TEMP/unity-win64-build.log"
           set +e
