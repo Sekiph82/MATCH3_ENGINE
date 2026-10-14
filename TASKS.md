@@ -199,8 +199,12 @@
 - [x] **ENG-M03-016 Animated win-finale authority separation** `PASS/CLOSED: INDEPENDENT UNITY 6.6 + WIN64 AUDIT`. **Implementation and independent acceptance:** Allow optional leftover-move special conversion, end-of-level score payout and celebratory VFX via deterministic events; never change already committed outcome/first-clear awards because of skipped or interrupted animation. **Proof:** deterministic positive and negative tests, actual Unity 6000.6.5f1 source commit, redacted Drive evidence, Factory schema parity where relevant, and ChatGPT audit PASS before closure. **Audit R01:** https://docs.google.com/document/d/1ydfh-5RxZW2YRQ_FCFH9Dpw00sx0R3m35kx8sg3cr6A/edit.
 **Milestone closure:** PASS/CLOSED. All 16 child receipts and master audit independently verified; ENG-M04 unlocked.
 
-### ENG-M04 | Gravity and cascades
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+### ENG-M04 | Gravity and cascades | IN_PROGRESS | 2026-10-14
+**State:** IN_PROGRESS / 0 of 11 independently audited PASS. **Exit gate:** independent audit PASS with complete Drive evidence; ENG-M05 remains gated.
+**FROZEN IMPLEMENTATION SPEC:** https://docs.google.com/document/d/1P0FQDN9YIDrffODCqiJpFBr60oBRBZ9XLZlOuvEMVIU/edit
+**FROZEN MASTER CRITERIA:** https://docs.google.com/document/d/1GDsh93n8fPo6e49xutqHG6CfRTmp5E5zV798r_RIuHk/edit
+**FROZEN 11-CHILD ACCEPTANCE:** https://docs.google.com/document/d/1mlQiq3jIP2XpYY6OcAtNK7MQ1khu3fIhKYrkftqb8Uw/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M04_IMPLEMENT_AND_INDEPENDENT_AUDIT. **ENTRY BASE:** ENG-M03 tracker closure `a40a7f7198c50e4b7bbe2f1225ff045dafdfab7f`.
 
 - [ ] **ENG-M04-001 Classic gravity** `PLANNED`. **Contract:** Fall from top around inactive and blocked cells. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M04-002 Diagonal gravity** `PLANNED`. **Contract:** Slide around obstacles with deterministic ties. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
