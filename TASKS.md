@@ -173,7 +173,9 @@
 **Milestone closure:** every M02 child audited; no unresolved blocker; ChatGPT updates only this TASKS.md.
 
 ### ENG-M03 | Matches and special combinations
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+**State:** IN_PROGRESS / 0 of 16 independently audited PASS. **Exit gate:** all 16 independently audited in real SDK-backed Unity 6.6, final actual Win64 player/firewall and master auditor PASS; ENG-M04 remains gated.
+**FROZEN MASTER + 16 CHILD ACCEPTANCE (2026-10-14):** https://docs.google.com/document/d/1WpwKvgErX1NqvAAeWPN5V92pn9w2yk5uaSspjInwzI4/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M03_IMPLEMENT_AND_INDEPENDENT_AUDIT. **NEXT:** inspect current pinned SDK detector tests and build ENG-M03-001/002/003 original SDK-based geometric fixture/anchor tests; do NOT port an independent resolver or duplicate SDK board damage. Never check a child PASS without genuine CI XML and auditor receipt.
 
 - [ ] **ENG-M03-001 Three match** `PLANNED`. **Contract:** Horizontal vertical threshold deduplication and stable event order. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M03-002 Straight four** `PLANNED`. **Contract:** Row/column special orientation and deterministic anchor. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
