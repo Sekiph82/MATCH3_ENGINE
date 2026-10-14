@@ -453,9 +453,19 @@ namespace Match3.Engine.Runtime
 
     public static class BoosterRecoveryPlanner
     {
-        public static BoosterEconomyPlan RecoverReservation(
-            BoosterEconomySnapshot economy, string sourceId)
+        public static BoosterEconomyPlan RecoverFailedAction(
+            BoosterEconomySnapshot economy,
+            BoosterActionJournalSnapshot journal,
+            string sourceId)
         {
+            if (economy == null) throw new ArgumentNullException(nameof(economy));
+            if (journal == null) throw new ArgumentNullException(nameof(journal));
+            if (string.IsNullOrWhiteSpace(sourceId))
+                throw new ArgumentException("Recovery source ID required.",
+                    nameof(sourceId));
+            if (journal.AppliedActions.ContainsKey(sourceId))
+                throw new InvalidOperationException(
+                    "An already-applied booster action cannot be refunded.");
             return BoosterEconomyPlanner.Refund(economy, sourceId);
         }
     }
