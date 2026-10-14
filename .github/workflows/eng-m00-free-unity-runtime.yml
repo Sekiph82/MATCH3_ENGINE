@@ -327,6 +327,36 @@ jobs:
           print('UNITY_M01_PROFILE_AND_AUTHORITY_CONTRACTS=PASS DISCOVERED=%d SKIPPED=0' % len(found))
           PY
 
+      - name: Verify all M02 topology and RNG NUnit positive and adverse cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'LayeredTopologyIsImmutableAndEnumeratedInStableOrder',
+              'TopologyCandidateOnlyChecksOrthogonalNonblockedOccupiedCells',
+              'DuplicateOccupancyAndHoleLocksRejectMalformedBoard',
+              'InvalidCoordinatesLayersAndSizeFailClosed',
+              'SeededRandomProducesIdenticalByteSequenceAcrossFreshRuns',
+              'DifferentSeedProducesDifferentSequenceAndAllIndicesBounded',
+              'RNGRejectsZeroSeedAndInvalidBoundWithoutHiddenFallback',
+          }
+          found = {}
+          for path in sys.argv[1:]:
+              root = ET.parse(path).getroot()
+              for case in root.findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  if 'BoardTopologyAndRandomTests.' not in fullname:
+                      continue
+                  short = fullname.rsplit('.', 1)[-1]
+                  found.setdefault(short, []).append(case.get('result', 'Missing'))
+          if set(found) != expected or any(values != ['Passed'] for values in found.values()):
+              raise SystemExit('FAIL: M02 topology/RNG NUnit cases absent/skipped/failed: ' + str(found))
+          print('UNITY_M02_TOPOLOGY_AND_SEEDED_RNG=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
