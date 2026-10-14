@@ -13,6 +13,15 @@ EXPECTED = {
     "M08_008_RestorationMilestonesUseNeutralProgressAndThemeBindingsOnly",
     "M08_009_SaveMigrationBacksUpHashesSequentiallyAndFailsAtomically",
     "M08_010_PrivacyIsOptInChildSafeReplaySafeAndNeverBlocksLocalPlay",
+    "M08_011_WinStreakUsesFrontierFirstClearOnlyAndIsReplayLossShieldRollbackSafe",
+    "M08_012_StarChestAndGiftMetersRemainSeparateCapClaimOnceAndHonorExpiry",
+    "M08_013_CollectionsTrackNewDuplicateSetMasterSeasonVisibilityAndRetainEarnedItems",
+    "M08_014_EarnedPacksAreDeterministicReplaySafeAndBoundMissingGuarantees",
+    "M08_015_JourneyTracksTenLevelsFirstTryAndWeeklyPersonalBestWithoutRegression",
+    "M08_016_FailRecoveryCountsOnlyGenuineFrontierFailuresAndNeverSpendsOrAutoUses",
+    "M08_017_AchievementsAreCanonicalReplaySafeAndPlatformMappingsCannotCollide",
+    "M08_018_UnifiedRewardBoundaryIsAtomicGameScopedAndReplaySafeAcrossSources",
+    "M08_019_ReentryRoutesPreserveAuthoritativeFrontierRewardsAndSaveRevision",
 }
 
 def main(paths):
@@ -22,7 +31,9 @@ def main(paths):
         for case in root.findall(".//test-case"):
             fullname = case.get("fullname", "")
             if ("ProgressionGraphContractTests." in fullname or
-                    "ProgressionServicesContractTests." in fullname):
+                    "ProgressionServicesContractTests." in fullname or
+                    "ProgressionRewardsContractTests." in fullname or
+                    "MetaProgressionContractTests." in fullname):
                 short = fullname.rsplit(".", 1)[-1]
                 found.setdefault(short, []).append(case.get("result"))
     if set(found) != EXPECTED or any(v != ["Passed"] for v in found.values()):
@@ -30,7 +41,7 @@ def main(paths):
             "FAIL: M08 progression cases missing, skipped, duplicated or failed: "
             + repr(found)
         )
-    print("UNITY_M08_001_010_PROGRESSION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
+    print("UNITY_M08_001_019_PROGRESSION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
