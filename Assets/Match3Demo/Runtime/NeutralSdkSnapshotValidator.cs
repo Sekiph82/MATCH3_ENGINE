@@ -45,10 +45,9 @@ namespace Match3.Engine.Demo
             return _solver.Solve(board, points).SolvedSequences.Count > 0;
         }
 
-        // This is a read-only projection of the pinned SDK's detected
-        // sequences, NOT a second matcher or rule owner. A fresh clone
-        // prevents SDK special detectors from touching live board state.
-        public IReadOnlyList<int> GetSdkRunLengths(
+        // Read-only projection of matches already detected by the pinned SDK.
+        // This adapter does not scan the board or decide whether cells match.
+        public IReadOnlyList<MatchRunProjection> GetSdkMatchRuns(
             IReadOnlyDictionary<BoardPosition, string> contents)
         {
             var board = Clone(contents);
@@ -56,10 +55,46 @@ namespace Match3.Engine.Demo
             for (var row = 0; row < _topology.Rows; row++)
                 for (var column = 0; column < _topology.Columns; column++)
                     cells.Add(new GridPosition(row, column));
+
             var result = _solver.Solve(board, cells.ToArray());
-            var lengths = result.SolvedSequences.Select(x => x.SolvedGridSlots.Count)
-                .OrderBy(x => x).ToArray();
-            return Array.AsReadOnly(lengths);
+            var projected = new List<MatchRunProjection>();
+            foreach (var sequence in result.SolvedSequences)
+            {
+                MatchRunAxis axis;
+                if (sequence.SequenceDetectorType == typeof(HorizontalLineDetector<DemoGridSlot>))
+                    axis = MatchRunAxis.Horizontal;
+                else if (sequence.SequenceDetectorType == typeof(VerticalLineDetector<DemoGridSlot>))
+                    axis = MatchRunAxis.Vertical;
+                else
+                    throw new InvalidOperationException("Unexpected pinned SDK sequence detector type.");
+
+                if (sequence.SolvedGridSlots.Count < 1 || sequence.SolvedGridSlots[0].Item == null)
+                    throw new InvalidOperationException("Pinned SDK returned an empty solved sequence.");
+                var contentId = sequence.SolvedGridSlots[0].Item.Label.ToString();
+                if (sequence.SolvedGridSlots.Any(x => x.Item == null ||
+                    x.Item.Label.ToString() != contentId))
+                    throw new InvalidOperationException("Pinned SDK returned a mixed-content sequence.");
+
+                projected.Add(new MatchRunProjection(axis, contentId,
+                    sequence.SolvedGridSlots.Select(x => new BoardPosition(
+                        x.GridPosition.RowIndex, x.GridPosition.ColumnIndex))));
+            }
+
+            var stable = projected
+                .OrderBy(x => x.Cells[0].Layer)
+                .ThenBy(x => x.Cells[0].Row)
+                .ThenBy(x => x.Cells[0].Column)
+                .ThenBy(x => x.Axis)
+                .ThenBy(x => x.ContentId, StringComparer.Ordinal)
+                .ToArray();
+            return Array.AsReadOnly(stable);
+        }
+
+        public IReadOnlyList<int> GetSdkRunLengths(
+            IReadOnlyDictionary<BoardPosition, string> contents)
+        {
+            return Array.AsReadOnly(GetSdkMatchRuns(contents)
+                .Select(x => x.Count).OrderBy(x => x).ToArray());
         }
 
         public CandidateScanResult FindRealLegalMoves(
