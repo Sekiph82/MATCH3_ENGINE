@@ -680,6 +680,18 @@ namespace Match3.Engine.Runtime
 
     public static class SpecialGoldenHasher
     {
+        public const string CorpusVersion = "ENG-M03-GOLDEN-V1";
+
+        public static string BindToCorpusVersion(string digest, string version = null)
+        {
+            if (string.IsNullOrWhiteSpace(digest))
+                throw new ArgumentException("Golden digest required.", nameof(digest));
+            var selected = version ?? CorpusVersion;
+            if (string.IsNullOrWhiteSpace(selected))
+                throw new ArgumentException("Golden corpus version required.", nameof(version));
+            return Sha256(selected + "|" + digest);
+        }
+
         public static string HashMatchPlans(IEnumerable<MatchGroupPlan> plans)
         {
             if (plans == null) throw new ArgumentNullException(nameof(plans));
