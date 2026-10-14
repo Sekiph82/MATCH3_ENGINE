@@ -613,6 +613,32 @@ namespace Match3.Engine.Runtime
                 economy.Receipt.Applied, journal.Applied);
         }
 
+        public static BoosterActionCommitPlan CommitGuarded(
+            PreparedBoosterAction prepared,
+            BoosterEconomySnapshot currentEconomy,
+            BoosterActionJournalSnapshot currentJournal,
+            BoosterActionGate gate,
+            BoosterActionToken token)
+        {
+            if (prepared == null) throw new ArgumentNullException(nameof(prepared));
+            if (gate == null) throw new ArgumentNullException(nameof(gate));
+            if (!string.Equals(token.ActionId, prepared.Request.ActionId,
+                    StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Booster action token does not belong to the prepared action.");
+
+            // Build the immutable proposal first. If any economy/journal
+            // validation fails, the gate token remains pending. Only after the
+            // full proposal is valid do we consume the current-generation
+            // token. A stale/interrupted token therefore cannot authorize a
+            // logical effect or inventory commit.
+            var proposal = Commit(prepared, currentEconomy, currentJournal);
+            if (!gate.TryCommit(token))
+                throw new OperationCanceledException(
+                    "Booster action token is stale or interrupted.");
+            return proposal;
+        }
+
         public static BoosterEconomyPlan Cancel(PreparedBoosterAction prepared,
             BoosterEconomySnapshot currentEconomy)
         {
