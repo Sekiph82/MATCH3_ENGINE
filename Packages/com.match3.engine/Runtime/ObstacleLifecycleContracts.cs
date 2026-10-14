@@ -286,14 +286,18 @@ namespace Match3.Engine.Runtime
         public ObstacleSnapshot Result { get; }
         public IReadOnlyList<ObstacleDamageReceipt> DamageReceipts { get; }
         public IReadOnlyList<GoalProgressReceipt> GoalReceipts { get; }
+        public IReadOnlyList<string> ProcessedGoalReceiptIds { get; }
 
         internal ObstacleDamagePlan(ObstacleSnapshot result,
             IEnumerable<ObstacleDamageReceipt> damage,
-            IEnumerable<GoalProgressReceipt> goals)
+            IEnumerable<GoalProgressReceipt> goals,
+            IEnumerable<string> processedGoalReceiptIds)
         {
             Result = result;
             DamageReceipts = new ReadOnlyCollection<ObstacleDamageReceipt>(damage.ToList());
             GoalReceipts = new ReadOnlyCollection<GoalProgressReceipt>(goals.ToList());
+            ProcessedGoalReceiptIds = new ReadOnlyCollection<string>(
+                processedGoalReceiptIds.OrderBy(x => x, StringComparer.Ordinal).ToList());
         }
     }
 
@@ -301,7 +305,8 @@ namespace Match3.Engine.Runtime
     {
         public static ObstacleDamagePlan Plan(ObstacleSnapshot snapshot,
             IEnumerable<ObstacleDefinition> definitions,
-            IEnumerable<ObstacleHitRequest> hits)
+            IEnumerable<ObstacleHitRequest> hits,
+            IEnumerable<string> processedGoalReceiptIds = null)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (hits == null) throw new ArgumentNullException(nameof(hits));
@@ -314,8 +319,14 @@ namespace Match3.Engine.Runtime
             var receipts = new List<ObstacleDamageReceipt>();
             var goals = new List<GoalProgressReceipt>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
+            var processedGoals = new HashSet<string>(
+                processedGoalReceiptIds ?? Enumerable.Empty<string>(),
+                StringComparer.Ordinal);
+            var hitList = hits.Take(65537).ToList();
+            if (hitList.Count > 65536)
+                throw new InvalidOperationException("Obstacle damage hit budget exceeded.");
 
-            foreach (var hit in hits)
+            foreach (var hit in hitList)
             {
                 if (!snapshot.Contains(hit.Position))
                     throw new ArgumentOutOfRangeException(nameof(hits),
@@ -347,9 +358,13 @@ namespace Match3.Engine.Runtime
                     {
                         current.Remove(state.InstanceId);
                         if (!string.IsNullOrEmpty(definition.GoalKey))
-                            goals.Add(new GoalProgressReceipt(
-                                hit.PhaseId + "|" + state.InstanceId,
-                                definition.GoalKey, state.InstanceId, 1));
+                        {
+                            var receiptId = hit.PhaseId + "|" + state.InstanceId;
+                            if (processedGoals.Add(receiptId))
+                                goals.Add(new GoalProgressReceipt(
+                                    receiptId, definition.GoalKey,
+                                    state.InstanceId, 1));
+                        }
                     }
                     else
                     {
@@ -360,7 +375,8 @@ namespace Match3.Engine.Runtime
 
             var result = new ObstacleSnapshot(snapshot.Rows, snapshot.Columns,
                 current.Values, snapshot.Layers);
-            return new ObstacleDamagePlan(result, receipts, goals);
+            return new ObstacleDamagePlan(
+                result, receipts, goals, processedGoals);
         }
 
         public static bool IsPieceImmobilized(ObstacleSnapshot snapshot,
