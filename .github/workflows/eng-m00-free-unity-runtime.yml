@@ -624,6 +624,38 @@ jobs:
                 (len(pure), len(sdk)))
           PY
 
+      - name: Require real Unity ENG-M03 special effects combo targeted square golden and finale cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'LineSpecialDamagesEligibleCellsHonorsImmunityAndStopsAtBlockingObstacle',
+              'AreaRadiusIsConfigurableAndBombOverlapNeverDoubleHitsACell',
+              'ColorSpecialChoosesDeterministicEligibleColorAndCanTargetExplicitNormalColor',
+              'RocketPairsAndRocketBombProduceStableUniqueCrossDamage',
+              'BombBombCascadeTriggersEmbeddedSpecialButNeverDuplicatesDamage',
+              'ColorCombinesWithNormalRocketBombAndColorWithoutDuplicateHits',
+              'ChainOrderIsStableAndActivationBudgetFailsClosedBeforeInfiniteReaction',
+              'GoldenCorpusLocksThreeFourFiveLTCasesAndRocketPairTransition',
+              'OptionalSquareGenerationIsProfileGatedDeterministicAndYieldsToSdkMatches',
+              'TargetedMissilePrioritizesGoalsUsesSeededTiesAndHandlesZeroTargetImmunityAndLayers',
+              'ExtendedTargetedCombosRetargetRocketBombAndColorWithUniqueMultiStageDamage',
+              'WinFinalePresentationCannotChangeCommittedOutcomeOrFirstClearReward',
+          }
+          found = {}
+          for path in sys.argv[1:]:
+              for case in ET.parse(path).getroot().findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  if 'SpecialEffectPlannerTests.' in fullname:
+                      found.setdefault(fullname.rsplit('.', 1)[-1], []).append(case.get('result'))
+          if set(found) != expected or any(v != ['Passed'] for v in found.values()):
+              raise SystemExit('FAIL: M03 special effect/finale cases missing, skipped or failed: '+str(found))
+          print('UNITY_M03_005_016_SPECIAL_EFFECTS=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
