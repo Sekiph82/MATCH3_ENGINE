@@ -18,8 +18,10 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentException("Generator ID required.", nameof(id));
             if (outputs == null) throw new ArgumentNullException(nameof(outputs));
             var list = outputs.ToList();
-            if (list.Count == 0)
-                throw new ArgumentException("Generator outputs required.", nameof(outputs));
+            if (list.Count == 0 || list.Count > 256)
+                throw new ArgumentException(
+                    "Generator output catalog must contain 1..256 entries.",
+                    nameof(outputs));
             long total = 0;
             foreach (var output in list) total += output.Weight;
             if (total < 1 || total > Int32.MaxValue)
