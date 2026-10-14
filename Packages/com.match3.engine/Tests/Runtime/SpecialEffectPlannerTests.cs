@@ -220,6 +220,84 @@ namespace Match3.Engine.Tests
         }
 
         [Test]
+        public void GoldenSpecialPairMatrixLocksEverySupportedTransitionIncludingSquareTargetedLine()
+        {
+            var board = ColorBoard();
+            var color = new SpecialActivation(SpecialActivationKind.Color, P(2, 1));
+            var targeted = new SpecialActivation(SpecialActivationKind.Targeted, P(2, 2));
+            var hashes = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("HH", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board,
+                        new SpecialActivation(SpecialActivationKind.HorizontalLine, P(1, 1)),
+                        new SpecialActivation(SpecialActivationKind.HorizontalLine, P(0, 1))))),
+                new KeyValuePair<string, string>("HV", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board,
+                        new SpecialActivation(SpecialActivationKind.HorizontalLine, P(1, 1)),
+                        new SpecialActivation(SpecialActivationKind.VerticalLine, P(1, 1))))),
+                new KeyValuePair<string, string>("HA", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board,
+                        new SpecialActivation(SpecialActivationKind.HorizontalLine, P(1, 1)),
+                        new SpecialActivation(SpecialActivationKind.Area, P(1, 1))))),
+                new KeyValuePair<string, string>("AA", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board,
+                        new SpecialActivation(SpecialActivationKind.Area, P(1, 1)),
+                        new SpecialActivation(SpecialActivationKind.Area, P(1, 1))))),
+                new KeyValuePair<string, string>("CN", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.ResolveColorWithNormal(board, color, P(0, 2)))),
+                new KeyValuePair<string, string>("CH", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board, color,
+                        new SpecialActivation(SpecialActivationKind.HorizontalLine, P(0, 2))))),
+                new KeyValuePair<string, string>("CA", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board, color,
+                        new SpecialActivation(SpecialActivationKind.Area, P(0, 2))))),
+                new KeyValuePair<string, string>("CC", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board, color,
+                        new SpecialActivation(SpecialActivationKind.Color, P(0, 0))))),
+                new KeyValuePair<string, string>("TH", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board, targeted,
+                        new SpecialActivation(SpecialActivationKind.HorizontalLine, P(0, 0)),
+                        seed: 5u))),
+                new KeyValuePair<string, string>("TA", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board, targeted,
+                        new SpecialActivation(SpecialActivationKind.Area, P(0, 0)),
+                        seed: 5u))),
+                new KeyValuePair<string, string>("TC", SpecialGoldenHasher.HashEffectPlan(
+                    SpecialEffectPlanner.Resolve(board, targeted,
+                        new SpecialActivation(SpecialActivationKind.Color, P(0, 0)),
+                        seed: 5u)))
+            };
+
+            var squareBoard = Full(3, 3, (r, col) =>
+                new SpecialCellState(P(r, col), "A",
+                    goalPriority: r == 1 && col == 1 ? 5 : 0));
+            var enabled = new GameProfile("Coral_Rescue", "neutral",
+                ProfileAgeRule.General, ProfileContentChannel.Development,
+                new[]
+                {
+                    new FeatureFlag("match_2x2", EngineCompatibility.MinimumCapability),
+                    new FeatureFlag("targeted_missile", EngineCompatibility.MinimumCapability)
+                });
+            var square = OptionalSquareSpecialDetector.Detect(squareBoard, enabled,
+                preferredAnchors: new[] { P(1, 1) }).Single();
+            Assert.That(square.Anchor, Is.EqualTo(P(1, 1)));
+            var squareLine = SpecialEffectPlanner.Resolve(squareBoard,
+                new SpecialActivation(SpecialActivationKind.Targeted, square.Anchor),
+                new SpecialActivation(SpecialActivationKind.HorizontalLine, P(2, 2)),
+                seed: 5u);
+            Assert.That(squareLine.Activations.Any(x =>
+                x.Kind == SpecialActivationKind.HorizontalLine &&
+                x.Origin.Equals(P(1, 1))), Is.True);
+            Assert.That(squareLine.Hits.Select(x => x.Position).Distinct().Count(),
+                Is.EqualTo(squareLine.Hits.Count));
+            hashes.Add(new KeyValuePair<string, string>("SQH",
+                SpecialGoldenHasher.HashEffectPlan(squareLine)));
+
+            Assert.That(SpecialGoldenHasher.HashNamedMatrix(hashes),
+                Is.EqualTo("ea5816c5f26b53f932b823015ef4b78ad99a40a683e4eb314b4604c6d95c714d"));
+        }
+
+        [Test]
         public void OptionalSquareGenerationIsProfileGatedDeterministicAndYieldsToSdkMatches()
         {
             var board = Full(2, 2);
