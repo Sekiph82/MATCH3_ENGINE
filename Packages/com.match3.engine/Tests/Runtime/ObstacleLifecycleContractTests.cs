@@ -320,6 +320,9 @@ namespace Match3.Engine.Tests
                 }));
             Assert.That(overlap.DamageReceipts.Count, Is.EqualTo(1));
             Assert.That(overlap.Result.ByInstanceId["s"].Durability, Is.EqualTo(1));
+            Assert.Throws<InvalidOperationException>(() =>
+                ObstacleBeamPlanner.PlanLine(stopSnapshot, new[] { stop },
+                    Enumerable.Repeat(P(0,0), 4097), "too-long"));
         }
     }
 }
