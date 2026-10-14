@@ -546,6 +546,31 @@ jobs:
           print('UNITY_M02_TRUE_IDLE_HINT_POLICY=PASS DISCOVERED=%d SKIPPED=0' % len(cases))
           PY
 
+      - name: Validate M02 no-move recovery proposal and no-economy-mutation contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          required = {
+              'GenuineNoMoveSdkStateReturnsBoundedReproducibleRecoveryProposal',
+              'ValidSdkMoveAvoidsUnnecessaryShuffleAndConsumesNoRng',
+              'ImpossibleBoardFailsExplicitlyWithoutChangingOriginOrFabricatingWin',
+              'CanonicalBoardHashDoesNotDependOnDictionaryInsertionOrder',
+              'MissingSdkOrIllegalBudgetsRejectAndCannotGrantRewards',
+          }
+          found = {}
+          for file in sys.argv[1:]:
+              for case in ET.parse(file).getroot().findall('.//test-case'):
+                  fullname = case.get('fullname', '')
+                  if 'SafeRecoveryBoundaryTests.' in fullname:
+                      found.setdefault(fullname.rsplit('.', 1)[-1], []).append(case.get('result'))
+          if set(found) != required or any(v != ['Passed'] for v in found.values()):
+              raise SystemExit('FAIL: M02 typed shuffle recovery cases absent/failed: ' + str(found))
+          print('UNITY_M02_SAFE_RECOVERY_BOUNDARY=PASS DISCOVERED=%d SKIPPED=0' % len(found))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
