@@ -77,8 +77,9 @@ namespace Match3.Engine.Runtime
                     RequireInside(occupant.Position);
                     if (_holes.Contains(occupant.Position))
                         throw new ArgumentException("A hole cannot contain a tile.");
-                    if (!dictionary.TryAdd(occupant.Position, occupant.ContentId))
+                    if (dictionary.ContainsKey(occupant.Position))
                         throw new ArgumentException("Duplicate occupant on the same layer/cell.");
+                    dictionary.Add(occupant.Position, occupant.ContentId);
                 }
             }
             _occupants = new ReadOnlyDictionary<BoardPosition, string>(dictionary);
