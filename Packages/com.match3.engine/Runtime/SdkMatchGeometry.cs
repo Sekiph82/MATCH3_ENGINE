@@ -44,8 +44,8 @@ namespace Match3.Engine.Runtime
             foreach (var h in hRuns)
             foreach (var v in vRuns)
             {
-                int ix = v.Start;
-                int iy = h.Start;
+                int ix = v.Fixed;
+                int iy = h.Fixed;
                 if (ix < h.Start || ix >= h.Start + h.Count ||
                     iy < v.Start || iy >= v.Start + v.Count) continue;
                 bool hMiddle = ix > h.Start && ix < h.Start + h.Count - 1;
@@ -62,9 +62,10 @@ namespace Match3.Engine.Runtime
 
         private readonly struct Run
         {
+            public readonly int Fixed;
             public readonly int Start;
             public readonly int Count;
-            public Run(int start, int count) { Start = start; Count = count; }
+            public Run(int fixedCoordinate, int start, int count) { Fixed = fixedCoordinate; Start = start; Count = count; }
         }
 
         private static List<Run> Runs(Dictionary<int, HashSet<int>> lines)
@@ -80,7 +81,7 @@ namespace Match3.Engine.Runtime
                     int end = start + 1;
                     while (end < positions.Count && positions[end] == positions[end - 1] + 1)
                         end++;
-                    if (end - start >= 3) result.Add(new Run(positions[start], end - start));
+                    if (end - start >= 3) result.Add(new Run(line.Key, positions[start], end - start));
                     start = end;
                 }
             }
