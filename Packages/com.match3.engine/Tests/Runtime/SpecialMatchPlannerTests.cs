@@ -69,6 +69,22 @@ namespace Match3.Engine.Tests
             Assert.That(plan.Anchor, Is.EqualTo(P(3, 2)));
             Assert.That(plan.RewardCellCount, Is.EqualTo(5));
             Assert.That(plan.MatchedCells.Distinct().Count(), Is.EqualTo(5));
+
+            var six = H("D", 4, 0, 1, 2, 3, 4, 5);
+            var sixPlan = SpecialMatchPlanner.Plan(new[] { six }).Single();
+            Assert.That(sixPlan.Shape, Is.EqualTo(MatchShapeKind.StraightFivePlus));
+            Assert.That(sixPlan.Special, Is.EqualTo(MatchSpecialKind.Color));
+            Assert.That(sixPlan.RewardCellCount, Is.EqualTo(6));
+
+            var fiveWithFourConflict = SpecialMatchPlanner.Plan(new[]
+            {
+                H("E", 6, 0, 1, 2, 3, 4),
+                V("E", 2, 5, 6, 7, 8)
+            }, new[] { P(6, 2) }).Single();
+            Assert.That(fiveWithFourConflict.Shape, Is.EqualTo(MatchShapeKind.StraightFivePlus));
+            Assert.That(fiveWithFourConflict.Special, Is.EqualTo(MatchSpecialKind.Color));
+            Assert.That(fiveWithFourConflict.Anchor, Is.EqualTo(P(6, 2)));
+            Assert.That(fiveWithFourConflict.RewardCellCount, Is.EqualTo(8));
         }
 
         [Test]
@@ -93,6 +109,14 @@ namespace Match3.Engine.Tests
             Assert.That(t.Special, Is.EqualTo(MatchSpecialKind.Area));
             Assert.That(t.Anchor, Is.EqualTo(P(2, 2)));
             Assert.That(t.RewardCellCount, Is.EqualTo(5));
+
+            var disjointSameContent = SpecialMatchPlanner.Plan(new[]
+            {
+                H("C", 8, 0, 1, 2),
+                H("C", 10, 0, 1, 2)
+            });
+            Assert.That(disjointSameContent.Count, Is.EqualTo(2));
+            Assert.That(disjointSameContent.All(x => x.Shape == MatchShapeKind.Three), Is.True);
         }
 
         [Test]
