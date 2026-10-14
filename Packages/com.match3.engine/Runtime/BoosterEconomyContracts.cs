@@ -104,7 +104,7 @@ namespace Match3.Engine.Runtime
                 var held = txMap.Values
                     .Where(x => x.Kind == kind &&
                         x.State == BoosterTransactionState.Reserved)
-                    .Sum(x => x.Amount);
+                    .Sum(x => (long)x.Amount);
                 int balance;
                 if (!balanceMap.TryGetValue(kind, out balance)) balance = 0;
                 if (held > balance)
@@ -128,8 +128,8 @@ namespace Match3.Engine.Runtime
             var held = _transactions.Values
                 .Where(x => x.Kind == kind &&
                     x.State == BoosterTransactionState.Reserved)
-                .Sum(x => x.Amount);
-            return Math.Max(0, Balance(kind) - held);
+                .Sum(x => (long)x.Amount);
+            return (int)Math.Max(0L, (long)Balance(kind) - held);
         }
     }
 
@@ -487,13 +487,14 @@ namespace Match3.Engine.Runtime
             Mode = mode;
             Meter = meter;
             MaximumMeter = maximumMeter;
-            var ids = (processedEventIds ?? Enumerable.Empty<string>()).ToList();
+            var ids = (processedEventIds ?? Enumerable.Empty<string>())
+                .Take(100001).ToList();
+            if (ids.Count > 100000)
+                throw new ArgumentException("Score-power event history limit exceeded.",
+                    nameof(processedEventIds));
             if (ids.Any(string.IsNullOrWhiteSpace) ||
                 ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
                 throw new ArgumentException("Invalid score-power event IDs.",
-                    nameof(processedEventIds));
-            if (ids.Count > 100000)
-                throw new ArgumentException("Score-power event history limit exceeded.",
                     nameof(processedEventIds));
             _processedEventIds = new ReadOnlyCollection<string>(
                 ids.OrderBy(x => x, StringComparer.Ordinal).ToList());
