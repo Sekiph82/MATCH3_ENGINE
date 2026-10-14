@@ -235,6 +235,19 @@ namespace Match3.Engine.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 BoosterEconomyPlanner.Grant(
                     granted.Result, BoosterKind.Area, "reward-1", 2));
+
+            Assert.Throws<ArgumentException>(() =>
+                new BoosterEconomySnapshot(
+                    new Dictionary<BoosterKind, int>
+                    {
+                        { BoosterKind.Hammer, 0 }
+                    },
+                    new[]
+                    {
+                        new BoosterTransaction(
+                            "bad-reserve", BoosterKind.Hammer, 1,
+                            BoosterTransactionState.Reserved)
+                    }));
         }
 
         [Test]
@@ -329,6 +342,23 @@ namespace Match3.Engine.Tests
                 shuffleEconomy, BoosterKind.Shuffle, "advanced-shuffle");
             Assert.That(shuffleReserve.Result.Available(BoosterKind.Shuffle),
                 Is.EqualTo(0));
+            var transformBoard = new BoardTopology(1, 3,
+                occupants: new[]
+                {
+                    new BoardOccupant(P(0,0), "A"),
+                    new BoardOccupant(P(0,1), "B"),
+                    new BoardOccupant(P(0,2), "C")
+                });
+            var shufflePlan = BoosterBoardTransformPlanner.Plan(
+                transformBoard,
+                new BoosterActionRequest(
+                    "advanced-shuffle", BoosterKind.Shuffle, P(0,0),
+                    seed: 17u));
+            Assert.That(shufflePlan.Kind, Is.EqualTo(BoosterKind.Shuffle));
+            var shuffleCommitted = BoosterEconomyPlanner.Confirm(
+                shuffleReserve.Result, "advanced-shuffle");
+            Assert.That(shuffleCommitted.Result.Balance(BoosterKind.Shuffle),
+                Is.EqualTo(0));
         }
 
         [Test]
@@ -394,6 +424,20 @@ namespace Match3.Engine.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 ScorePowerPlanner.Consume(
                     consumed.Result, "use-2", 3));
+
+            var publicNames = typeof(ScorePowerSnapshot)
+                .GetProperties()
+                .Select(x => x.Name)
+                .Concat(typeof(ScorePowerPlanner).GetMethods()
+                    .Where(x => x.IsPublic && x.IsStatic)
+                    .Select(x => x.Name))
+                .Select(x => x.ToLowerInvariant())
+                .ToArray();
+            Assert.That(publicNames.Any(x =>
+                x.Contains("paid") ||
+                x.Contains("premium") ||
+                x.Contains("currency") ||
+                x.Contains("purchase")), Is.False);
         }
     }
 }
