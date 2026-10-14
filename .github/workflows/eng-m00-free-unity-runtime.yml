@@ -7,6 +7,7 @@ on:
   # ENG-M04 final acceptance refresh after callback-atomicity and 0x presentation hardening.
   # ENG-M05 final acceptance refresh after frozen obstacle lifecycle hardening.
   # ENG-M06 frozen-source retry after transient PlayMode Editor exit 198 with zero compiler diagnostics.
+  # ENG-M06 final SDK-authoritative shuffle acceptance refresh.
   # ENG-M06 final guarded-interruption acceptance refresh.
   # ENG-M06 final journal-aware recovery and refund-boundary acceptance refresh.
   # ENG-M05 final source refresh after replay-idempotency and bounded-loop hardening.
