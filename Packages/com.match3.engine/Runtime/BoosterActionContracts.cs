@@ -467,11 +467,12 @@ namespace Match3.Engine.Runtime
                         throw new ArgumentException(
                             "Booster action journal fields required.",
                             nameof(appliedActions));
+                    var digest = ReplayCodec.RequireDigest(pair.Value);
                     if (map.ContainsKey(pair.Key))
                         throw new ArgumentException(
                             "Duplicate booster action journal ID.",
                             nameof(appliedActions));
-                    map.Add(pair.Key, pair.Value);
+                    map.Add(pair.Key, digest);
                 }
             }
             _applied = new ReadOnlyDictionary<string, string>(map);
@@ -500,8 +501,7 @@ namespace Match3.Engine.Runtime
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (string.IsNullOrWhiteSpace(actionId))
                 throw new ArgumentException("Action ID required.", nameof(actionId));
-            if (string.IsNullOrWhiteSpace(logicalHash))
-                throw new ArgumentException("Logical hash required.", nameof(logicalHash));
+            logicalHash = ReplayCodec.RequireDigest(logicalHash);
 
             string existing;
             if (snapshot.AppliedActions.TryGetValue(actionId, out existing))
