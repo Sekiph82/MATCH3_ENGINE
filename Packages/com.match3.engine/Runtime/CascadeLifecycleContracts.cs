@@ -63,6 +63,70 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    public readonly struct CascadeStageProposal
+    {
+        public int Wave { get; }
+        public CascadePhase Phase { get; }
+        public string ProposalId { get; }
+
+        public CascadeStageProposal(int wave, CascadePhase phase, string proposalId)
+        {
+            if (wave < 0) throw new ArgumentOutOfRangeException(nameof(wave));
+            if (phase != CascadePhase.Damage &&
+                phase != CascadePhase.Settle &&
+                phase != CascadePhase.Refill)
+                throw new ArgumentOutOfRangeException(nameof(phase));
+            if (string.IsNullOrWhiteSpace(proposalId))
+                throw new ArgumentException("Proposal ID required.", nameof(proposalId));
+            Wave = wave;
+            Phase = phase;
+            ProposalId = proposalId;
+        }
+    }
+
+    public sealed class CascadePlanningCallbacks
+    {
+        public Func<int, bool> HasSolvedWave { get; }
+        public Func<int, string> PlanDamage { get; }
+        public Func<int, string> PlanSettle { get; }
+        public Func<int, string> PlanRefill { get; }
+        public Func<bool> IsGenerationCurrent { get; }
+
+        public CascadePlanningCallbacks(
+            Func<int, bool> hasSolvedWave,
+            Func<int, string> planDamage,
+            Func<int, string> planSettle,
+            Func<int, string> planRefill,
+            Func<bool> isGenerationCurrent)
+        {
+            HasSolvedWave = hasSolvedWave ??
+                throw new ArgumentNullException(nameof(hasSolvedWave));
+            PlanDamage = planDamage ??
+                throw new ArgumentNullException(nameof(planDamage));
+            PlanSettle = planSettle ??
+                throw new ArgumentNullException(nameof(planSettle));
+            PlanRefill = planRefill ??
+                throw new ArgumentNullException(nameof(planRefill));
+            IsGenerationCurrent = isGenerationCurrent ??
+                throw new ArgumentNullException(nameof(isGenerationCurrent));
+        }
+    }
+
+    public sealed class CascadeExecutionPlan
+    {
+        private readonly ReadOnlyCollection<CascadeStageProposal> _proposals;
+        public CascadeTimeline Timeline { get; }
+        public IReadOnlyList<CascadeStageProposal> Proposals => _proposals;
+
+        internal CascadeExecutionPlan(CascadeTimeline timeline,
+            IEnumerable<CascadeStageProposal> proposals)
+        {
+            Timeline = timeline ?? throw new ArgumentNullException(nameof(timeline));
+            _proposals = new ReadOnlyCollection<CascadeStageProposal>(
+                proposals.ToList());
+        }
+    }
+
     public static class CascadeCoordinator
     {
         // The callback is authoritative SDK/integration truth: true means that
@@ -96,6 +160,83 @@ namespace Match3.Engine.Runtime
                 resolved++;
             }
             throw new InvalidOperationException("Cascade planner did not converge.");
+        }
+
+        // Proposal callbacks must be side-effect-free. A full wave is appended
+        // only after detect, damage, settle and refill proposals all succeed
+        // under the same current generation. This preserves atomic logical
+        // planning while the pinned SDK/integration remains gameplay authority.
+        public static CascadeExecutionPlan PlanWithCallbacks(
+            CascadePlanningCallbacks callbacks, int maximumResolvedWaves = 16)
+        {
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (maximumResolvedWaves < 1 || maximumResolvedWaves > 1024)
+                throw new ArgumentOutOfRangeException(nameof(maximumResolvedWaves));
+
+            var events = new List<CascadePhaseEvent>();
+            var proposals = new List<CascadeStageProposal>();
+            var sequence = 1;
+            var resolved = 0;
+
+            for (var wave = 0; wave <= maximumResolvedWaves; wave++)
+            {
+                RequireCurrent(callbacks);
+                var detect = new CascadePhaseEvent(sequence++, wave, CascadePhase.Detect);
+                var hasSolved = callbacks.HasSolvedWave(wave);
+                RequireCurrent(callbacks);
+
+                if (!hasSolved)
+                {
+                    events.Add(detect);
+                    events.Add(new CascadePhaseEvent(sequence, wave, CascadePhase.Stable));
+                    return new CascadeExecutionPlan(
+                        new CascadeTimeline(events, resolved), proposals);
+                }
+
+                if (resolved >= maximumResolvedWaves)
+                    throw new InvalidOperationException("Cascade wave budget exceeded.");
+
+                // Keep the whole wave local until every pure proposal succeeds.
+                var damageId = callbacks.PlanDamage(wave);
+                RequireProposalId(damageId, CascadePhase.Damage);
+                RequireCurrent(callbacks);
+
+                var settleId = callbacks.PlanSettle(wave);
+                RequireProposalId(settleId, CascadePhase.Settle);
+                RequireCurrent(callbacks);
+
+                var refillId = callbacks.PlanRefill(wave);
+                RequireProposalId(refillId, CascadePhase.Refill);
+                RequireCurrent(callbacks);
+
+                events.Add(detect);
+                events.Add(new CascadePhaseEvent(sequence++, wave, CascadePhase.Damage));
+                events.Add(new CascadePhaseEvent(sequence++, wave, CascadePhase.Settle));
+                events.Add(new CascadePhaseEvent(sequence++, wave, CascadePhase.Refill));
+                proposals.Add(new CascadeStageProposal(
+                    wave, CascadePhase.Damage, damageId));
+                proposals.Add(new CascadeStageProposal(
+                    wave, CascadePhase.Settle, settleId));
+                proposals.Add(new CascadeStageProposal(
+                    wave, CascadePhase.Refill, refillId));
+                resolved++;
+            }
+
+            throw new InvalidOperationException("Cascade callback planner did not converge.");
+        }
+
+        private static void RequireCurrent(CascadePlanningCallbacks callbacks)
+        {
+            if (!callbacks.IsGenerationCurrent())
+                throw new OperationCanceledException(
+                    "Cascade proposal belongs to a stale generation.");
+        }
+
+        private static void RequireProposalId(string proposalId, CascadePhase phase)
+        {
+            if (string.IsNullOrWhiteSpace(proposalId))
+                throw new InvalidOperationException(
+                    phase + " callback returned an invalid proposal.");
         }
     }
 
