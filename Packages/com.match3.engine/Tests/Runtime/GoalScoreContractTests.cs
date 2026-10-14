@@ -161,8 +161,17 @@ namespace Match3.Engine.Tests
             Assert.That(unsettled.Outcome, Is.EqualTo(LevelTerminalOutcome.None));
             Assert.That(unsettled.FinalSettleComplete, Is.False);
 
+            var registry = new GoalRegistry(new[]
+            {
+                new GoalDefinition("collect", GoalKind.CollectPiece, "red", 1)
+            });
+            var progress = GoalProgressPlanner.Create(registry);
+            progress = GoalProgressPlanner.Apply(
+                registry, progress,
+                new GoalProgressEvent("g1", 1, "collect", 1)).Result;
+
             var sameResolutionWin = LevelTerminalArbitrator.Resolve(
-                true, true, exhaustedMoves);
+                true, registry, progress, exhaustedMoves);
             Assert.That(sameResolutionWin.Outcome,
                 Is.EqualTo(LevelTerminalOutcome.Win));
 
