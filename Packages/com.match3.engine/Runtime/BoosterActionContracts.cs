@@ -457,18 +457,36 @@ namespace Match3.Engine.Runtime
                 request, reserved.Result, null, transform);
         }
 
-        public static BoosterEconomyPlan Confirm(PreparedBoosterAction prepared)
+        public static BoosterEconomyPlan Confirm(PreparedBoosterAction prepared,
+            BoosterEconomySnapshot currentEconomy)
         {
             if (prepared == null) throw new ArgumentNullException(nameof(prepared));
+            if (currentEconomy == null)
+                throw new ArgumentNullException(nameof(currentEconomy));
+            BoosterTransaction current;
+            if (!currentEconomy.Transactions.TryGetValue(
+                prepared.Request.ActionId, out current) ||
+                current.Kind != prepared.Request.Kind)
+                throw new InvalidOperationException(
+                    "Current economy does not contain the prepared reservation.");
             return BoosterEconomyPlanner.Confirm(
-                prepared.ReservedEconomy, prepared.Request.ActionId);
+                currentEconomy, prepared.Request.ActionId);
         }
 
-        public static BoosterEconomyPlan Cancel(PreparedBoosterAction prepared)
+        public static BoosterEconomyPlan Cancel(PreparedBoosterAction prepared,
+            BoosterEconomySnapshot currentEconomy)
         {
             if (prepared == null) throw new ArgumentNullException(nameof(prepared));
+            if (currentEconomy == null)
+                throw new ArgumentNullException(nameof(currentEconomy));
+            BoosterTransaction current;
+            if (!currentEconomy.Transactions.TryGetValue(
+                prepared.Request.ActionId, out current) ||
+                current.Kind != prepared.Request.Kind)
+                throw new InvalidOperationException(
+                    "Current economy does not contain the prepared reservation.");
             return BoosterEconomyPlanner.Refund(
-                prepared.ReservedEconomy, prepared.Request.ActionId);
+                currentEconomy, prepared.Request.ActionId);
         }
     }
 
