@@ -683,6 +683,17 @@ namespace Match3.Engine.Runtime
                     .Any(x => x.Count() > 1))
                 throw new ArgumentException("Invalid restoration milestone set.");
 
+            var byId = defs.ToDictionary(
+                x => x.MilestoneId, x => x, StringComparer.Ordinal);
+            foreach (var completedId in snapshot.CompletedMilestoneIds)
+            {
+                RestorationMilestone completed;
+                if (!byId.TryGetValue(completedId, out completed) ||
+                    snapshot.Progress < completed.RequiredProgress)
+                    throw new ArgumentException(
+                        "Restoration snapshot contains invalid completed milestone.");
+            }
+
             var nextLong = (long)snapshot.Progress + delta;
             if (nextLong > 1000000000)
                 throw new OverflowException("Restoration progress overflow.");
