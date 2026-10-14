@@ -154,6 +154,49 @@ namespace Match3.Engine.Tests
         }
 
         [Test]
+        public void AuthoritativeSpecialDamageVacancyFeedsMixedSettlementWithoutOwningMatchTruth()
+        {
+            var board = new BoardTopology(3, 2,
+                occupants: new[]
+                {
+                    new BoardOccupant(P(0,0), "A"),
+                    new BoardOccupant(P(1,0), "B"),
+                    new BoardOccupant(P(2,0), "C")
+                });
+
+            var plan = SettlementPipeline.PlanAfterAuthoritativeDamage(
+                board, new[] { P(2,0) },
+                new ConveyorEdge[0], new PortalRegistry(new PortalPair[0]),
+                GravityDirection.Down, false, DiagonalTieBreak.LowerCoordinate,
+                new[] { new WeightedContent("R", 1) }, new SeededRandom(7u));
+
+            Assert.That(plan.Stages, Is.EqualTo(new[]
+                { "conveyor", "portal", "gravity", "refill" }));
+            Assert.That(plan.Occupants[P(1,0)], Is.EqualTo("A"));
+            Assert.That(plan.Occupants[P(2,0)], Is.EqualTo("B"));
+            Assert.That(plan.Occupants.Values.Count(x => x == "C"), Is.EqualTo(0));
+            Assert.That(plan.Occupants.Count, Is.EqualTo(6));
+            Assert.That(board.Occupants[P(2,0)], Is.EqualTo("C"));
+
+            Assert.Throws<ArgumentException>(() =>
+                SettlementPipeline.PlanAfterAuthoritativeDamage(
+                    board, new[] { P(2,0), P(2,0) },
+                    new ConveyorEdge[0], new PortalRegistry(new PortalPair[0]),
+                    GravityDirection.Down, false, DiagonalTieBreak.LowerCoordinate,
+                    new[] { new WeightedContent("R", 1) }, new SeededRandom(7u)));
+
+            var locked = new BoardTopology(1, 1,
+                locked: new[] { P(0,0) },
+                occupants: new[] { new BoardOccupant(P(0,0), "LOCK") });
+            Assert.Throws<ArgumentException>(() =>
+                SettlementPipeline.PlanAfterAuthoritativeDamage(
+                    locked, new[] { P(0,0) },
+                    new ConveyorEdge[0], new PortalRegistry(new PortalPair[0]),
+                    GravityDirection.Down, false, DiagonalTieBreak.LowerCoordinate,
+                    new[] { new WeightedContent("R", 1) }, new SeededRandom(7u)));
+        }
+
+        [Test]
         public void MixedPipelineFailsClosedOnInvalidTransportInsteadOfLooping()
         {
             var board = new BoardTopology(2, 2,
