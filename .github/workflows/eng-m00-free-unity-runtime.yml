@@ -257,6 +257,19 @@ jobs:
               -projectPath "$PWD" -runTests -testPlatform "$mode" \
               -testResults "$results" -logFile "$log"
             exit_code=$?
+            # Hosted Unity occasionally returns 198 immediately on the second
+            # Editor launch while the prior batch process is still releasing
+            # its activation/editor lock. Retry exactly once only when no NUnit
+            # XML exists and the first process returned that specific code.
+            # All compiler, NUnit, timeout, and other exit codes remain fail-closed.
+            if [[ "$mode" == "PlayMode" && "$exit_code" -eq 198 && ! -s "$results" ]]; then
+              echo "UNITY_PLAYMODE_EXIT_198_RETRY=1"
+              sleep 8
+              timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics \
+                -projectPath "$PWD" -runTests -testPlatform "$mode" \
+                -testResults "$results" -logFile "$log"
+              exit_code=$?
+            fi
             set -e
             if (( exit_code != 0 )) || [[ ! -s "$results" ]]; then
               echo "::error::Unity $mode failed or produced no NUnit XML (exit $exit_code)"
