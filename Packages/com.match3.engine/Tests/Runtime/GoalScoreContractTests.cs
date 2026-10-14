@@ -50,6 +50,13 @@ namespace Match3.Engine.Tests
 
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 new GoalDefinition("too-many", GoalKind.CollectPiece, "a", 1000001));
+            Assert.Throws<ArgumentException>(() =>
+                new GoalRegistry(new[]
+                {
+                    new GoalDefinition("a", GoalKind.CollectPiece, "a", 1),
+                    new GoalDefinition("bad-composite", GoalKind.Composite,
+                        null, 2, new[] { "a" })
+                }));
         }
 
         [Test]
@@ -156,18 +163,18 @@ namespace Match3.Engine.Tests
         public void M07_004_FinalSettleAndGoalCompletionWinBeforeBudgetExhaustionLose()
         {
             var exhaustedMoves = new LevelBudgetSnapshot(0);
-            var unsettled = LevelTerminalArbitrator.Resolve(
-                false, true, exhaustedMoves);
-            Assert.That(unsettled.Outcome, Is.EqualTo(LevelTerminalOutcome.None));
-            Assert.That(unsettled.FinalSettleComplete, Is.False);
-
             var registry = new GoalRegistry(new[]
             {
                 new GoalDefinition("collect", GoalKind.CollectPiece, "red", 1)
             });
-            var progress = GoalProgressPlanner.Create(registry);
-            progress = GoalProgressPlanner.Apply(
-                registry, progress,
+            var incomplete = GoalProgressPlanner.Create(registry);
+            var unsettled = LevelTerminalArbitrator.Resolve(
+                false, registry, incomplete, exhaustedMoves);
+            Assert.That(unsettled.Outcome, Is.EqualTo(LevelTerminalOutcome.None));
+            Assert.That(unsettled.FinalSettleComplete, Is.False);
+
+            var progress = GoalProgressPlanner.Apply(
+                registry, incomplete,
                 new GoalProgressEvent("g1", 1, "collect", 1)).Result;
 
             var sameResolutionWin = LevelTerminalArbitrator.Resolve(
@@ -176,23 +183,23 @@ namespace Match3.Engine.Tests
                 Is.EqualTo(LevelTerminalOutcome.Win));
 
             var moveLoss = LevelTerminalArbitrator.Resolve(
-                true, false, exhaustedMoves);
+                true, registry, incomplete, exhaustedMoves);
             Assert.That(moveLoss.Outcome,
                 Is.EqualTo(LevelTerminalOutcome.LoseMoves));
 
             var timeExpired = new LevelBudgetSnapshot(
                 4, true, 1000, 1000);
             Assert.That(LevelTerminalArbitrator.Resolve(
-                true, false, timeExpired).Outcome,
+                true, registry, incomplete, timeExpired).Outcome,
                 Is.EqualTo(LevelTerminalOutcome.LoseTime));
 
             Assert.That(LevelTerminalArbitrator.Resolve(
-                true, true, timeExpired).Outcome,
+                true, registry, progress, timeExpired).Outcome,
                 Is.EqualTo(LevelTerminalOutcome.Win));
 
             var ongoing = new LevelBudgetSnapshot(2);
             Assert.That(LevelTerminalArbitrator.Resolve(
-                true, false, ongoing).Outcome,
+                true, registry, incomplete, ongoing).Outcome,
                 Is.EqualTo(LevelTerminalOutcome.None));
         }
     }
