@@ -275,6 +275,34 @@ namespace Match3.Engine.Runtime
 
     public static class SettlementPipeline
     {
+        public static SettlementPipelinePlan PlanAfterAuthoritativeDamage(
+            BoardTopology input, IEnumerable<BoardPosition> clearedByAuthoritativeDamage,
+            IReadOnlyList<ConveyorEdge> conveyors, PortalRegistry portals,
+            GravityDirection direction, bool allowDiagonal,
+            DiagonalTieBreak tieBreak, IReadOnlyList<WeightedContent> refill,
+            SeededRandom rng)
+        {
+            if (input == null) throw new ArgumentNullException(nameof(input));
+            if (clearedByAuthoritativeDamage == null)
+                throw new ArgumentNullException(nameof(clearedByAuthoritativeDamage));
+            var cleared = new HashSet<BoardPosition>();
+            foreach (var p in clearedByAuthoritativeDamage)
+            {
+                if (!input.Contains(p) || input.IsHole(p) || input.IsLocked(p))
+                    throw new ArgumentException("Authoritative damage cleared an invalid or locked cell.",
+                        nameof(clearedByAuthoritativeDamage));
+                if (!cleared.Add(p))
+                    throw new ArgumentException("Authoritative damage contains duplicate cleared cell.",
+                        nameof(clearedByAuthoritativeDamage));
+            }
+            var survivors = input.Occupants
+                .Where(x => !cleared.Contains(x.Key))
+                .Select(x => new BoardOccupant(x.Key, x.Value));
+            var damaged = RebuildFrom(template: input, occupants: survivors);
+            return Plan(damaged, conveyors, portals, direction, allowDiagonal,
+                tieBreak, refill, rng);
+        }
+
         // One bounded settle phase: conveyor -> portal -> gravity -> refill.
         // Match/damage happens before this call and remains SDK authority.
         public static SettlementPipelinePlan Plan(BoardTopology input,
@@ -325,6 +353,13 @@ namespace Match3.Engine.Runtime
         private static BoardTopology Rebuild(BoardTopology template,
             IReadOnlyDictionary<BoardPosition, string> occupants)
         {
+            return RebuildFrom(template,
+                occupants.Select(x => new BoardOccupant(x.Key, x.Value)));
+        }
+
+        private static BoardTopology RebuildFrom(BoardTopology template,
+            IEnumerable<BoardOccupant> occupants)
+        {
             var holes = new List<BoardPosition>();
             var locked = new List<BoardPosition>();
             for (var layer = 0; layer < template.Layers; layer++)
@@ -337,8 +372,7 @@ namespace Match3.Engine.Runtime
                     }
 
             return new BoardTopology(template.Rows, template.Columns,
-                template.Layers, holes, locked,
-                occupants.Select(x => new BoardOccupant(x.Key, x.Value)));
+                template.Layers, holes, locked, occupants);
         }
     }
 }
