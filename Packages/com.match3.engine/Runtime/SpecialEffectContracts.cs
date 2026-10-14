@@ -714,6 +714,25 @@ namespace Match3.Engine.Runtime
             return Sha256(canonical);
         }
 
+        private static readonly string[] RequiredPairMatrixKeys =
+        {
+            "AA", "CA", "CC", "CH", "CN", "HA", "HH", "HV",
+            "SQH", "TA", "TC", "TH"
+        };
+
+        public static string HashRequiredPairMatrix(
+            IEnumerable<KeyValuePair<string, string>> namedHashes)
+        {
+            if (namedHashes == null) throw new ArgumentNullException(nameof(namedHashes));
+            var entries = namedHashes.ToList();
+            var keys = entries.Select(x => x.Key).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+            if (!keys.SequenceEqual(RequiredPairMatrixKeys))
+                throw new ArgumentException(
+                    "Golden special-pair matrix must contain every required key exactly once.",
+                    nameof(namedHashes));
+            return HashNamedMatrix(entries);
+        }
+
         public static string HashNamedMatrix(
             IEnumerable<KeyValuePair<string, string>> namedHashes)
         {
