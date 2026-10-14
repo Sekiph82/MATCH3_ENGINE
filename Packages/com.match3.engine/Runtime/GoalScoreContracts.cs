@@ -52,6 +52,10 @@ namespace Match3.Engine.Runtime
                 if (children.Count == 0)
                     throw new ArgumentException(
                         "Composite goal requires children.", nameof(childGoalIds));
+                if (requiredCount != 1)
+                    throw new ArgumentException(
+                        "Composite goal is a boolean aggregate and requires count 1.",
+                        nameof(requiredCount));
             }
             else
             {
@@ -368,10 +372,10 @@ namespace Match3.Engine.Runtime
             if (progress == null) throw new ArgumentNullException(nameof(progress));
             var allRootsComplete = registry.RootGoalIds.All(x =>
                 GoalProgressPlanner.IsComplete(registry, progress, x));
-            return Resolve(finalSettleComplete, allRootsComplete, budget);
+            return ResolveCore(finalSettleComplete, allRootsComplete, budget);
         }
 
-        public static LevelTerminalResolution Resolve(
+        private static LevelTerminalResolution ResolveCore(
             bool finalSettleComplete,
             bool allGoalsComplete,
             LevelBudgetSnapshot budget)
