@@ -147,6 +147,11 @@ namespace Match3.Engine.Runtime
             if (request == null) throw new ArgumentNullException(nameof(request));
             if (!board.Contains(request.Target))
                 throw new ArgumentOutOfRangeException(nameof(request));
+            SpecialCellState targetCell;
+            if (!board.TryGet(request.Target, out targetCell) ||
+                targetCell.Immune || targetCell.Locked)
+                throw new InvalidOperationException(
+                    "Booster requires an eligible target cell.");
 
             switch (request.Kind)
             {
