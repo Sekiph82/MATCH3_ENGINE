@@ -521,6 +521,31 @@ jobs:
           print('UNITY_M02_ORIGINAL_SDK_SNAPSHOT_PLANNER=PASS DISCOVERED=%d SKIPPED=0' % len(cases))
           PY
 
+      - name: Require real Unity M02 true-idle hint accessibility and deterministic candidate tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/artifacts/editmode-results.xml" "$PWD/artifacts/playmode-results.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          expected = {
+              'TrueIdleDeadlineEmitsOneDeterministicSdkLegalHint',
+              'ModalTutorialAdsAnimationPauseAndPowerPolicyAllSuppressHints',
+              'MissingOrZeroSdkLegalMovesNeverProduceFabricatedHint',
+              'RealPlayerActionResetsIdleAndReleasesOneHintPerAction',
+              'HintTimerCannotGoBackwardsOrUseInvalidUnseededConfiguration',
+          }
+          cases = {}
+          for path in sys.argv[1:]:
+              for item in ET.parse(path).getroot().findall('.//test-case'):
+                  name = item.get('fullname', '')
+                  if 'IdleHintPolicyTests.' in name:
+                      cases.setdefault(name.rsplit('.', 1)[-1], []).append(item.get('result'))
+          if set(cases) != expected or any(v != ['Passed'] for v in cases.values()):
+              raise SystemExit('FAIL: original Unity M02 idle hint cases missing/failed: '+str(cases))
+          print('UNITY_M02_TRUE_IDLE_HINT_POLICY=PASS DISCOVERED=%d SKIPPED=0' % len(cases))
+          PY
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
