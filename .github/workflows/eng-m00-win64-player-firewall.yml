@@ -1,7 +1,7 @@
-name: ENG-M03 Real Windows Player Release Firewall
+name: ENG-M04 Real Windows Player Release Firewall
 on:
   workflow_dispatch:
-  # ENG-M03 FINAL frozen 001-016 match/special-combination source plus inherited M00-M02 runtime: real Unity Win64 build, strict release scanner.
+  # ENG-M04 FINAL frozen gravity/cascade/transport source plus inherited M00-M03 runtime: real Unity Win64 build, strict release scanner.
   # Run once when this tightly scoped workflow is created or adjusted.
   # No automatic player builds for unrelated source or TASKS.md commits.
   push:
@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: eng-m03-win64-player-firewall
+  group: eng-m04-win64-player-firewall
   cancel-in-progress: true
 
 jobs:
@@ -83,9 +83,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/eng-m00-windows-player"
-          mkdir -p "$out" "$PWD/evidence/eng-m00-win64"
-          pwsh -NoProfile -Command "& './Tools/ScanUnityReleaseArtifact.ps1' -SourceAssetRoot @('$PWD/Assets', '$PWD/Packages/com.match3.engine/Runtime') -ManifestPath '$PWD/evidence/eng-m00-win64/source-assets.sha256.txt'"
+          out="$RUNNER_TEMP/eng-m04-windows-player"
+          mkdir -p "$out" "$PWD/evidence/eng-m04-win64"
+          pwsh -NoProfile -Command "& './Tools/ScanUnityReleaseArtifact.ps1' -SourceAssetRoot @('$PWD/Assets', '$PWD/Packages/com.match3.engine/Runtime') -ManifestPath '$PWD/evidence/eng-m04-win64/source-assets.sha256.txt'"
           buildlog="$RUNNER_TEMP/unity-win64-build.log"
           set +e
           timeout 1800s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics -quit \
@@ -108,18 +108,18 @@ jobs:
           }
           pwsh -NoProfile -File Tools/ScanUnityReleaseArtifact.ps1 -ArtifactPath "$out"
           test -s "$out/NeutralMatch3.exe"
-          printf 'SOURCE_SHA=%s\n' "$GITHUB_SHA" > evidence/eng-m00-win64/release-proof.txt
-          printf 'UNITY_VERSION=6000.6.5f1\n' >> evidence/eng-m00-win64/release-proof.txt
-          printf 'BUILD_TYPE=StandaloneWindows64_RELEASE\n' >> evidence/eng-m00-win64/release-proof.txt
-          printf 'RELEASE_SCANNER=PASS\n' >> evidence/eng-m00-win64/release-proof.txt
-          printf 'EXECUTABLE_SHA256=%s\n' "$(sha256sum "$out/NeutralMatch3.exe" | cut -d' ' -f1)" >> evidence/eng-m00-win64/release-proof.txt
-          printf 'RELEASE_FILE_COUNT=%s\n' "$(find "$out" -type f | wc -l)" >> evidence/eng-m00-win64/release-proof.txt
+          printf 'SOURCE_SHA=%s\n' "$GITHUB_SHA" > evidence/eng-m04-win64/release-proof.txt
+          printf 'UNITY_VERSION=6000.6.5f1\n' >> evidence/eng-m04-win64/release-proof.txt
+          printf 'BUILD_TYPE=StandaloneWindows64_RELEASE\n' >> evidence/eng-m04-win64/release-proof.txt
+          printf 'RELEASE_SCANNER=PASS\n' >> evidence/eng-m04-win64/release-proof.txt
+          printf 'EXECUTABLE_SHA256=%s\n' "$(sha256sum "$out/NeutralMatch3.exe" | cut -d' ' -f1)" >> evidence/eng-m04-win64/release-proof.txt
+          printf 'RELEASE_FILE_COUNT=%s\n' "$(find "$out" -type f | wc -l)" >> evidence/eng-m04-win64/release-proof.txt
           echo 'REAL_WIN64_PLAYER_SCANNER=PASS'
       - name: Independently reject forbidden release fixture
         shell: bash
         run: |
           set -euo pipefail
-          fixture="$RUNNER_TEMP/eng-m00-forbidden-test-payload"
+          fixture="$RUNNER_TEMP/eng-m04-forbidden-test-payload"
           mkdir -p "$fixture/Tests"
           printf 'NUnit.Framework test assembly marker\n' > "$fixture/Tests/InjectedRunner.dll"
           set +e
@@ -133,8 +133,8 @@ jobs:
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: eng-m00-real-win64-release-firewall-${{ github.sha }}
-          path: evidence/eng-m00-win64/
+          name: eng-m04-real-win64-release-firewall-${{ github.sha }}
+          path: evidence/eng-m04-win64/
           retention-days: 1
           if-no-files-found: error
           compression-level: 6
