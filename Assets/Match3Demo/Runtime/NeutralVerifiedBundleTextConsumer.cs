@@ -23,9 +23,6 @@ namespace Match3.Engine.Demo
             if (!GameProfileCatalog.IsKnownId(expectedGameId) ||
                 approved.GameId != expectedGameId)
                 throw new InvalidOperationException("Signed bundle game mismatch.");
-            if (approved.Platform != CurrentPlatform())
-                throw new InvalidOperationException(
-                    "Cannot load a bundle signed for a different Unity player platform.");
             if (!RemoteContentSafety.IsSafePath(signedBundlePath) ||
                 !approved.BundlePaths.Contains(signedBundlePath,
                     StringComparer.Ordinal))
@@ -35,6 +32,9 @@ namespace Match3.Engine.Demo
                 throw new ArgumentException("Invalid neutral asset address.",
                     nameof(assetName));
             cancellation.ThrowIfCancellationRequested();
+            if (approved.Platform != CurrentPlatform())
+                throw new InvalidOperationException(
+                    "Cannot load a bundle signed for a different Unity player platform.");
 
             // Defensive copy is provided by the verified payload API;
             // its signature, content type, digest and source partition were
