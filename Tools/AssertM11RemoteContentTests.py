@@ -31,6 +31,9 @@ EXPECTED = {
     "M11_007_DurableCrashFallbackPreservesAntiRollbackSequence",
     "M11_011_InterruptedStagingAndPointerTamperNeverActivateContent",
     "M11_011_InvalidStageDoesNotTouchDiskAndOrphanQuotaFailsClosed",
+    "M11_006_SignedPackagedStarterLoadsForFiveNeutralProfiles",
+    "M11_006_PackagedPayloadTamperAndRevokedKeyCannotBoot",
+    "M11_006_RevokedInstalledReleaseFallsBackToSeparateSignedStarter",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -40,6 +43,7 @@ SUITES = {
     "RemoteManifestCodecAndLevelTests",
     "RemoteAddressablesContractTests",
     "RemoteDurableActivationHostTests",
+    "RemotePackagedStarterContractTests",
 }
 
 def check(paths):
