@@ -414,7 +414,7 @@
 
 ## Dependency gates
 - ENG-M00 compatibility/legal first; ENG-M01–M04 core primitives before ENG-M05–M10 systems; ENG-M11 content delivery; ENG-M12 core gameplay v0.9 sign-off; ENG-M13–M24 commercial/messaging/privacy/server and final cross-game release gates.
-- Match3-Level-Factory work MUST NOT start after ENG-M01; remain entirely on Engine through ENG-M24 independently audited PASS. Only then start Factory at LFX-M00 and finish LFX-M14 PASS; five games begin only afterward.
+- Match3-Level-Factory work MUST NOT start after ENG-M01; remain entirely on Engine through ENG-M24 independently audited PASS. Only then start Level Factory at LFX-M00 and finish LFX-M14 PASS; THEN independently complete MATCH3-Visual-UI-Factory VUF-M00..VUF-M11; five games begin only after all three gates.
 - No game title earns READY status based on paper specification or static code review alone.
 
 _Original planning baseline: 13 milestones; 115 tasks; no completed task claimed. See commercial expansion below._
