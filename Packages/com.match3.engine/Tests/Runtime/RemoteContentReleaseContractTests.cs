@@ -58,9 +58,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_005_SignedCompleteStageRefusesCorruptionMissingAndExtras()
         {
-            using (var rsa = RSA.Create())
+            using (var rsa = new RSACryptoServiceProvider(2048))
             {
-                rsa.KeySize = 2048;
                 var good = Stage(rsa, 1, "v1");
                 Assert.That(good.Manifest.ReleaseId, Is.EqualTo("v1"));
                 Assert.That(good.FileDigests.Count, Is.EqualTo(1));
@@ -104,9 +103,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_006_VerifiedOfflineSelectionHasFailClosedEmptyState()
         {
-            using (var rsa = RSA.Create())
+            using (var rsa = new RSACryptoServiceProvider(2048))
             {
-                rsa.KeySize = 2048;
                 var starter = Stage(rsa, 1, "starter");
                 var state = new RemoteReleaseState("Coral_Rescue",
                     RemotePlatform.Android, RemoteChannel.FamilyTest);
@@ -123,9 +121,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_007_SignedSequencePreventsDowngradeAndRecoverKeepsHighWater()
         {
-            using (var rsa = RSA.Create())
+            using (var rsa = new RSACryptoServiceProvider(2048))
             {
-                rsa.KeySize = 2048;
                 var state = new RemoteReleaseState("Coral_Rescue",
                     RemotePlatform.Android, RemoteChannel.FamilyTest);
                 var first = Stage(rsa, 10, "v10");
@@ -189,9 +186,8 @@ namespace Match3.Engine.Tests
             var eventCommand = new SignedRemoteMetaCommand(
                 "Wonder_Pop", "signed-source", RemoteMetaKind.Event,
                 "season.1", true);
-            using (var signer = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
                 var m = new RemoteContentManifest("Wonder_Pop",
                     RemotePlatform.Android, RemoteChannel.FamilyTest,
                     "signed-meta", "key-v1", new EngineVersion(1, 0, 0),
