@@ -82,6 +82,7 @@ namespace Match3.Engine.Runtime
             };
             if (values.Any(x => double.IsNaN(x) || double.IsInfinity(x)) ||
                 viewportWidth <= 0 || viewportHeight <= 0 ||
+                viewportHeight < viewportWidth ||
                 insetLeft < 0 || insetTop < 0 ||
                 insetRight < 0 || insetBottom < 0 ||
                 insetLeft + insetRight >= viewportWidth ||
