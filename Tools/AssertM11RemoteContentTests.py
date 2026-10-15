@@ -30,6 +30,7 @@ EXPECTED = {
     "M11_005_DurableFilesAreRevalidatedAfterFreshHostRestart",
     "M11_007_DurableCrashFallbackPreservesAntiRollbackSequence",
     "M11_011_InterruptedStagingAndPointerTamperNeverActivateContent",
+    "M11_011_InvalidStageDoesNotTouchDiskAndOrphanQuotaFailsClosed",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
