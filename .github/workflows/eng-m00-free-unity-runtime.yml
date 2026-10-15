@@ -2,6 +2,7 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # ENG-M11 R08: hosted-neutral Unity patch view and exact 35-case regression.
   # ENG-M11 R07: full 33-case signed packaged fallback/patch UX plus real official Addressables consumer.
   # ENG-M11 R06: recheck actual retained Addressables initialization handle in CI-only test.
   # ENG-M11 R05 hosted current 27-case app-private signed crash/restart regression.
