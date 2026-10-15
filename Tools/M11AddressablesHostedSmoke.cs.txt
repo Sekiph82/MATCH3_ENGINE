@@ -1,0 +1,86 @@
+// Hosted CI ONLY. This text template is not a Unity-imported engine asset.
+// Unity's official com.unity.addressables@2.11.2 is installed in the ephemeral
+// hosted project before copying this file into Assets/Editor on the runner.
+// No game images, third-party artwork or permanent package manifest changes.
+using System;
+using System.IO;
+using System.Text;
+using NUnit.Framework;
+using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Build;
+using UnityEditor.AddressableAssets.Settings;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
+
+namespace Match3.Engine.HostedOptionalAddressables
+{
+    public static class M11HostedAddressablesBootstrap
+    {
+        public const string FixtureDirectory = "Assets/EngineM11HostedNeutral";
+        public const string FixturePath = FixtureDirectory + "/signed-content-sample.txt";
+        public const string Address = "match3/engine/neutral/addressables-consumer";
+
+        // Called as a separate explicitly bounded hosted Unity process.
+        public static void CreateAndBuild()
+        {
+            if (!Application.isBatchMode)
+                throw new InvalidOperationException("Hosted isolated CI mode only.");
+            Directory.CreateDirectory(FixtureDirectory);
+            File.WriteAllText(FixturePath,
+                "match3-neutral-addressables-consumer-v1\n",
+                new UTF8Encoding(false));
+            AssetDatabase.ImportAsset(FixturePath,
+                ImportAssetOptions.ForceSynchronousImport);
+            var guid = AssetDatabase.AssetPathToGUID(FixturePath);
+            if (string.IsNullOrEmpty(guid))
+                throw new InvalidOperationException("Neutral TextAsset GUID missing.");
+            var settings = AddressableAssetSettingsDefaultObject.GetSettings(true);
+            if (settings == null || settings.DefaultGroup == null)
+                throw new InvalidOperationException("Addressables settings unavailable.");
+            var entry = settings.CreateOrMoveEntry(guid, settings.DefaultGroup);
+            if (entry == null)
+                throw new InvalidOperationException("Could not register neutral Addressable.");
+            entry.address = Address;
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
+            AddressableAssetSettings.BuildPlayerContent(out AddressablesPlayerBuildResult result);
+            if (result == null || !string.IsNullOrEmpty(result.Error))
+                throw new InvalidOperationException(
+                    "Official Addressables catalog/bundle build failed: " +
+                    (result == null ? "<null result>" : result.Error));
+            Debug.Log("M11_REAL_ADDRESSABLES_NEUTRAL_CONTENT_BUILD=PASS");
+        }
+    }
+
+    public sealed class M11HostedAddressablesConsumerTests
+    {
+        [Test]
+        public void M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset()
+        {
+            var catalogHandle = Addressables.InitializeAsync();
+            catalogHandle.WaitForCompletion();
+            Assert.That(catalogHandle.Status,
+                Is.EqualTo(AsyncOperationStatus.Succeeded),
+                "Official Unity Addressables runtime catalog initialization failed.");
+            var loaded = Addressables.LoadAssetAsync<TextAsset>(
+                M11HostedAddressablesBootstrap.Address);
+            try
+            {
+                var textAsset = loaded.WaitForCompletion();
+                Assert.That(loaded.Status,
+                    Is.EqualTo(AsyncOperationStatus.Succeeded));
+                Assert.That(textAsset, Is.Not.Null);
+                Assert.That(textAsset.text,
+                    Is.EqualTo("match3-neutral-addressables-consumer-v1\n"));
+                Assert.That(textAsset.name, Is.EqualTo("signed-content-sample"));
+            }
+            finally
+            {
+                Addressables.Release(loaded);
+                Addressables.Release(catalogHandle);
+            }
+        }
+    }
+}
