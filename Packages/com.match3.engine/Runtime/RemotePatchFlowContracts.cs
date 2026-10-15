@@ -7,7 +7,7 @@ namespace Match3.Engine.Runtime
     public enum RemotePatchStage
     {
         Available = 0, Downloading = 1, Verified = 2,
-        Ready = 3, Offline = 4, Failed = 5
+        Ready = 3, Offline = 4, Failed = 5, NoUpdate = 6
     }
 
     public sealed class RemotePatchUiSnapshot
@@ -82,7 +82,8 @@ namespace Match3.Engine.Runtime
                     checked((int)(_verifiedBytes * 100 / _totalBytes)),
                     _stage == RemotePatchStage.Failed,
                     _stage == RemotePatchStage.Ready ||
-                    _stage == RemotePatchStage.Offline);
+                    _stage == RemotePatchStage.Offline ||
+                    _stage == RemotePatchStage.NoUpdate);
             }
         }
 
@@ -127,6 +128,24 @@ namespace Match3.Engine.Runtime
             }
         }
 
+        public void RecordCurrentInstalled(RemoteVerifiedRelease installed,
+            IEnumerable<RemotePublicSigningKey> trustedKeys,
+            EngineVersion engine, long nowUnixSeconds)
+        {
+            if (installed == null) throw new ArgumentNullException(nameof(installed));
+            RemoteManifestVerifier.Verify(installed.Manifest,
+                installed.Signature, trustedKeys, _gameId,
+                _platform, _channel, engine, nowUnixSeconds);
+            lock (_gate)
+            {
+                if (_stage != RemotePatchStage.Verified ||
+                    installed.SignedEnvelopeDigest != _targetDigest)
+                    throw new InvalidOperationException(
+                        "Cannot claim no-update without identical verified installed release.");
+                _stage = RemotePatchStage.NoUpdate;
+            }
+        }
+
         public void RecordOfflineFallback(
             RemoteVerifiedRelease verifiedOffline,
             IEnumerable<RemotePublicSigningKey> trustedKeys,
@@ -151,7 +170,8 @@ namespace Match3.Engine.Runtime
             lock (_gate)
             {
                 if (_stage == RemotePatchStage.Ready ||
-                    _stage == RemotePatchStage.Offline)
+                    _stage == RemotePatchStage.Offline ||
+                    _stage == RemotePatchStage.NoUpdate)
                     throw new InvalidOperationException(
                         "Committed patch cannot be reclassified as failed.");
                 // No exception text is exposed to UI: may contain secrets,
