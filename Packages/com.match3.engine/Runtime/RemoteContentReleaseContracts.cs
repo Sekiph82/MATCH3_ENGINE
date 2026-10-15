@@ -248,19 +248,24 @@ namespace Match3.Engine.Runtime
 
     public static class RemoteMetaPolicy
     {
-        // This gate is called ONLY after manifest signature+contents verification.
-        // Does not grant purchases, unlock achievements, or change gameplay.
+        // Only a fully verified manifest may authorize immutable meta claims.
+        // The public command constructor grants nothing by itself.
         public static bool Allow(GameProfile profile,
-            SignedRemoteMetaCommand command,
-            bool manifestAuthenticated, bool ageEligible,
-            bool commerceApproved)
+            SignedRemoteMetaCommand command, RemoteVerifiedRelease release,
+            bool ageEligible, bool commerceApproved)
         {
             if (profile == null) throw new ArgumentNullException(nameof(profile));
             if (command == null) throw new ArgumentNullException(nameof(command));
-            if (!manifestAuthenticated ||
-                profile.Id != command.GameId)
+            if (release == null ||
+                profile.Id != command.GameId ||
+                release.Manifest.GameId != profile.Id ||
+                !release.Manifest.MetaCommands.Any(x =>
+                    x.SourceReceiptId == command.SourceReceiptId &&
+                    x.Kind == command.Kind &&
+                    x.NeutralId == command.NeutralId &&
+                    x.Enable == command.Enable))
                 throw new InvalidOperationException(
-                    "Unsigned or cross-title metadata rejected.");
+                    "Unsigned, unbound or cross-title metadata rejected.");
             if (command.Kind == RemoteMetaKind.Offer)
                 return profile.Id != "Wonder_Pop" &&
                     ageEligible && commerceApproved;
