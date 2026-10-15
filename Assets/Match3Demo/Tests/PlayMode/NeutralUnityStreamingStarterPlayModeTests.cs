@@ -59,9 +59,18 @@ namespace Match3.Engine.Demo.Tests
 
         private static void DeleteOnlyOwnedFixture()
         {
+            // Never recurse into unrelated owner files. Only remove the
+            // three exact paths this test created, then empty directories.
             var root = Partition();
-            if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
+            foreach (var path in new[] {
+                Path.Combine(root, "manifest.canonical"),
+                Path.Combine(root, "manifest.sig"),
+                Path.Combine(root, "qa", "neutral.json")
+            })
+                if (File.Exists(path)) File.Delete(path);
+            var qa = Path.Combine(root, "qa");
+            if (Directory.Exists(qa)) Directory.Delete(qa);
+            if (Directory.Exists(root)) Directory.Delete(root);
         }
 
         [UnityTest]
@@ -70,9 +79,10 @@ namespace Match3.Engine.Demo.Tests
             using (var signer = new RSACryptoServiceProvider(2048))
             {
                 var manifest = Manifest();
-                WriteIsolated(signer, manifest);
+                var existedBefore = Directory.Exists(Partition());
                 try
                 {
+                    WriteIsolated(signer, manifest);
                     var task = NeutralUnityStreamingStarterLoader.LoadAsync(
                         manifest.GameId, manifest.Platform, manifest.Channel,
                         new EngineVersion(1, 0, 0), new[] { Key(signer) },
@@ -87,7 +97,10 @@ namespace Match3.Engine.Demo.Tests
                         Is.EqualTo(RemoteContentSafety.Sha256(Content)));
                     Assert.That(task.Result.Signature.Length, Is.EqualTo(256));
                 }
-                finally { DeleteOnlyOwnedFixture(); }
+                finally
+                {
+                    if (!existedBefore) DeleteOnlyOwnedFixture();
+                }
             }
         }
 
@@ -98,9 +111,10 @@ namespace Match3.Engine.Demo.Tests
             using (var outsider = new RSACryptoServiceProvider(2048))
             {
                 var manifest = Manifest();
-                WriteIsolated(signer, manifest);
+                var existedBefore = Directory.Exists(Partition());
                 try
                 {
+                    WriteIsolated(signer, manifest);
                     var wrongKey = NeutralUnityStreamingStarterLoader.LoadAsync(
                         manifest.GameId, manifest.Platform, manifest.Channel,
                         new EngineVersion(1, 0, 0), new[] { Key(outsider) },
@@ -120,7 +134,10 @@ namespace Match3.Engine.Demo.Tests
                     Assert.That(changed.IsFaulted, Is.True,
                         "Changed packaged bytes must fail even with a valid manifest.");
                 }
-                finally { DeleteOnlyOwnedFixture(); }
+                finally
+                {
+                    if (!existedBefore) DeleteOnlyOwnedFixture();
+                }
             }
         }
     }
