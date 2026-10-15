@@ -259,6 +259,61 @@ jobs:
           fi
           echo 'UNITY_PINNED_ORIGINAL_MATCH3_SAMPLE=PASS'
 
+      - name: Independently prove actual Unity runner propagates assertion failures
+        shell: bash
+        run: |
+          set -euo pipefail
+          results="$PWD/artifacts/runner-integrity-results.xml"
+          log="$RUNNER_TEMP/eng-m00-expected-failure.log"
+          set +e
+          M00_FORCE_TEST_FAILURE=1 timeout 240s xvfb-run -a "$UNITY_EDITOR_PATH" \
+            -batchmode -nographics -projectPath "$PWD" -runTests \
+            -testPlatform EditMode \
+            -testFilter 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe' \
+            -testResults "$results" -logFile "$log"
+          exit_code=$?
+          set -e
+          # Run this true negative probe BEFORE the main EditMode/PlayMode
+          # suites, not after two long Unity sessions have depleted/reset
+          # the hosted licensing lease. Only retry Unity startup code 198
+          # with no XML. All other failures still fail closed.
+          if (( exit_code == 198 )) && [[ ! -s "$results" ]]; then
+            for startup_retry in 1 2 3 4; do
+              echo "UNITY_INTEGRITY_EXIT_198_STARTUP_RETRY=$startup_retry"
+              sleep $((startup_retry * 15))
+              rm -f -- "$results"
+              set +e
+              M00_FORCE_TEST_FAILURE=1 timeout 240s xvfb-run -a "$UNITY_EDITOR_PATH" \
+                -batchmode -nographics -projectPath "$PWD" -runTests \
+                -testPlatform EditMode \
+                -testFilter 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe' \
+                -testResults "$results" -logFile "$log"
+              exit_code=$?
+              set -e
+              if (( exit_code != 198 )) || [[ -s "$results" ]]; then
+                break
+              fi
+            done
+          fi
+          [[ "$exit_code" -ne 0 && -s "$results" ]] || {
+            echo "::error::Forced Unity assertion was not reported as a nonzero execution with XML after strictly bounded startup retries. exit=$exit_code"
+            exit 1
+          }
+          python3 - "$results" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          expected = 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe'
+          matches = [x for x in root.findall('.//test-case')
+                     if x.get('fullname') == expected and x.get('result') == 'Failed']
+          counts = tuple(int(root.get(k, '-1')) for k in
+                         ('total','passed','failed','skipped'))
+          if root.tag != 'test-run' or counts != (1,0,1,0) or len(matches) != 1:
+              raise SystemExit('FAIL: intentionally failing test lacked exact NUnit assertion evidence')
+          print('UNITY_NEGATIVE_ASSERTION=PASS EXACT_FAILED=1 EXIT_NONZERO=true')
+          PY
+
+
       - name: Run actual EditMode and PlayMode tests with licensed Unity Editor
         id: unity-tests
         shell: bash
@@ -861,55 +916,6 @@ jobs:
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
-      - name: Independently prove actual Unity runner propagates assertion failures
-        shell: bash
-        run: |
-          set -euo pipefail
-          results="$PWD/artifacts/runner-integrity-results.xml"
-          log="$RUNNER_TEMP/eng-m00-expected-failure.log"
-          set +e
-          M00_FORCE_TEST_FAILURE=1 timeout 240s xvfb-run -a "$UNITY_EDITOR_PATH" \
-            -batchmode -nographics -projectPath "$PWD" -runTests \
-            -testPlatform EditMode \
-            -testFilter 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe' \
-            -testResults "$results" -logFile "$log"
-          exit_code=$?
-          set -e
-          # Unity's process launcher can occasionally exit before starting
-          # a second EditMode run against a just-closed project. Keep this
-          # assertion gate strict: a retry only passes with real failed XML
-          # AND a nonzero Unity exit. Never accept missing evidence as PASS.
-          if [[ "$exit_code" -eq 0 || ! -s "$results" ]]; then
-            echo "::warning::Unity integrity probe startup incomplete; initial_exit=$exit_code xml_present=$([[ -s "$results" ]] && echo yes || echo no). Retrying once after editor release."
-            sleep 15
-            rm -f -- "$results"
-            set +e
-            M00_FORCE_TEST_FAILURE=1 timeout 240s xvfb-run -a "$UNITY_EDITOR_PATH" \
-              -batchmode -nographics -projectPath "$PWD" -runTests \
-              -testPlatform EditMode \
-              -testFilter 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe' \
-              -testResults "$results" -logFile "$log"
-            exit_code=$?
-            set -e
-          fi
-          [[ "$exit_code" -ne 0 && -s "$results" ]] || {
-            echo "::error::Forced Unity assertion was not reported as a nonzero execution with XML after bounded startup retry. exit=$exit_code"
-            exit 1
-          }
-          python3 - "$results" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-          root = ET.parse(sys.argv[1]).getroot()
-          expected = 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe'
-          matches = [x for x in root.findall('.//test-case')
-                     if x.get('fullname') == expected and x.get('result') == 'Failed']
-          counts = tuple(int(root.get(k, '-1')) for k in
-                         ('total','passed','failed','skipped'))
-          if root.tag != 'test-run' or counts != (1,0,1,0) or len(matches) != 1:
-              raise SystemExit('FAIL: intentionally failing test lacked exact NUnit assertion evidence')
-          print('UNITY_NEGATIVE_ASSERTION=PASS EXACT_FAILED=1 EXIT_NONZERO=true')
-          PY
-
       # Exercise the existing clean-package-isolation validator on an entirely
       # new transient project, never in the user's Windows directory.
       - name: Independently import pinned Match3 UPM package into a clean project
