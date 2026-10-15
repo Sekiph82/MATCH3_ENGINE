@@ -59,7 +59,10 @@ namespace Match3.Engine.HostedOptionalAddressables
         [Test]
         public void M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset()
         {
-            var catalogHandle = Addressables.InitializeAsync();
+            // Explicitly retain the operation handle until assertions and release.
+            // Unity 2.11 InitializeAsync() defaults autoReleaseHandle=true,
+            // which makes reading Status after WaitForCompletion invalid.
+            var catalogHandle = Addressables.InitializeAsync(false);
             catalogHandle.WaitForCompletion();
             Assert.That(catalogHandle.Status,
                 Is.EqualTo(AsyncOperationStatus.Succeeded),
@@ -79,7 +82,7 @@ namespace Match3.Engine.HostedOptionalAddressables
             finally
             {
                 Addressables.Release(loaded);
-                Addressables.Release(catalogHandle);
+                if (catalogHandle.IsValid()) Addressables.Release(catalogHandle);
             }
         }
     }
