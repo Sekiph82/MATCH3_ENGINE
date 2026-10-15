@@ -140,6 +140,7 @@ namespace Match3.Engine.Runtime
         public RemotePlatform Platform { get; }
         public RemoteChannel Channel { get; }
         public string ReleaseId { get; }
+        public long Sequence { get; }
         public string KeyId { get; }
         public EngineVersion MinEngine { get; }
         public EngineVersion MaxEngine { get; }
@@ -151,8 +152,10 @@ namespace Match3.Engine.Runtime
             RemoteChannel channel, string releaseId, string keyId,
             EngineVersion minEngine, EngineVersion maxEngine,
             long issuedAt, long expiresAt, IEnumerable<RemoteContentEntry> entries,
-            int schema = 1)
+            int schema = 1, long sequence = 1)
         {
+            if (sequence < 1)
+                throw new ArgumentOutOfRangeException(nameof(sequence));
             if (schema != 1)
                 throw new NotSupportedException("Only signed manifest schema 1 supported.");
             if (!GameProfileCatalog.IsKnownId(gameId))
@@ -189,6 +192,7 @@ namespace Match3.Engine.Runtime
             Platform = platform;
             Channel = channel;
             ReleaseId = releaseId;
+            Sequence = sequence;
             KeyId = keyId;
             MinEngine = minEngine;
             MaxEngine = maxEngine;
@@ -212,7 +216,8 @@ namespace Match3.Engine.Runtime
                 "MATCH3-CONTENT-V1", Schema.ToString(CultureInfo.InvariantCulture),
                 GameId, ((int)Platform).ToString(CultureInfo.InvariantCulture),
                 ((int)Channel).ToString(CultureInfo.InvariantCulture),
-                ReleaseId, KeyId, MinEngine.ToString(), MaxEngine.ToString(),
+                ReleaseId, Sequence.ToString(CultureInfo.InvariantCulture),
+                KeyId, MinEngine.ToString(), MaxEngine.ToString(),
                 IssuedAt.ToString(CultureInfo.InvariantCulture),
                 ExpiresAt.ToString(CultureInfo.InvariantCulture),
                 Entries.Count.ToString(CultureInfo.InvariantCulture)
