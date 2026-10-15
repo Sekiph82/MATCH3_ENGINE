@@ -33,10 +33,10 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentException(
                     "UI completeness state set exceeds bound or contains null.",
                     nameof(states));
-            if (array.GroupBy(x => x.Surface)
-                .Any(x => x.Count() != 1))
+            if (array.GroupBy(x => x.StateId, StringComparer.Ordinal)
+                .Any(x => x.Count() > 1))
                 throw new ArgumentException(
-                    "UI completeness requires one state per surface.",
+                    "UI completeness state IDs must be globally unique.",
                     nameof(states));
 
             var required = Enum.GetValues(typeof(UiSurfaceKind))
@@ -44,6 +44,7 @@ namespace Match3.Engine.Runtime
                 .OrderBy(x => (int)x)
                 .ToArray();
             var actual = array.Select(x => x.Surface)
+                .Distinct()
                 .OrderBy(x => (int)x)
                 .ToArray();
             if (!required.SequenceEqual(actual))
