@@ -134,5 +134,64 @@ namespace Match3.Engine.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 HonestRewardProjection.Project(true, false, -1));
         }
+
+        [Test]
+        public void M10_013_AllEngagementViewsRequireVerifiedLedgerAndNeverInventOffers()
+        {
+            foreach (var gameId in GameProfileCatalog.Ids)
+            {
+                var profile = new GameProfile(gameId, "neutral." + gameId,
+                    ProfileAgeRule.General, ProfileContentChannel.Development,
+                    new[] { new FeatureFlag("catch_up", new EngineVersion(1, 0, 0)) });
+                foreach (EngagementKind kind in Enum.GetValues(typeof(EngagementKind)))
+                {
+                    var fact = new VerifiedEngagementFact(gameId,
+                        "real.source." + kind, kind, true, false, 3, 7);
+                    var view = HonestEngagementProjector.Project(profile,
+                        fact, 100, sourceIsAuthoritativelyVerified: true);
+                    Assert.That(view.Kind, Is.EqualTo(kind));
+                    Assert.That(view.Progress, Is.EqualTo(3));
+                    Assert.That(view.Target, Is.EqualTo(7));
+                    Assert.That(view.State, Is.EqualTo(RewardPanelState.Available));
+                    Assert.That(view.ShowCountdown, Is.False);
+                    Assert.That(view.CanClaim, Is.EqualTo(
+                        kind == EngagementKind.Gift ||
+                        kind == EngagementKind.Collection ||
+                        kind == EngagementKind.CatchUp));
+                    Assert.Throws<InvalidOperationException>(() =>
+                        HonestEngagementProjector.Project(profile,
+                            fact, 100, sourceIsAuthoritativelyVerified: false));
+                }
+                Assert.Throws<InvalidOperationException>(() =>
+                    HonestEngagementProjector.Project(
+                        profile,
+                        new VerifiedEngagementFact(
+                            gameId == "Wonder_Pop" ? "Coral_Rescue" : "Wonder_Pop",
+                            "foreign.receipt", EngagementKind.Journey,
+                            true, false, 1, 3),
+                        100, true));
+            }
+            var general = new GameProfile("Coral_Rescue", "neutral",
+                ProfileAgeRule.General, ProfileContentChannel.Development);
+            var catchup = new VerifiedEngagementFact("Coral_Rescue",
+                "catchup.source", EngagementKind.CatchUp, true, false,
+                1, 1, verifiedExpiryUnixSeconds: 200);
+            Assert.Throws<InvalidOperationException>(() =>
+                HonestEngagementProjector.Project(general, catchup, 100, true));
+            var earned = new VerifiedEngagementFact("Coral_Rescue",
+                "weekly.source", EngagementKind.WeeklyRecord, true, false,
+                4, 5, verifiedExpiryUnixSeconds: 125);
+            var projection = HonestEngagementProjector.Project(
+                general, earned, 100, true);
+            Assert.That(projection.ShowCountdown, Is.True);
+            Assert.That(projection.RemainingSeconds, Is.EqualTo(25));
+            Assert.That(projection.CanClaim, Is.False);
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new VerifiedEngagementFact("Coral_Rescue", "x",
+                    EngagementKind.Gift, true, false, 7, 6));
+            Assert.Throws<InvalidOperationException>(() =>
+                new VerifiedEngagementFact("Coral_Rescue", "x",
+                    EngagementKind.Gift, false, true, 0, 1));
+        }
     }
 }
