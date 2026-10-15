@@ -97,16 +97,7 @@ namespace Match3.Engine.Tests
             var homeLoading = new UiSurfaceState(
                 "state-Home-loading",
                 UiSurfaceKind.Home,
-                new[]
-                {
-                    new UiActionDefinition(
-                        "loading-help",
-                        UiSurfaceKind.Home,
-                        UiActionKind.Command,
-                        visible: true,
-                        enabled: true,
-                        commandKey: "home.loading.help")
-                });
+                new UiActionDefinition[0]);
             var multiStateReport = UiCompletenessValidator.Validate(
                 states.Concat(new[] { homeLoading }));
             Assert.That(multiStateReport.Surfaces.Count,
