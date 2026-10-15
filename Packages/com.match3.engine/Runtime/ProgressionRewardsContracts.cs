@@ -35,13 +35,21 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentException("Result ID required.", nameof(resultId));
             if (!GameProfileCatalog.IsKnownId(gameId))
                 throw new ArgumentException("Unknown game ID.", nameof(gameId));
-            if (string.IsNullOrWhiteSpace(profileId))
-                throw new ArgumentException("Profile ID required.", nameof(profileId));
-            if (string.IsNullOrWhiteSpace(modeId))
-                throw new ArgumentException("Mode ID required.", nameof(modeId));
+            if (string.IsNullOrWhiteSpace(profileId) ||
+                profileId.Contains("|"))
+                throw new ArgumentException(
+                    "Profile ID required and cannot contain '|'.",
+                    nameof(profileId));
+            if (string.IsNullOrWhiteSpace(modeId) ||
+                modeId.Contains("|"))
+                throw new ArgumentException(
+                    "Mode ID required and cannot contain '|'.",
+                    nameof(modeId));
             if (string.IsNullOrWhiteSpace(levelId) ||
-                string.IsNullOrWhiteSpace(frontierLevelId))
-                throw new ArgumentException("Level IDs required.");
+                string.IsNullOrWhiteSpace(frontierLevelId) ||
+                levelId.Contains("|") || frontierLevelId.Contains("|"))
+                throw new ArgumentException(
+                    "Level IDs required and cannot contain '|'.");
             if (score < 0)
                 throw new ArgumentOutOfRangeException(nameof(score));
             if (stars < 0 || stars > 3)
@@ -55,8 +63,10 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentOutOfRangeException(nameof(attemptOrdinal));
             if (canonicalDayId < 0)
                 throw new ArgumentOutOfRangeException(nameof(canonicalDayId));
-            if (string.IsNullOrWhiteSpace(canonicalWeekId))
-                throw new ArgumentException("Canonical week ID required.",
+            if (string.IsNullOrWhiteSpace(canonicalWeekId) ||
+                canonicalWeekId.Contains("|"))
+                throw new ArgumentException(
+                    "Canonical week ID required and cannot contain '|'.",
                     nameof(canonicalWeekId));
 
             ResultId = resultId;
