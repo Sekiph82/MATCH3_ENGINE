@@ -27,6 +27,9 @@ EXPECTED = {
     "M11_012_DisabledNeighborProjectionRequiresSignedVerifiedProfile",
     "M11_012_NewSignedManifestCanReenableWithoutForgingRewards",
     "M11_008_OnlySignedTitlePlatformCatalogAndBundlesCanBeBound",
+    "M11_005_DurableFilesAreRevalidatedAfterFreshHostRestart",
+    "M11_007_DurableCrashFallbackPreservesAntiRollbackSequence",
+    "M11_011_InterruptedStagingAndPointerTamperNeverActivateContent",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -35,6 +38,7 @@ SUITES = {
     "RemoteContentDownloadContractTests",
     "RemoteManifestCodecAndLevelTests",
     "RemoteAddressablesContractTests",
+    "RemoteDurableActivationHostTests",
 }
 
 def check(paths):
