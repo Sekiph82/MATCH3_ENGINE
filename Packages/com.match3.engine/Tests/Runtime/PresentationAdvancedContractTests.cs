@@ -94,6 +94,24 @@ namespace Match3.Engine.Tests
                 Is.EqualTo(Enum.GetValues(typeof(UiSurfaceKind)).Length));
             Assert.That(report.VisibleActionCount, Is.EqualTo(states.Length));
 
+            var homeLoading = new UiSurfaceState(
+                "state-Home-loading",
+                UiSurfaceKind.Home,
+                new[]
+                {
+                    new UiActionDefinition(
+                        "loading-help",
+                        UiSurfaceKind.Home,
+                        UiActionKind.Command,
+                        visible: true,
+                        enabled: true,
+                        commandKey: "home.loading.help")
+                });
+            var multiStateReport = UiCompletenessValidator.Validate(
+                states.Concat(new[] { homeLoading }));
+            Assert.That(multiStateReport.Surfaces.Count,
+                Is.EqualTo(report.Surfaces.Count));
+
             var home = states.Single(x => x.Surface == UiSurfaceKind.Home);
             var route = new UiRouteSnapshot(UiSurfaceKind.Home);
             var activation = new UiActivation(
@@ -115,6 +133,25 @@ namespace Match3.Engine.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 UiCompletenessValidator.Validate(
                     states.Where(x => x.Surface != UiSurfaceKind.Store)));
+
+            Assert.Throws<ArgumentException>(() =>
+                UiCompletenessValidator.Validate(
+                    states.Concat(
+                        new[]
+                        {
+                            new UiSurfaceState(
+                                states[0].StateId,
+                                UiSurfaceKind.Home,
+                                new[]
+                                {
+                                    new UiActionDefinition(
+                                        "duplicate-state-id",
+                                        UiSurfaceKind.Home,
+                                        UiActionKind.Command,
+                                        true, true,
+                                        commandKey: "x")
+                                })
+                        })));
 
             var deadShop = new UiSurfaceState(
                 "dead-shop",
