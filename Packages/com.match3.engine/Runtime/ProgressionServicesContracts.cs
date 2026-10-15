@@ -580,15 +580,17 @@ namespace Match3.Engine.Runtime
         {
             if (definitions == null)
                 throw new ArgumentNullException(nameof(definitions));
-            var array = definitions.Take(257)
-                .Where(x => x != null && x.PeriodKind == kind)
-                .ToArray();
-            if (array.Length > 256)
+            var all = definitions.Take(257).ToArray();
+            if (all.Length > 256)
                 throw new ArgumentException("Task definition limit exceeded.");
-            if (array.GroupBy(x => x.TaskId, StringComparer.Ordinal)
+            if (all.Any(x => x == null))
+                throw new ArgumentException(
+                    "Task definitions cannot contain null entries.");
+            if (all.GroupBy(x => x.TaskId, StringComparer.Ordinal)
                 .Any(x => x.Count() > 1))
-                throw new ArgumentException("Duplicate task ID.");
-            return array;
+                throw new ArgumentException(
+                    "Task IDs must be globally unique across periods.");
+            return all.Where(x => x.PeriodKind == kind).ToArray();
         }
     }
 
