@@ -95,11 +95,9 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_002_AuthenticManifestSignatureAndKeyRotationAreRequired()
         {
-            using (var signer = RSA.Create())
-            using (var outsider = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
+            using (var outsider = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
-                outsider.KeySize = 2048;
                 var manifest = Manifest();
                 var signature = Sign(signer, manifest);
                 Verify(manifest, signature, Trust(signer, "release-2026"));
@@ -148,9 +146,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_010_GamePlatformAndChannelIsolationFailClosed()
         {
-            using (var signer = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
                 foreach (var game in GameProfileCatalog.Ids)
                 {
                     var m = Manifest(game);
@@ -176,9 +173,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_011_IncompatibleVersionExpiryAndRevokedKeyFail()
         {
-            using (var signer = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
                 var m = Manifest();
                 var sig = Sign(signer, m);
                 var key = Trust(signer, "release-2026");
