@@ -37,6 +37,8 @@ EXPECTED = {
     "M11_013_VerifiedProgressAndCommitAreSeparatelyHonest",
     "M11_013_DuplicateReceiptCannotFabricateHundredPercentOrReward",
     "M11_013_OfflineFallbackRequiresFreshValidSignedContent",
+    "M11_013_UnityPatchPanelNeverInventsSignedStatusOrGameAccess",
+    "M11_013_UnityPatchPanelShowsOnlyAuthenticatedOfflinePlay",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -48,6 +50,7 @@ SUITES = {
     "RemoteDurableActivationHostTests",
     "RemotePackagedStarterContractTests",
     "RemotePatchFlowContractTests",
+    "NeutralPatchBootstrapViewPlayModeTests",
 }
 
 def check(paths):
