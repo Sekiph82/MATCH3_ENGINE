@@ -27,8 +27,10 @@ namespace Match3.Engine.Runtime
                     nameof(sourceId));
             if (!GameProfileCatalog.IsKnownId(gameId))
                 throw new ArgumentException("Unknown game ID.", nameof(gameId));
-            if (string.IsNullOrWhiteSpace(resourceId))
-                throw new ArgumentException("Resource ID required.",
+            if (string.IsNullOrWhiteSpace(resourceId) ||
+                resourceId.Contains("|"))
+                throw new ArgumentException(
+                    "Resource ID required and cannot contain '|'.",
                     nameof(resourceId));
             if (amount < 1 || amount > 1000000000)
                 throw new ArgumentOutOfRangeException(nameof(amount));
@@ -69,10 +71,12 @@ namespace Match3.Engine.Runtime
                     throw new ArgumentException("Duplicate economy balance key.");
                 var separator = pair.Key.IndexOf('|');
                 if (separator <= 0 ||
+                    separator >= pair.Key.Length - 1 ||
+                    pair.Key.IndexOf('|', separator + 1) >= 0 ||
                     !GameProfileCatalog.IsKnownId(
                         pair.Key.Substring(0, separator)))
                     throw new ArgumentException(
-                        "Economy balance key must be game-scoped.");
+                        "Economy balance key must be canonical game|resource.");
                 balanceMap.Add(pair.Key, pair.Value);
             }
 
