@@ -434,6 +434,7 @@ namespace Match3.Engine.Tests
                     gameId,
                     surface,
                     state,
+                    "master." + gameId + "." + surface + "." + state,
                     new[]
                     {
                         "text." + gameId + "." + surface + "." + state
@@ -481,8 +482,18 @@ namespace Match3.Engine.Tests
                     "Coral_Rescue",
                     UiSurfaceKind.Home,
                     PlayerSurfaceStateKind.Ready,
+                    "master.Coral_Rescue.Home.Ready",
                     new string[0],
                     new string[0]));
+
+            Assert.Throws<ArgumentException>(() =>
+                new PlayerSurfaceBinding(
+                    "Coral_Rescue",
+                    UiSurfaceKind.Home,
+                    PlayerSurfaceStateKind.Ready,
+                    "",
+                    new[] { "text.home" },
+                    new[] { "icon.home" }));
         }
 
         [Test]
@@ -550,11 +561,13 @@ namespace Match3.Engine.Tests
                 {
                     "Runtime/TweenRuntime.dll",
                     "Examples/Demo.cs",
+                    "Examples~/Legacy.cs",
+                    "Samples~/Sample.cs",
                     "Editor/Inspector.cs",
                     "Runtime/Debug/Overlay.cs"
                 });
             Assert.That(dirty.Pass, Is.False);
-            Assert.That(dirty.Violations.Count, Is.EqualTo(3));
+            Assert.That(dirty.Violations.Count, Is.EqualTo(5));
 
             Assert.Throws<ArgumentException>(() =>
                 new PresentationPluginManifest(
@@ -617,6 +630,13 @@ namespace Match3.Engine.Tests
                     policy,
                     new SourceArtRenderRequest(
                         raster, 2048, 2048)));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                SourceArtRenderAdapter.Project(
+                    policy,
+                    new SourceArtRenderRequest(
+                        vector, 2048, 1024)),
+                "Scalable rendering must preserve authored shape aspect ratio.");
 
             Assert.Throws<InvalidOperationException>(() =>
                 SourceArtRenderAdapter.Project(
