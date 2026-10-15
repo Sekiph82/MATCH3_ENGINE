@@ -141,6 +141,14 @@ namespace Match3.Engine.Tests
                     new NavigationRoute(
                         NavigationRouteKind.Chapter,
                         "next", "w", "c")));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                NavigationPlanner.Transition(
+                    graph, state,
+                    new NavigationRoute(
+                        NavigationRouteKind.World,
+                        "route-level", "w")),
+                "A previously committed route ID cannot be rebound to a different payload.");
         }
 
         [Test]
