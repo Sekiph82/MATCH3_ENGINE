@@ -101,8 +101,13 @@ namespace Match3.Engine.Runtime
             if (setArray.Length < 1 || setArray.Length > 256 ||
                 setArray.Any(x => x == null) ||
                 setArray.GroupBy(x => x.SetId, StringComparer.Ordinal)
+                    .Any(x => x.Count() > 1) ||
+                setArray.GroupBy(
+                    x => x.FixedRewardSourceId, StringComparer.Ordinal)
                     .Any(x => x.Count() > 1))
-                throw new ArgumentException("Invalid collection set catalog.", nameof(sets));
+                throw new ArgumentException(
+                    "Invalid collection set catalog or duplicate fixed reward source.",
+                    nameof(sets));
 
             var itemMap = itemArray.ToDictionary(x => x.ItemId, x => x,
                 StringComparer.Ordinal);
