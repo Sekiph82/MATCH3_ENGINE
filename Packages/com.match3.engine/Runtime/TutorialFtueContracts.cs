@@ -163,7 +163,11 @@ namespace Match3.Engine.Runtime
             foreach (var r in entries)
             {
                 if (r.Kind == FtueReceiptKind.Presented)
-                    presented.Add(r.StepId);
+                {
+                    if (!presented.Add(r.StepId))
+                        throw new ArgumentException(
+                            "A tutorial cue cannot be presented twice.");
+                }
                 else if (!presented.Contains(r.StepId) || !completed.Add(r.StepId))
                     throw new ArgumentException("Completion requires presentation exactly once.");
             }
