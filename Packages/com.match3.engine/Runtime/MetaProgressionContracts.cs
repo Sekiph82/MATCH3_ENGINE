@@ -607,17 +607,31 @@ namespace Match3.Engine.Runtime
         public string Key { get; }
         public int Score { get; }
         public string ResultId { get; }
+        public int? PreviousScore { get; }
+        public string PreviousResultId { get; }
 
-        public PersonalBestRecord(string key, int score, string resultId)
+        public PersonalBestRecord(string key, int score, string resultId,
+            int? previousScore = null, string previousResultId = null)
         {
             if (string.IsNullOrWhiteSpace(key) ||
                 string.IsNullOrWhiteSpace(resultId))
                 throw new ArgumentException("Personal-best IDs required.");
             if (score < 0)
                 throw new ArgumentOutOfRangeException(nameof(score));
+            if (previousScore.HasValue != (previousResultId != null))
+                throw new ArgumentException(
+                    "Previous personal-best score and result ID must be stored together.");
+            if (previousScore.HasValue &&
+                (previousScore.Value < 0 ||
+                 previousScore.Value >= score ||
+                 string.IsNullOrWhiteSpace(previousResultId)))
+                throw new ArgumentException(
+                    "Previous personal-best record must be a valid lower score.");
             Key = key;
             Score = score;
             ResultId = resultId;
+            PreviousScore = previousScore;
+            PreviousResultId = previousResultId;
         }
     }
 
@@ -711,6 +725,17 @@ namespace Match3.Engine.Runtime
                 snapshot.FirstTryWinLevelIds.Any(x => !definition.LevelIds.Contains(x)))
                 throw new ArgumentException(
                     "Journey snapshot references level outside strip.");
+            var keyPrefix = definition.GameId + "|" + definition.ProfileId +
+                "|" + definition.ModeId + "|";
+            foreach (var existing in snapshot.PersonalBests.Values)
+            {
+                var parts = existing.Key.Split('|');
+                if (parts.Length != 5 ||
+                    !existing.Key.StartsWith(keyPrefix, StringComparison.Ordinal) ||
+                    !definition.LevelIds.Contains(parts[3]))
+                    throw new ArgumentException(
+                        "Journey personal-best snapshot belongs to another game/profile/mode/level.");
+            }
             if (snapshot.ProcessedResultIds.Contains(result.ResultId))
                 return new JourneyPlan(snapshot, false, false, false);
 
@@ -737,7 +762,11 @@ namespace Match3.Engine.Runtime
                 result.Score > prior.Score;
             if (improved)
                 bests[key] = new PersonalBestRecord(
-                    key, result.Score, result.ResultId);
+                    key,
+                    result.Score,
+                    result.ResultId,
+                    prior == null ? (int?)null : prior.Score,
+                    prior == null ? null : prior.ResultId);
 
             return new JourneyPlan(
                 new JourneySnapshot(
@@ -760,6 +789,17 @@ namespace Match3.Engine.Runtime
                     !definition.LevelIds.Contains(x)))
                 throw new ArgumentException(
                     "Journey snapshot references level outside strip.");
+            var keyPrefix = definition.GameId + "|" + definition.ProfileId +
+                "|" + definition.ModeId + "|";
+            if (snapshot.PersonalBests.Values.Any(existing =>
+            {
+                var parts = existing.Key.Split('|');
+                return parts.Length != 5 ||
+                    !existing.Key.StartsWith(keyPrefix, StringComparison.Ordinal) ||
+                    !definition.LevelIds.Contains(parts[3]);
+            }))
+                throw new ArgumentException(
+                    "Journey personal-best snapshot belongs to another game/profile/mode/level.");
             return definition.LevelIds.FirstOrDefault(
                 x => !snapshot.CompletedLevelIds.Contains(x));
         }
