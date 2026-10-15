@@ -144,6 +144,15 @@ namespace Match3.Engine.Tests
                 Assert.That(restarted.HighestSequence, Is.EqualTo(2));
                 Assert.Throws<InvalidOperationException>(() =>
                     RemoteReleasePlanner.Promote(restarted, pack2.Verified));
+                // Within this isolated test sandbox, a missing active
+                // pointer with a retained prior pointer must NOT reset
+                // the persisted anti-rollback high-water to zero.
+                var activePointer = Directory.GetFiles(_sandbox,
+                    "active.pointer", SearchOption.AllDirectories).Single();
+                File.Delete(activePointer);
+                Assert.Throws<InvalidOperationException>(() =>
+                    Host().Restore(new[] { trust },
+                        new EngineVersion(1, 0, 0), 2000));
             }
         }
 
