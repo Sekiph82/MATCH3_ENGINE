@@ -986,6 +986,28 @@ namespace Match3.Engine.Runtime
                     !defs.Any(d => d.AchievementId == x)))
                 throw new ArgumentException(
                     "Achievement snapshot references unknown definition.");
+
+            var definitionMap = defs.ToDictionary(
+                x => x.AchievementId, x => x, StringComparer.Ordinal);
+            foreach (var pair in snapshot.Counts)
+            {
+                if (pair.Value > definitionMap[pair.Key].RequiredCount)
+                    throw new ArgumentException(
+                        "Achievement snapshot exceeds required count.");
+                if (pair.Value >= definitionMap[pair.Key].RequiredCount &&
+                    !snapshot.UnlockedIds.Contains(pair.Key))
+                    throw new ArgumentException(
+                        "Completed achievement snapshot is not unlocked.");
+            }
+            foreach (var unlockedId in snapshot.UnlockedIds)
+            {
+                int count;
+                if (!snapshot.Counts.TryGetValue(unlockedId, out count) ||
+                    count < definitionMap[unlockedId].RequiredCount)
+                    throw new ArgumentException(
+                        "Unlocked achievement snapshot lacks required progress.");
+            }
+
             if (snapshot.ProcessedEventIds.Contains(progressEvent.EventId))
                 return new AchievementPlan(snapshot, false, false);
 
@@ -1036,9 +1058,15 @@ namespace Match3.Engine.Runtime
             var defs = definitions.Take(257).ToArray();
             if (defs.Length > 256 || defs.Any(x => x == null) ||
                 defs.GroupBy(x => x.AchievementId, StringComparer.Ordinal)
+                    .Any(x => x.Count() > 1) ||
+                defs.Where(x => x.AppleGameCenterId != null)
+                    .GroupBy(x => x.AppleGameCenterId, StringComparer.Ordinal)
+                    .Any(x => x.Count() > 1) ||
+                defs.Where(x => x.GooglePlayGamesId != null)
+                    .GroupBy(x => x.GooglePlayGamesId, StringComparer.Ordinal)
                     .Any(x => x.Count() > 1))
                 throw new ArgumentException(
-                    "Invalid achievement definitions.");
+                    "Invalid or duplicate achievement/platform definitions.");
             if (snapshot.UnlockedIds.Any(id =>
                 !defs.Any(x => StringComparer.Ordinal.Equals(
                     x.AchievementId, id))))
