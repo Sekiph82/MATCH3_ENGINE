@@ -10,6 +10,7 @@ name: ENG-M09 Real Windows Player Release Firewall
   # ENG-M09 overlay compile-guard repair final source-parity refresh.
 on:
   workflow_dispatch:
+  # ENG-M11 final current source build after runtime safety checks.
   # ENG-M11: independent actual Win64 player scanner after signed-content runtime changes.
   # ENG-M10 final neutral source and 25-case Unity counterpart source parity check.
   # ENG-M10 final neutral tutorial contracts actual clean Win64 player verification.
