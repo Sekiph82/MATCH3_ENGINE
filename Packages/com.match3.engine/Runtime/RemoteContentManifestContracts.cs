@@ -135,6 +135,7 @@ namespace Match3.Engine.Runtime
     public sealed class RemoteContentManifest
     {
         private readonly ReadOnlyCollection<RemoteContentEntry> _entries;
+        private readonly ReadOnlyCollection<SignedRemoteMetaCommand> _meta;
         public int Schema { get; }
         public string GameId { get; }
         public RemotePlatform Platform { get; }
@@ -147,12 +148,14 @@ namespace Match3.Engine.Runtime
         public long IssuedAt { get; }
         public long ExpiresAt { get; }
         public IReadOnlyList<RemoteContentEntry> Entries => _entries;
+        public IReadOnlyList<SignedRemoteMetaCommand> MetaCommands => _meta;
 
         public RemoteContentManifest(string gameId, RemotePlatform platform,
             RemoteChannel channel, string releaseId, string keyId,
             EngineVersion minEngine, EngineVersion maxEngine,
             long issuedAt, long expiresAt, IEnumerable<RemoteContentEntry> entries,
-            int schema = 1, long sequence = 1)
+            int schema = 1, long sequence = 1,
+            IEnumerable<SignedRemoteMetaCommand> metaCommands = null)
         {
             if (sequence < 1)
                 throw new ArgumentOutOfRangeException(nameof(sequence));
@@ -200,6 +203,18 @@ namespace Match3.Engine.Runtime
             ExpiresAt = expiresAt;
             _entries = new ReadOnlyCollection<RemoteContentEntry>(
                 list.OrderBy(e => e.Path, StringComparer.Ordinal).ToList());
+            var records = (metaCommands ??
+                Enumerable.Empty<SignedRemoteMetaCommand>()).Take(129).ToArray();
+            if (records.Length > 128 || records.Any(x => x == null ||
+                    x.GameId != gameId) ||
+                records.Select(x => ((int)x.Kind) + "|" + x.NeutralId)
+                    .Distinct(StringComparer.Ordinal).Count() != records.Length ||
+                records.Select(x => x.SourceReceiptId)
+                    .Distinct(StringComparer.Ordinal).Count() != records.Length)
+                throw new ArgumentException("Invalid/duplicate signed metadata declarations.");
+            _meta = new ReadOnlyCollection<SignedRemoteMetaCommand>(
+                records.OrderBy(x => x.SourceReceiptId, StringComparer.Ordinal)
+                    .ToList());
         }
 
         public static int Compare(EngineVersion a, EngineVersion b)
@@ -228,6 +243,15 @@ namespace Match3.Engine.Runtime
                 lines.Add(((int)entry.Kind).ToString(CultureInfo.InvariantCulture));
                 lines.Add(entry.Length.ToString(CultureInfo.InvariantCulture));
                 lines.Add(entry.Sha256);
+            }
+            lines.Add(_meta.Count.ToString(CultureInfo.InvariantCulture));
+            foreach (var cmd in _meta)
+            {
+                lines.Add(cmd.GameId);
+                lines.Add(cmd.SourceReceiptId);
+                lines.Add(((int)cmd.Kind).ToString(CultureInfo.InvariantCulture));
+                lines.Add(cmd.NeutralId);
+                lines.Add(cmd.Enable ? "1" : "0");
             }
             return Encoding.UTF8.GetBytes(string.Join("\n", lines) + "\n");
         }
