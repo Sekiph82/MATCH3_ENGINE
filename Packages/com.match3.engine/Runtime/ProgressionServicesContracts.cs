@@ -715,9 +715,9 @@ namespace Match3.Engine.Runtime
                 x => x.MilestoneId, x => x, StringComparer.Ordinal);
             foreach (var completedId in snapshot.CompletedMilestoneIds)
             {
-                RestorationMilestone completed;
-                if (!byId.TryGetValue(completedId, out completed) ||
-                    snapshot.Progress < completed.RequiredProgress)
+                RestorationMilestone completedDefinition;
+                if (!byId.TryGetValue(completedId, out completedDefinition) ||
+                    snapshot.Progress < completedDefinition.RequiredProgress)
                     throw new ArgumentException(
                         "Restoration snapshot contains invalid completed milestone.");
             }
