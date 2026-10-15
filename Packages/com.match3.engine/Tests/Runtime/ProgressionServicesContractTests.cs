@@ -58,6 +58,18 @@ namespace Match3.Engine.Tests
                     new GameEconomyTransaction(
                         "overspend", coral, "coins", 1,
                         GameEconomyMutationKind.Debit)));
+
+            Assert.Throws<ArgumentException>(() =>
+                new GameEconomyTransaction(
+                    "bad-resource", coral, "coins|other", 1,
+                    GameEconomyMutationKind.Credit));
+            Assert.Throws<ArgumentException>(() =>
+                new GameEconomySnapshot(
+                    new[]
+                    {
+                        new KeyValuePair<string, int>(
+                            coral + "|", 1)
+                    }));
         }
 
         [Test]
