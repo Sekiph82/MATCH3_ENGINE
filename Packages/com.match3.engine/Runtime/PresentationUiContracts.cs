@@ -253,10 +253,6 @@ namespace Match3.Engine.Runtime
             if (activation == null)
                 throw new ArgumentNullException(nameof(activation));
 
-            if (route.CurrentSurface != surfaceState.Surface ||
-                activation.Surface != surfaceState.Surface)
-                throw new InvalidOperationException(
-                    "UI route, state and activation surfaces must match.");
             if (!StringComparer.Ordinal.Equals(
                 surfaceState.StateId, activation.StateId))
                 throw new InvalidOperationException(
@@ -281,6 +277,11 @@ namespace Match3.Engine.Runtime
                     route, false, replayAction.Kind,
                     replayAction.Destination, replayAction.CommandKey);
             }
+
+            if (route.CurrentSurface != surfaceState.Surface ||
+                activation.Surface != surfaceState.Surface)
+                throw new InvalidOperationException(
+                    "UI route, state and activation surfaces must match.");
 
             UiActionDefinition action;
             if (!surfaceState.Actions.TryGetValue(
