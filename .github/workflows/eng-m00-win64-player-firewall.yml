@@ -7,6 +7,7 @@ name: ENG-M09 Real Windows Player Release Firewall
   # ENG-M09 16-child presentation acceptance source-parity refresh.
   # ENG-M09 final presentation authority-closure source-parity refresh.
   # ENG-M09 scanner-literal repair final source-parity refresh.
+  # ENG-M09 overlay compile-guard repair final source-parity refresh.
 on:
   workflow_dispatch:
   # ENG-M09 FINAL frozen neutral UI/theme-effects source plus inherited M00-M08 runtime: real Unity Win64 build, strict release scanner.
