@@ -810,6 +810,7 @@ jobs:
             "$PWD/artifacts/editmode-results.xml" \
             "$PWD/artifacts/playmode-results.xml"
 
+      # ENG-M09 frozen 16-child presentation source evidence rerun.
       - name: Require real Unity ENG-M09 presentation 001-016 contracts
         shell: bash
         run: |
