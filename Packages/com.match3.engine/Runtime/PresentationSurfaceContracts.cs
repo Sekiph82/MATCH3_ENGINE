@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 
 namespace Match3.Engine.Runtime
@@ -331,7 +332,9 @@ namespace Match3.Engine.Runtime
                             envelope.MaximumDurationMilliseconds,
                             policy.ReducedMotionMaximumMilliseconds)
                         : envelope.MaximumDurationMilliseconds;
-                    effects += envelope.MaximumEffects;
+                    effects += reducedMotion
+                        ? Math.Min(1, envelope.MaximumEffects)
+                        : envelope.MaximumEffects;
                     audio += envelope.MaximumAudioCues;
                     haptics |= envelope.HapticAllowed && !reducedMotion;
                 }
@@ -391,8 +394,11 @@ namespace Match3.Engine.Runtime
         }
 
         internal string Signature =>
-            ((int)Kind) + "|" + Bounds.X + "|" + Bounds.Y + "|" +
-            Bounds.Width + "|" + Bounds.Height + "|" +
+            ((int)Kind).ToString(CultureInfo.InvariantCulture) + "|" +
+            Bounds.X.ToString("R", CultureInfo.InvariantCulture) + "|" +
+            Bounds.Y.ToString("R", CultureInfo.InvariantCulture) + "|" +
+            Bounds.Width.ToString("R", CultureInfo.InvariantCulture) + "|" +
+            Bounds.Height.ToString("R", CultureInfo.InvariantCulture) + "|" +
             (Interactive ? "1" : "0") + "|" +
             (Dismissible ? "1" : "0") + "|" +
             (Text ?? "") + "|" + (AllowTextOverflow ? "1" : "0");
