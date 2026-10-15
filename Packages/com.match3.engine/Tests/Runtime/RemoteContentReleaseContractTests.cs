@@ -189,21 +189,57 @@ namespace Match3.Engine.Tests
             var eventCommand = new SignedRemoteMetaCommand(
                 "Wonder_Pop", "signed-source", RemoteMetaKind.Event,
                 "season.1", true);
-            Assert.Throws<InvalidOperationException>(() =>
-                RemoteMetaPolicy.Allow(wonder, eventCommand,
-                    false, true, true));
-            Assert.That(RemoteMetaPolicy.Allow(wonder, eventCommand,
-                true, false, false), Is.False);
-            var offer = new SignedRemoteMetaCommand(
-                "Wonder_Pop", "signed-source", RemoteMetaKind.Offer,
-                "offer.1", true);
-            Assert.That(RemoteMetaPolicy.Allow(wonder, offer,
-                true, true, true), Is.False);
-            var adult = new GameProfile("Coral_Rescue", "neutral.coral",
-                ProfileAgeRule.General, ProfileContentChannel.Development);
-            Assert.Throws<InvalidOperationException>(() =>
-                RemoteMetaPolicy.Allow(adult, offer,
-                    true, true, true));
+            using (var signer = RSA.Create())
+            {
+                signer.KeySize = 2048;
+                var m = new RemoteContentManifest("Wonder_Pop",
+                    RemotePlatform.Android, RemoteChannel.FamilyTest,
+                    "signed-meta", "key-v1", new EngineVersion(1, 0, 0),
+                    new EngineVersion(1, 2, 0), 1000, 9000,
+                    Manifest(1, "x").Entries, metaCommands: new [] {
+                        eventCommand, new SignedRemoteMetaCommand(
+                            "Wonder_Pop", "signed-offer", RemoteMetaKind.Offer,
+                            "offer.1", true)
+                    });
+                var key = signer.ExportParameters(false);
+                var pinned = new RemotePublicSigningKey("key-v1",
+                    key.Modulus, key.Exponent, 0, 10000);
+                var signature = signer.SignData(m.CanonicalBytes(),
+                    HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                var verified = RemoteContentStager.VerifyComplete(m, signature,
+                    new [] { pinned }, "Wonder_Pop", RemotePlatform.Android,
+                    RemoteChannel.FamilyTest, new EngineVersion(1, 0, 0), 2000,
+                    new Dictionary<string, byte[]> {
+                        { "levels/first.json", Payload }
+                    });
+                Assert.Throws<InvalidOperationException>(() =>
+                    RemoteMetaPolicy.Allow(wonder, eventCommand,
+                        null, true, true));
+                Assert.That(RemoteMetaPolicy.Allow(wonder, eventCommand,
+                    verified, false, false), Is.False);
+                var offer = new SignedRemoteMetaCommand(
+                    "Wonder_Pop", "signed-offer", RemoteMetaKind.Offer,
+                    "offer.1", true);
+                Assert.That(RemoteMetaPolicy.Allow(wonder, offer,
+                    verified, true, true), Is.False);
+                var forged = new SignedRemoteMetaCommand(
+                    "Wonder_Pop", "forged", RemoteMetaKind.Offer,
+                    "offer.1", true);
+                Assert.Throws<InvalidOperationException>(() =>
+                    RemoteMetaPolicy.Allow(wonder, forged,
+                        verified, true, true));
+                var adult = new GameProfile("Coral_Rescue", "neutral.coral",
+                    ProfileAgeRule.General, ProfileContentChannel.Development);
+                Assert.Throws<InvalidOperationException>(() =>
+                    RemoteMetaPolicy.Allow(adult, offer,
+                        verified, true, true));
+                var altered = new SignedRemoteMetaCommand(
+                    "Wonder_Pop", "signed-offer", RemoteMetaKind.Offer,
+                    "offer.1", false);
+                Assert.Throws<InvalidOperationException>(() =>
+                    RemoteMetaPolicy.Allow(wonder, altered,
+                        verified, true, true));
+            }
         }
     }
 }
