@@ -29,7 +29,8 @@ namespace Match3.Engine.Tests
                         "collection:set-core"),
                     new CollectionSetDefinition(
                         "set-season", new[] { "season-a" },
-                        "collection:set-season", "S1")
+                        "collection:set-season", "S1",
+                        rewardClaimExpiresWithSeason: true)
                 });
         }
 
@@ -87,6 +88,34 @@ namespace Match3.Engine.Tests
             Assert.That(season.Result.Counts["season-a"], Is.EqualTo(1),
                 "Season visibility changes must not delete permanent earned collection history.");
 
+            var coreClaim = CollectionPlanner.ClaimSetReward(
+                catalog, season.Result, "set-core", activeSeasonId: null);
+            Assert.That(coreClaim.Applied, Is.True);
+            Assert.That(coreClaim.RewardSourceId,
+                Is.EqualTo("collection:set-core"));
+            var coreReplay = CollectionPlanner.ClaimSetReward(
+                catalog, coreClaim.Result, "set-core", activeSeasonId: null);
+            Assert.That(coreReplay.Applied, Is.False);
+
+            var seasonClaim = CollectionPlanner.ClaimSetReward(
+                catalog, coreClaim.Result, "set-season", activeSeasonId: "S1");
+            Assert.That(seasonClaim.Applied, Is.True);
+            Assert.That(seasonClaim.RewardSourceId,
+                Is.EqualTo("collection:set-season"));
+            Assert.That(seasonClaim.Result.Counts["season-a"], Is.EqualTo(1));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                CollectionPlanner.ClaimSetReward(
+                    catalog,
+                    new CollectionSnapshot(
+                        "Coral_Rescue",
+                        season.Result.Counts,
+                        season.Result.ProcessedEarnIds,
+                        season.Result.CompletedSetIds),
+                    "set-season",
+                    activeSeasonId: "S2"),
+                "Expired seasonal reward claim must fail while earned item history remains.");
+
             var replay = CollectionPlanner.Earn(
                 catalog, season.Result, "earn-season", "season-a");
             Assert.That(replay.Applied, Is.False);
@@ -98,6 +127,14 @@ namespace Match3.Engine.Tests
                         "Coral_Rescue",
                         completedSetIds: new[] { "set-core" }),
                     "bad-state", "card-a"));
+
+            Assert.Throws<ArgumentException>(() =>
+                CollectionPlanner.Earn(
+                    catalog,
+                    new CollectionSnapshot(
+                        "Coral_Rescue",
+                        claimedSetRewardIds: new[] { "set-core" }),
+                    "bad-claim-state", "card-a"));
 
             Assert.Throws<ArgumentException>(() =>
                 new CollectionCatalog(
