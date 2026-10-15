@@ -11,8 +11,10 @@ EXPECTED = {
     "M11_011_IncompatibleVersionExpiryAndRevokedKeyFail",
     "M11_004_IncrementalCacheRequiresExactBytesAndVerifiedDigest",
     "M11_005_SignedCompleteStageRefusesCorruptionMissingAndExtras",
+    "M11_005_PlannerPublishesOnlyAfterVerifiedHostAcknowledges",
     "M11_006_VerifiedOfflineSelectionHasFailClosedEmptyState",
     "M11_007_SignedSequencePreventsDowngradeAndRecoverKeepsHighWater",
+    "M11_007_PrepareFailurePointerConflictAndCancellationFailClosed",
     "M11_013_PatchStatesShowOnlyVerifiedBoundedProgress",
     "M11_014_UnverifiedRemoteMetadataAndChildOfferAreBlocked",
     "M11_003_AuthenticatedBoundedDownloadNeverUsesWriteCredentials",
@@ -29,6 +31,7 @@ EXPECTED = {
 SUITES = {
     "RemoteContentManifestContractTests",
     "RemoteContentReleaseContractTests",
+    "RemoteActivationHostContractTests",
     "RemoteContentDownloadContractTests",
     "RemoteManifestCodecAndLevelTests",
     "RemoteAddressablesContractTests",
