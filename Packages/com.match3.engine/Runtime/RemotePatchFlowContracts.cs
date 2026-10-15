@@ -138,7 +138,8 @@ namespace Match3.Engine.Runtime
                 _platform, _channel, engine, nowUnixSeconds);
             lock (_gate)
             {
-                if (_stage != RemotePatchStage.Verified ||
+                if ((_stage != RemotePatchStage.Available &&
+                     _stage != RemotePatchStage.Verified) ||
                     installed.SignedEnvelopeDigest != _targetDigest)
                     throw new InvalidOperationException(
                         "Cannot claim no-update without identical verified installed release.");
