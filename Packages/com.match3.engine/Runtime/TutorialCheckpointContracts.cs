@@ -94,7 +94,21 @@ namespace Match3.Engine.Runtime
                     StringComparer.Ordinal.Equals(s.Id, r.StepId))))
                 throw new InvalidOperationException(
                     "Checkpoint version or step schema does not match catalog.");
-            return snapshot;
+            // The checksum detects accidental corruption, not malicious writes.
+            // Replay every event through the authoritative FTUE state machine,
+            // so a validly re-encoded checkpoint cannot jump lessons.
+            var verified = new FtueSnapshot(catalog.GameId, catalog.Version);
+            foreach (var receipt in snapshot.Receipts)
+            {
+                var step = catalog.Get(receipt.StepId);
+                var plan = FtuePlanner.Apply(catalog, verified, receipt.StepId,
+                    receipt.Id, receipt.Kind, step.Level);
+                if (!plan.Applied)
+                    throw new InvalidOperationException(
+                        "Checkpoint contains an out-of-order or forged tutorial event.");
+                verified = plan.Result;
+            }
+            return verified;
         }
 
         private static string B64(string text) =>
