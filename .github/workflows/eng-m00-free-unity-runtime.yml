@@ -834,6 +834,7 @@ jobs:
             "$PWD/artifacts/editmode-results.xml" \
             "$PWD/artifacts/playmode-results.xml"
 
+      # ENG-M11 R01 remediation: import LINQ in HTTP replay test and recheck signed content.
       # ENG-M11 neutral remote content and signature evidence (no cloud writes).
       - name: Verify actual Unity ENG-M11 signed-content 001-014 unit cases
         shell: bash
