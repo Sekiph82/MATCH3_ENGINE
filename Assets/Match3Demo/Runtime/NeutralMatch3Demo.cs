@@ -15,6 +15,7 @@ namespace Match3.Engine.Demo
         };
 
         private DemoGame _game;
+        private NeutralPatchBootstrapView _signedPrelaunchGate;
         private GUIStyle _cellStyle;
         private bool _isReady;
         private bool _hasSelection;
@@ -23,6 +24,21 @@ namespace Match3.Engine.Demo
         public DemoMetrics Metrics { get; private set; }
         public bool IsReady => _isReady;
         public bool IsBusy => _game != null && _game.IsBusy;
+        public bool IsBoardInputAllowed =>
+            _signedPrelaunchGate == null || _signedPrelaunchGate.CanEnterGame;
+
+        // Opt-in only. A commercial host must install its signed-content
+        // prelaunch gate BEFORE exposing the playable board. The default
+        // standalone neutral SDK demo stays playable without remote content.
+        public void RequireSignedPrelaunch(NeutralPatchBootstrapView view)
+        {
+            if (view == null) throw new System.ArgumentNullException(nameof(view));
+            if (_signedPrelaunchGate != null && _signedPrelaunchGate != view)
+                throw new System.InvalidOperationException(
+                    "Signed prelaunch gate may not be silently replaced.");
+            _signedPrelaunchGate = view;
+            _hasSelection = false;
+        }
         public string BoardSnapshot => _isReady ? _game.GetSnapshot() : string.Empty;
 
         private void Start()
@@ -40,7 +56,7 @@ namespace Match3.Engine.Demo
 
         public async UniTask<bool> TrySwapAsync(GridPosition first, GridPosition second)
         {
-            if (!_isReady)
+            if (!_isReady || !IsBoardInputAllowed)
             {
                 return false;
             }
@@ -62,6 +78,14 @@ namespace Match3.Engine.Demo
 
             if (!_isReady)
             {
+                return;
+            }
+            if (!IsBoardInputAllowed)
+            {
+                GUI.Box(new Rect(16, 99, 440, 74),
+                    "Signed prelaunch required before board interaction");
+                GUI.Label(new Rect(28, 130, 410, 25),
+                    _signedPrelaunchGate.VisibleStatus);
                 return;
             }
 
@@ -117,7 +141,7 @@ namespace Match3.Engine.Demo
 
         private void SelectCell(int row, int column)
         {
-            if (IsBusy || Metrics.GameFinished)
+            if (!IsBoardInputAllowed || IsBusy || Metrics.GameFinished)
             {
                 return;
             }
