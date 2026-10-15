@@ -82,6 +82,10 @@ namespace Match3.Engine.Tests
             Assert.That(tablet.DeviceClass,
                 Is.EqualTo(PresentationDeviceClass.TabletPortrait));
 
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new ResponsiveLayoutPolicy(
+                    844, 390, 0, 0, 0, 0));
+
             Assert.Throws<ArgumentException>(() =>
                 ResponsiveLayoutValidator.Validate(
                     phone,
