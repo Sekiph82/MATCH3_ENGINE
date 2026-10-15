@@ -866,8 +866,25 @@ jobs:
             -testResults "$results" -logFile "$log"
           exit_code=$?
           set -e
+          # Unity's process launcher can occasionally exit before starting
+          # a second EditMode run against a just-closed project. Keep this
+          # assertion gate strict: a retry only passes with real failed XML
+          # AND a nonzero Unity exit. Never accept missing evidence as PASS.
+          if [[ "$exit_code" -eq 0 || ! -s "$results" ]]; then
+            echo "::warning::Unity integrity probe startup incomplete; initial_exit=$exit_code xml_present=$([[ -s "$results" ]] && echo yes || echo no). Retrying once after editor release."
+            sleep 15
+            rm -f -- "$results"
+            set +e
+            M00_FORCE_TEST_FAILURE=1 timeout 240s xvfb-run -a "$UNITY_EDITOR_PATH" \
+              -batchmode -nographics -projectPath "$PWD" -runTests \
+              -testPlatform EditMode \
+              -testFilter 'Match3.Engine.Tests.Editor.UnityRunnerIntegrityProbeTests.IntentionalAssertionFailureProbe' \
+              -testResults "$results" -logFile "$log"
+            exit_code=$?
+            set -e
+          fi
           [[ "$exit_code" -ne 0 && -s "$results" ]] || {
-            echo '::error::Forced Unity assertion was not reported as a nonzero execution with XML'
+            echo "::error::Forced Unity assertion was not reported as a nonzero execution with XML after bounded startup retry. exit=$exit_code"
             exit 1
           }
           python3 - "$results" <<'PY'
