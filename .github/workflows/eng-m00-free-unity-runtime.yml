@@ -2,6 +2,7 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # ENG-M11 final 23-case host activation and ordered progress suite.
   # ENG-M11 third hosted regression after NUnit assertion compatibility update.
   # ENG-M10 final neutral tutorial, child-safe, EN/TR and ceremony suite exact-source verification.
   # ENG-M10 initial neutral tutorial contracts run from main, source+test evidence only.
