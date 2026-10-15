@@ -482,6 +482,18 @@ namespace Match3.Engine.Runtime
             if (string.IsNullOrWhiteSpace(transitionId))
                 throw new ArgumentException(
                     "Overlay transition ID required.", nameof(transitionId));
+
+            var signature = "push|" + request.OverlayId + "|" +
+                request.Signature;
+            string prior;
+            if (snapshot.Signatures.TryGetValue(transitionId, out prior))
+            {
+                if (!StringComparer.Ordinal.Equals(prior, signature))
+                    throw new InvalidOperationException(
+                        "Overlay transition ID is bound to another payload.");
+                return new DynamicOverlayPlan(snapshot, false, null);
+            }
+
             if (snapshot.Stack.Count >= policy.MaximumDepth)
                 throw new InvalidOperationException(
                     "Overlay stack depth limit reached.");
@@ -497,17 +509,6 @@ namespace Match3.Engine.Runtime
                         request.Text,
                         request.AllowTextOverflow)
                 });
-
-            var signature = "push|" + request.OverlayId + "|" +
-                request.Signature;
-            string prior;
-            if (snapshot.Signatures.TryGetValue(transitionId, out prior))
-            {
-                if (!StringComparer.Ordinal.Equals(prior, signature))
-                    throw new InvalidOperationException(
-                        "Overlay transition ID is bound to another payload.");
-                return new DynamicOverlayPlan(snapshot, false, null);
-            }
             if (snapshot.Stack.Any(x =>
                 StringComparer.Ordinal.Equals(
                     x.OverlayId, request.OverlayId)))
@@ -531,6 +532,16 @@ namespace Match3.Engine.Runtime
             if (string.IsNullOrWhiteSpace(transitionId))
                 throw new ArgumentException(
                     "Overlay transition ID required.", nameof(transitionId));
+
+            string prior;
+            if (snapshot.Signatures.TryGetValue(transitionId, out prior))
+            {
+                if (!prior.StartsWith("back|", StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "Overlay transition ID is bound to another payload.");
+                return new DynamicOverlayPlan(snapshot, false, null);
+            }
+
             if (snapshot.Stack.Count == 0)
                 return new DynamicOverlayPlan(snapshot, false, null);
 
@@ -540,14 +551,6 @@ namespace Match3.Engine.Runtime
                     snapshot, false, "overlay-not-dismissible");
 
             var signature = "back|" + top.OverlayId;
-            string prior;
-            if (snapshot.Signatures.TryGetValue(transitionId, out prior))
-            {
-                if (!StringComparer.Ordinal.Equals(prior, signature))
-                    throw new InvalidOperationException(
-                        "Overlay transition ID is bound to another payload.");
-                return new DynamicOverlayPlan(snapshot, false, null);
-            }
 
             var ledger = CopyLedger(snapshot);
             ledger.Add(transitionId, signature);
