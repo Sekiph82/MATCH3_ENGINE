@@ -110,7 +110,7 @@ namespace Match3.Engine.Tests
             {
                 cts.Cancel();
                 var t = new FakeTransport(new RemoteReadResponse(200, Data));
-                Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                Assert.CatchAsync<OperationCanceledException>(async () =>
                     await Fetch(t, cts.Token));
                 Assert.That(t.Calls, Is.EqualTo(0));
             }
