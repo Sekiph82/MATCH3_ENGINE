@@ -55,6 +55,18 @@ namespace Match3.Engine.Runtime
                 throw new InvalidOperationException("Cross-profile staged release.");
             if (bytes.Count != release.Manifest.Entries.Count)
                 throw new InvalidOperationException("Incomplete staged release.");
+            // Validate the ENTIRE signed set before allocating any disk space.
+            // A failed digest/path cannot accumulate four unusable stages.
+            foreach (var entry in release.Manifest.Entries)
+            {
+                byte[] candidate;
+                if (!bytes.TryGetValue(entry.Path, out candidate) ||
+                    !RemoteContentSafety.Matches(candidate, entry.Length,
+                        entry.Sha256))
+                    throw new InvalidOperationException(
+                        "Incomplete/corrupt signed stage rejected before writes.");
+                RemoteContentSafety.RequireNonExecutable(candidate, entry.Kind);
+            }
 
             lock (_gate)
             {
