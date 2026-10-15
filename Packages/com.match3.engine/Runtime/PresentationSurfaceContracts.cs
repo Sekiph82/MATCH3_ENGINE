@@ -383,8 +383,15 @@ namespace Match3.Engine.Runtime
                     "Overlay ID required.", nameof(overlayId));
             if (!Enum.IsDefined(typeof(DynamicOverlayKind), kind))
                 throw new ArgumentOutOfRangeException(nameof(kind));
-            if (bounds == null)
-                throw new ArgumentNullException(nameof(bounds));
+            if (double.IsNaN(bounds.X) || double.IsNaN(bounds.Y) ||
+                double.IsNaN(bounds.Width) || double.IsNaN(bounds.Height) ||
+                double.IsInfinity(bounds.X) || double.IsInfinity(bounds.Y) ||
+                double.IsInfinity(bounds.Width) || double.IsInfinity(bounds.Height) ||
+                bounds.X < 0 || bounds.Y < 0 ||
+                bounds.Width <= 0 || bounds.Height <= 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(bounds),
+                    "Overlay bounds must be finite and positive.");
             if (text != null && text.Length > 4096)
                 throw new ArgumentException(
                     "Overlay text exceeds bounded length.", nameof(text));
