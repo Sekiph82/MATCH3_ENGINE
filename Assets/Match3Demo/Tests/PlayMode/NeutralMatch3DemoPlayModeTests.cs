@@ -18,6 +18,12 @@ namespace Match3.Engine.Demo.Tests
             yield return LoadDemoScene();
             var demo = Object.FindAnyObjectByType<NeutralMatch3Demo>();
             Assert.That(demo, Is.Not.Null);
+            // The shipped neutral scene includes a dormant signed patch
+            // viewer. No fake session should block the current demo board.
+            var patchView = Object.FindAnyObjectByType<NeutralPatchBootstrapView>();
+            Assert.That(patchView, Is.Not.Null);
+            Assert.That(patchView.HasVerifiedSession, Is.False);
+            Assert.That(patchView.CanEnterGame, Is.False);
 
             var before = demo.BoardSnapshot;
             var movesBefore = demo.Metrics.MovesRemaining;
