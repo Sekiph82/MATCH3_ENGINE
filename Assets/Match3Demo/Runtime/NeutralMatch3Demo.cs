@@ -26,6 +26,24 @@ namespace Match3.Engine.Demo
         public bool IsBusy => _game != null && _game.IsBusy;
         public bool IsBoardInputAllowed =>
             _signedPrelaunchGate == null || _signedPrelaunchGate.CanEnterGame;
+        public bool IsSignedContentRequired => _signedPrelaunchGate != null;
+        public bool IsPlayable => _isReady && IsBoardInputAllowed;
+        // A fully initialized in-memory board is not a playable, signed
+        // session. In particular, never label the screen "Ready" when the
+        // input gate is closed. This drives both the UI and acceptance tests.
+        public string VisibleGameplayStatus
+        {
+            get
+            {
+                if (!_isReady)
+                    return "Preparing board...";
+                if (!IsBoardInputAllowed)
+                    return "Locked: " + _signedPrelaunchGate.VisibleStatus;
+                if (Metrics != null && Metrics.GameFinished)
+                    return "WIN - goal reached after cascade";
+                return IsBusy ? "Resolving match..." : "Ready";
+            }
+        }
 
         // Opt-in only. A commercial host must install its signed-content
         // prelaunch gate BEFORE exposing the playable board. The default
@@ -74,7 +92,7 @@ namespace Match3.Engine.Demo
 
             GUI.Label(new Rect(16, 12, 420, 30), "Match-3 Engine | Seed " + Metrics.Seed);
             GUI.Label(new Rect(16, 40, 420, 26), "Goal: clear 3 items    Moves: " + Metrics.MovesRemaining);
-            GUI.Label(new Rect(16, 64, 420, 26), StatusText());
+            GUI.Label(new Rect(16, 64, 650, 26), VisibleGameplayStatus);
 
             if (!_isReady)
             {
@@ -122,21 +140,6 @@ namespace Match3.Engine.Demo
             GUI.backgroundColor = oldColor;
             GUI.Label(new Rect(16, top + DemoScenario.Rows * (cellSize + gap) + 8, 420, 26),
                 "Click two edge-sharing tiles. Invalid moves return to their starting cells.");
-        }
-
-        private string StatusText()
-        {
-            if (!_isReady)
-            {
-                return "Preparing board...";
-            }
-
-            if (Metrics.GameFinished)
-            {
-                return "WIN — goal reached after cascade";
-            }
-
-            return IsBusy ? "Resolving match..." : "Ready";
         }
 
         private void SelectCell(int row, int column)
