@@ -810,7 +810,7 @@ jobs:
             "$PWD/artifacts/editmode-results.xml" \
             "$PWD/artifacts/playmode-results.xml"
 
-      - name: Require real Unity ENG-M09 presentation 001-004 contracts
+      - name: Require real Unity ENG-M09 presentation 001-016 contracts
         shell: bash
         run: |
           set -euo pipefail
