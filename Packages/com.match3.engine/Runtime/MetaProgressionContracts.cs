@@ -368,10 +368,11 @@ namespace Match3.Engine.Runtime
         public string PackId { get; }
         public RewardSourceKind SourceKind { get; }
         public bool Verified { get; }
+        public bool IsChildProfile { get; }
 
         public EarnedPackReceipt(string receiptId, string gameId,
             string packId, RewardSourceKind sourceKind,
-            bool verified = true)
+            bool verified = true, bool isChildProfile = false)
         {
             if (string.IsNullOrWhiteSpace(receiptId))
                 throw new ArgumentException(
@@ -396,6 +397,7 @@ namespace Match3.Engine.Runtime
             PackId = packId;
             SourceKind = sourceKind;
             Verified = verified;
+            IsChildProfile = isChildProfile;
         }
     }
 
@@ -452,23 +454,34 @@ namespace Match3.Engine.Runtime
             if (snapshot.ProcessedReceiptIds.Contains(receipt.ReceiptId))
                 return new EarnedPackPlan(snapshot, false, new string[0], false);
 
-            var rng = new SeededRandom(seed);
             var draws = new List<string>();
             var missing = definition.ItemIds
                 .Where(x => !collection.Counts.ContainsKey(x) ||
                     collection.Counts[x] == 0)
                 .OrderBy(x => x, StringComparer.Ordinal)
                 .ToList();
-            var guarantee = definition.PityThreshold > 0 &&
-                snapshot.PityCounter >= definition.PityThreshold &&
-                missing.Count > 0;
+            var guarantee = false;
 
-            if (guarantee)
-                draws.Add(missing[rng.NextIndex(missing.Count)]);
+            if (receipt.IsChildProfile)
+            {
+                for (var i = 0; i < definition.DrawCount; i++)
+                    draws.Add(definition.ItemIds[
+                        i % definition.ItemIds.Count]);
+            }
+            else
+            {
+                var rng = new SeededRandom(seed);
+                guarantee = definition.PityThreshold > 0 &&
+                    snapshot.PityCounter >= definition.PityThreshold &&
+                    missing.Count > 0;
 
-            while (draws.Count < definition.DrawCount)
-                draws.Add(definition.ItemIds[
-                    rng.NextIndex(definition.ItemIds.Count)]);
+                if (guarantee)
+                    draws.Add(missing[rng.NextIndex(missing.Count)]);
+
+                while (draws.Count < definition.DrawCount)
+                    draws.Add(definition.ItemIds[
+                        rng.NextIndex(definition.ItemIds.Count)]);
+            }
 
             var hasNew = draws.Any(x =>
                 !collection.Counts.ContainsKey(x) || collection.Counts[x] == 0);
@@ -502,12 +515,14 @@ namespace Match3.Engine.Runtime
             if (!GameProfileCatalog.IsKnownId(gameId))
                 throw new ArgumentException("Unknown game ID.", nameof(gameId));
             if (string.IsNullOrWhiteSpace(profileId) ||
-                string.IsNullOrWhiteSpace(modeId))
-                throw new ArgumentException("Journey profile/mode IDs required.");
+                string.IsNullOrWhiteSpace(modeId) ||
+                profileId.Contains("|") || modeId.Contains("|"))
+                throw new ArgumentException(
+                    "Journey profile/mode IDs required and cannot contain '|'.");
             var ids = (levelIds ?? throw new ArgumentNullException(nameof(levelIds)))
                 .ToList();
             if (ids.Count != 10 ||
-                ids.Any(string.IsNullOrWhiteSpace) ||
+                ids.Any(x => string.IsNullOrWhiteSpace(x) || x.Contains("|")) ||
                 ids.Distinct(StringComparer.Ordinal).Count() != 10)
                 throw new ArgumentException(
                     "Journey strip requires exactly ten unique level IDs.",
@@ -671,6 +686,12 @@ namespace Match3.Engine.Runtime
         {
             if (definition == null) throw new ArgumentNullException(nameof(definition));
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            if (snapshot.CompletedLevelIds.Any(x =>
+                    !definition.LevelIds.Contains(x)) ||
+                snapshot.FirstTryWinLevelIds.Any(x =>
+                    !definition.LevelIds.Contains(x)))
+                throw new ArgumentException(
+                    "Journey snapshot references level outside strip.");
             return definition.LevelIds.FirstOrDefault(
                 x => !snapshot.CompletedLevelIds.Contains(x));
         }
@@ -860,6 +881,9 @@ namespace Match3.Engine.Runtime
                     throw new ArgumentException(
                         "Invalid recovery booster candidates.");
                 foreach (var candidate in list
+                    .Where(x => x.OwnedCharges > 0 ||
+                        x.PurchaseEligible ||
+                        (x.RewardedEligible && rewardedProviderAvailable))
                     .OrderBy(x => x.Rank)
                     .ThenBy(x => x.BoosterId, StringComparer.Ordinal)
                     .Take(2))
