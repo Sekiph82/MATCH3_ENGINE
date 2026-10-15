@@ -193,5 +193,54 @@ namespace Match3.Engine.Tests
                 new VerifiedEngagementFact("Coral_Rescue", "x",
                     EngagementKind.Gift, false, true, 0, 1));
         }
+
+        [Test]
+        public void M10_012_DuplicateUiActivationCannotReopenOrRepurchaseAcrossProfiles()
+        {
+            foreach (var id in GameProfileCatalog.Ids)
+            {
+                var home = new UiSurfaceState("home.ready." + id,
+                    UiSurfaceKind.Home, new[] {
+                        new UiActionDefinition("goto.shop",
+                            UiSurfaceKind.Home, UiActionKind.Navigate,
+                            true, true, destination: UiSurfaceKind.Shop)
+                    });
+                var shop = new UiSurfaceState("shop.ready." + id,
+                    UiSurfaceKind.Shop, new[] {
+                        new UiActionDefinition("buy.once",
+                            UiSurfaceKind.Shop, UiActionKind.Command,
+                            true, true, commandKey: "purchase.intent"),
+                        new UiActionDefinition("back",
+                            UiSurfaceKind.Shop, UiActionKind.Back, true, true)
+                    });
+                var first = UiRouter.Activate(
+                    new UiRouteSnapshot(UiSurfaceKind.Home), home,
+                    new UiActivation("enter." + id, home.StateId,
+                        UiSurfaceKind.Home, "goto.shop"));
+                Assert.That(first.Applied, Is.True);
+                Assert.That(first.Result.CurrentSurface, Is.EqualTo(UiSurfaceKind.Shop));
+                var replayEnter = UiRouter.Activate(first.Result, home,
+                    new UiActivation("enter." + id, home.StateId,
+                        UiSurfaceKind.Home, "goto.shop"));
+                Assert.That(replayEnter.Applied, Is.False);
+                var purchase = UiRouter.Activate(first.Result, shop,
+                    new UiActivation("purchase." + id, shop.StateId,
+                        UiSurfaceKind.Shop, "buy.once"));
+                Assert.That(purchase.Applied, Is.True);
+                Assert.That(purchase.CommandKey, Is.EqualTo("purchase.intent"));
+                var replay = UiRouter.Activate(purchase.Result, shop,
+                    new UiActivation("purchase." + id, shop.StateId,
+                        UiSurfaceKind.Shop, "buy.once"));
+                Assert.That(replay.Applied, Is.False);
+                Assert.Throws<InvalidOperationException>(() =>
+                    UiRouter.Activate(purchase.Result, shop,
+                        new UiActivation("purchase." + id, shop.StateId,
+                            UiSurfaceKind.Shop, "back")));
+                Assert.Throws<InvalidOperationException>(() =>
+                    UiRouter.Activate(purchase.Result, home,
+                        new UiActivation("stale." + id, home.StateId,
+                            UiSurfaceKind.Home, "goto.shop")));
+            }
+        }
     }
 }
