@@ -564,6 +564,7 @@ namespace Match3.Engine.Runtime
             var unlocked = new HashSet<string>(
                 snapshot.UnlockedLevelIds, StringComparer.Ordinal);
             unlocked.Add(attempt.LevelId);
+            var attemptGameId = graph.GameIdForLevel(attempt.LevelId);
 
             var newlyUnlocked = new List<string>();
             var changed = true;
@@ -571,6 +572,8 @@ namespace Match3.Engine.Runtime
             {
                 changed = false;
                 foreach (var level in graph.Levels.Values
+                    .Where(x => StringComparer.Ordinal.Equals(
+                        graph.GameIdForLevel(x.LevelId), attemptGameId))
                     .OrderBy(x => x.LevelId, StringComparer.Ordinal))
                 {
                     if (unlocked.Contains(level.LevelId))
