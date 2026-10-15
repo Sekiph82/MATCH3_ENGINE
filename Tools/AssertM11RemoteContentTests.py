@@ -39,6 +39,11 @@ EXPECTED = {
     "M11_013_OfflineFallbackRequiresFreshValidSignedContent",
     "M11_013_UnityPatchPanelNeverInventsSignedStatusOrGameAccess",
     "M11_013_UnityPatchPanelShowsOnlyAuthenticatedOfflinePlay",
+    "M11_013_PrelaunchSignedNetworkSuccessIsNotReadyBeforeAtomicCommit",
+    "M11_006_PrelaunchRemoteFailureUsesGenuinelySignedPackagedFallback",
+    "M11_007_AtomicPointerRefusalCannotPretendContentActivated",
+    "M11_013_IdenticalInstalledSignatureProducesNoUpdateNotOfflineLabel",
+    "M11_003_BadSignedManifestRejectedBeforeExternalNetworkAndStorage",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -51,6 +56,7 @@ SUITES = {
     "RemotePackagedStarterContractTests",
     "RemotePatchFlowContractTests",
     "NeutralPatchBootstrapViewPlayModeTests",
+    "RemotePrelaunchBootstrapContractTests",
 }
 
 def check(paths):
