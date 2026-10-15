@@ -388,6 +388,25 @@ namespace Match3.Engine.Tests
                 Is.EqualTo("gc.win10"));
             Assert.That(definitions[0].GooglePlayGamesId,
                 Is.EqualTo("gpgs.win10"));
+
+            var denied = AchievementPlatformProjector.ProjectUnlocked(
+                two.Result, definitions,
+                AchievementPlatform.AppleGameCenter,
+                nativeSignedIn: false);
+            Assert.That(denied, Is.Empty);
+            Assert.That(two.Result.UnlockedIds, Does.Contain("win-10"),
+                "Native sign-in denial must not remove local achievement state.");
+
+            var apple = AchievementPlatformProjector.ProjectUnlocked(
+                two.Result, definitions,
+                AchievementPlatform.AppleGameCenter,
+                nativeSignedIn: true);
+            var google = AchievementPlatformProjector.ProjectUnlocked(
+                two.Result, definitions,
+                AchievementPlatform.GooglePlayGames,
+                nativeSignedIn: true);
+            Assert.That(apple, Is.EqualTo(new[] { "gc.win10" }));
+            Assert.That(google, Is.EqualTo(new[] { "gpgs.win10" }));
         }
 
         [Test]
