@@ -5,6 +5,7 @@ name: ENG-M08 Real Windows Player Release Firewall
   # ENG-M07 final goal-score source-parity refresh.
   # ENG-M08 final shared-progression source-parity refresh.
   # ENG-M08 reentry-callsite final source-parity refresh.
+  # ENG-M08 final authority-closure source-parity refresh.
 on:
   workflow_dispatch:
   # ENG-M08 FINAL frozen shared world-map/progression source plus inherited M00-M07 runtime: real Unity Win64 build, strict release scanner.
