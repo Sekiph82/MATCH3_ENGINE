@@ -556,7 +556,7 @@ namespace Match3.Engine.Tests
             })
             {
                 var plan = ReentryPlanner.Resolve(
-                    authority, reason, "unfinished-animation");
+                    graph, authority, reason, "unfinished-animation");
                 Assert.That(plan.TargetRoute, Is.SameAs(map));
                 Assert.That(plan.Authority.SaveRevision, Is.EqualTo(42));
                 Assert.That(plan.Authority.FrontierLevelId, Is.EqualTo("L5"));
