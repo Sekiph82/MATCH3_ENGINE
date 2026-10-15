@@ -2,6 +2,7 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # ENG-M11 R11: use canonical host-gated activation and check all 40 Unity tests.
   # ENG-M11 R10: exact-source 40 signed prelaunch+Unity patch screen regression.
   # ENG-M11 R09: source-exact 35-case PlayMode signed viewer plus real scene binding.
   # ENG-M11 R08: hosted-neutral Unity patch view and exact 35-case regression.
