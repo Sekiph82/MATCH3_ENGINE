@@ -12,8 +12,17 @@ namespace Match3.Engine.Demo
         private RemotePatchFlow _flow;
         private string _unavailableReason = "No signed update session";
         private string _lastPublicAction = "";
+        // The real host must provide a callback that starts an actual retry.
+        // Showing a clickable RETRY from the patch-state model alone would
+        // be a dead CTA and was rejected in the owner's Win64 visual review.
+        private Func<bool> _requestHostRetry;
+        private bool _hostRetryPending;
 
         public bool HasVerifiedSession => _flow != null;
+        public bool CanRequestHostRetry =>
+            _requestHostRetry != null && !_hostRetryPending &&
+            (_flow == null || _flow.Snapshot().CanRetry);
+        public bool HostRetryPending => _hostRetryPending;
         public bool CanEnterGame => _flow != null && _flow.Snapshot().CanPlay;
         public string LastPublicAction => _lastPublicAction;
 
@@ -25,6 +34,7 @@ namespace Match3.Engine.Demo
                 throw new InvalidOperationException(
                     "Already bound: a bootstrap session cannot be swapped silently.");
             _flow = verifiedSession;
+            _hostRetryPending = false;
             _unavailableReason = "";
             _lastPublicAction = "signed-session-bound";
         }
@@ -39,7 +49,43 @@ namespace Match3.Engine.Demo
                 reasonKey != "content-unavailable")
                 throw new ArgumentException("Unsafe/unbounded UI reason key.");
             _unavailableReason = reasonKey;
+            _hostRetryPending = false;
             _lastPublicAction = "status-unavailable";
+        }
+
+        // Register ONCE on the main thread before patch UI can offer RETRY.
+        // An accepted callback means a new host attempt was scheduled, never
+        // that bytes downloaded or that content was authenticated.
+        public void RegisterHostRetry(Func<bool> requestRealRetry)
+        {
+            if (requestRealRetry == null)
+                throw new ArgumentNullException(nameof(requestRealRetry));
+            if (_requestHostRetry != null)
+                throw new InvalidOperationException(
+                    "Cannot silently replace the configured retry host.");
+            _requestHostRetry = requestRealRetry;
+        }
+
+        public bool TryRequestHostRetry()
+        {
+            if (!CanRequestHostRetry)
+                return false;
+            var accepted = false;
+            try
+            {
+                accepted = _requestHostRetry();
+            }
+            catch (Exception)
+            {
+                // Never expose a host error, local file path or network URL.
+                // Do not fabricate any download progress or unlock gameplay.
+                accepted = false;
+            }
+            if (!accepted)
+                return false;
+            _hostRetryPending = true;
+            _lastPublicAction = "host-retry-scheduled";
+            return true;
         }
 
         public RemotePatchUiSnapshot Snapshot()
@@ -87,26 +133,32 @@ namespace Match3.Engine.Demo
 
         private void OnGUI()
         {
-            // Deliberately not drawn until an explicit host integration
-            // binds an authentic signed flow. Preserve existing demo play.
-            if (_flow == null) return;
+            // A dormant demo never shows a fake patch. A configured real
+            // host may show a truthful unavailable panel with a working
+            // retry CTA even before a signed session has been bound.
+            if (_flow == null && _requestHostRetry == null) return;
             var width = Mathf.Min(430f, Mathf.Max(260f, Screen.width - 32f));
             var panel = new Rect(16f, Mathf.Max(16f, Screen.height - 140f),
                 width, 124f);
             GUI.Box(panel, "ENGINE / SIGNED CONTENT");
             GUI.Label(new Rect(panel.x + 14f, panel.y + 29f,
                 panel.width - 28f, 28f), VisibleStatus);
-            var snapshot = _flow.Snapshot();
+            var snapshot = Snapshot();
+            var progressText = snapshot == null
+                ? "No verified content | grants: disabled | offers: disabled"
+                : "Progress: " + snapshot.VerifiedPercent +
+                  "% | grants: disabled | offers: disabled";
             GUI.Label(new Rect(panel.x + 14f, panel.y + 57f,
-                panel.width - 28f, 22f),
-                "Progress: " + snapshot.VerifiedPercent +
-                "% | grants: disabled | offers: disabled");
-            if (snapshot.CanRetry &&
+                panel.width - 28f, 22f), progressText);
+            if (_hostRetryPending)
+                GUI.Label(new Rect(panel.x + 14f, panel.y + 86f,
+                    panel.width - 28f, 25f), "Retry requested. Waiting for host...");
+            else if (CanRequestHostRetry &&
                 GUI.Button(new Rect(panel.x + 14f, panel.y + 86f,
                     130f, 27f), "RETRY"))
-                TryRetry();
-            // The real game host decides navigation after CanEnterGame
-            // and never from visual progress alone.
+                TryRequestHostRetry();
+            // The real host must bind a newly authenticated session before
+            // the gate opens. Retry scheduling never changes CanEnterGame.
         }
     }
 }
