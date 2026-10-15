@@ -927,7 +927,7 @@ jobs:
           manifest = json.loads(path.read_text(encoding='utf-8'))
           assert 'com.unity.addressables' not in manifest['dependencies']
           manifest['dependencies']['com.unity.addressables'] = '2.11.2'
-          path.write_text(json.dumps(manifest, indent=2) + '\\n', encoding='utf-8')
+          path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
           print('HOSTED_ONLY_ADDRESSABLES_MANIFEST=2.11.2')
           PY
           mkdir -p Assets/EngineM11HostedNeutral/Editor
