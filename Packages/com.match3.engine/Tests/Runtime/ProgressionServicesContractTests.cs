@@ -187,6 +187,31 @@ namespace Match3.Engine.Tests
             Assert.That(TaskProgressPlanner.Claim(
                 weekly, definitions, "weekly-win").RewardSourceId,
                 Is.EqualTo("task:week:42:weekly-win"));
+
+            Assert.Throws<ArgumentException>(() =>
+                TaskProgressPlanner.ApplyEvent(
+                    daily,
+                    new TaskDefinition[]
+                    {
+                        new TaskDefinition(
+                            "valid", TaskPeriodKind.Daily, "match", 1),
+                        null
+                    },
+                    new TaskProgressEvent(
+                        "null-def", "day:100", "match", 1)));
+
+            Assert.Throws<ArgumentException>(() =>
+                TaskProgressPlanner.ApplyEvent(
+                    daily,
+                    new[]
+                    {
+                        new TaskDefinition(
+                            "same-id", TaskPeriodKind.Daily, "match", 1),
+                        new TaskDefinition(
+                            "same-id", TaskPeriodKind.Weekly, "win", 1)
+                    },
+                    new TaskProgressEvent(
+                        "dup-def", "day:100", "match", 1)));
         }
 
         [Test]
