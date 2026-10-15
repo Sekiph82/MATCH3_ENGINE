@@ -10,6 +10,7 @@ name: ENG-M09 Real Windows Player Release Firewall
   # ENG-M09 overlay compile-guard repair final source-parity refresh.
 on:
   workflow_dispatch:
+  # ENG-M10 final neutral source and 25-case Unity counterpart source parity check.
   # ENG-M10 final neutral tutorial contracts actual clean Win64 player verification.
   # ENG-M09 FINAL frozen neutral UI/theme-effects source plus inherited M00-M08 runtime: real Unity Win64 build, strict release scanner.
   # Run once when this tightly scoped workflow is created or adjusted.
