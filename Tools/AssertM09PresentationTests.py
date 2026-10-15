@@ -7,6 +7,10 @@ EXPECTED = {
     "M09_002_PresentationVfxProjectionIsOrderedReplaySafeAndMissingKeyFallsBack",
     "M09_003_AnimationArbitrationIsBoundedPriorityStableSkipSafeAndReducedMotionSafe",
     "M09_004_UiRoutingIsTypedAccessibleAndActivationReplaySafe",
+    "M09_005_ResponsiveLayoutEnforcesSafeAreaTouchTargetsAndTextOverflowPolicy",
+    "M09_006_AudioAbstractionUsesTypedKeysSavedSettingsReplaySafetyAndMissingCueSuppression",
+    "M09_007_FallbackResolverNeverNeedsGameplayAuthorityAndRejectsMalformedCatalogs",
+    "M09_008_PresentationBudgetsReportDeterministicTierSpecificOveragesWithoutClaimingDeviceProfiling",
 }
 
 def main(paths):
@@ -15,7 +19,8 @@ def main(paths):
         root = ET.parse(path).getroot()
         for case in root.findall(".//test-case"):
             fullname = case.get("fullname", "")
-            if "PresentationCoreContractTests." in fullname:
+            if ("PresentationCoreContractTests." in fullname or
+                    "PresentationPlatformContractTests." in fullname):
                 short = fullname.rsplit(".", 1)[-1]
                 found.setdefault(short, []).append(case.get("result"))
     if set(found) != EXPECTED or any(v != ["Passed"] for v in found.values()):
@@ -23,7 +28,7 @@ def main(paths):
             "FAIL: M09 presentation cases missing, skipped, duplicated or failed: "
             + repr(found)
         )
-    print("UNITY_M09_001_004_PRESENTATION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
+    print("UNITY_M09_001_008_PRESENTATION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
