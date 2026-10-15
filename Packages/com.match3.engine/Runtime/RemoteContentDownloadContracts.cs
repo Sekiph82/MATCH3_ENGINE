@@ -188,6 +188,7 @@ namespace Match3.Engine.Runtime
             var keys = trusted.ToArray();
             var total = manifest.Entries.Sum(x => x.Length);
             long verified = 0;
+            var progressGate = new object();
             var output = new System.Collections.Concurrent
                 .ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
             using (var semaphore = new SemaphoreSlim(maxParallel, maxParallel))
@@ -205,9 +206,14 @@ namespace Match3.Engine.Runtime
                         if (!output.TryAdd(receipt.Path, receipt.Bytes))
                             throw new InvalidOperationException(
                                 "Duplicate staged path discovered.");
-                        var current = Interlocked.Add(ref verified, entry.Length);
-                        if (onVerifiedProgress != null)
-                            onVerifiedProgress(current, total);
+                        // The callback order must never show decreasing
+                        // verified progress when parallel requests finish.
+                        lock (progressGate)
+                        {
+                            verified = checked(verified + entry.Length);
+                            if (onVerifiedProgress != null)
+                                onVerifiedProgress(verified, total);
+                        }
                     }
                     finally { semaphore.Release(); }
                 }).ToArray();
