@@ -1004,6 +1004,58 @@ namespace Match3.Engine.Runtime
         }
     }
 
+    public enum AchievementPlatform
+    {
+        AppleGameCenter = 0,
+        GooglePlayGames = 1
+    }
+
+    public static class AchievementPlatformProjector
+    {
+        public static IReadOnlyList<string> ProjectUnlocked(
+            AchievementSnapshot snapshot,
+            IEnumerable<AchievementDefinition> definitions,
+            AchievementPlatform platform,
+            bool nativeSignedIn)
+        {
+            if (snapshot == null)
+                throw new ArgumentNullException(nameof(snapshot));
+            if (definitions == null)
+                throw new ArgumentNullException(nameof(definitions));
+            if (!Enum.IsDefined(typeof(AchievementPlatform), platform))
+                throw new ArgumentOutOfRangeException(nameof(platform));
+
+            var defs = definitions.Take(257).ToArray();
+            if (defs.Length > 256 || defs.Any(x => x == null) ||
+                defs.GroupBy(x => x.AchievementId, StringComparer.Ordinal)
+                    .Any(x => x.Count() > 1))
+                throw new ArgumentException(
+                    "Invalid achievement definitions.");
+            if (snapshot.UnlockedIds.Any(id =>
+                !defs.Any(x => StringComparer.Ordinal.Equals(
+                    x.AchievementId, id))))
+                throw new ArgumentException(
+                    "Achievement snapshot references unknown definition.");
+
+            if (!nativeSignedIn)
+                return new string[0];
+
+            var ids = new List<string>();
+            foreach (var achievementId in snapshot.UnlockedIds)
+            {
+                var def = defs.Single(x =>
+                    StringComparer.Ordinal.Equals(
+                        x.AchievementId, achievementId));
+                var nativeId = platform == AchievementPlatform.AppleGameCenter
+                    ? def.AppleGameCenterId
+                    : def.GooglePlayGamesId;
+                if (!string.IsNullOrWhiteSpace(nativeId))
+                    ids.Add(nativeId);
+            }
+            return ids.OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        }
+    }
+
     public enum ReentryReason
     {
         FirstTime = 0,
