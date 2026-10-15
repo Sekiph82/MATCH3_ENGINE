@@ -596,11 +596,13 @@ namespace Match3.Engine.Runtime
         public string GameId { get; }
         public UiSurfaceKind Surface { get; }
         public PlayerSurfaceStateKind State { get; }
+        public string MasterAssetKey { get; }
         public IReadOnlyList<string> TextKeys => _textKeys;
         public IReadOnlyList<string> IconKeys => _iconKeys;
 
         public PlayerSurfaceBinding(string gameId,
             UiSurfaceKind surface, PlayerSurfaceStateKind state,
+            string masterAssetKey,
             IEnumerable<string> textKeys,
             IEnumerable<string> iconKeys)
         {
@@ -610,10 +612,15 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentOutOfRangeException(nameof(surface));
             if (!Enum.IsDefined(typeof(PlayerSurfaceStateKind), state))
                 throw new ArgumentOutOfRangeException(nameof(state));
+            if (string.IsNullOrWhiteSpace(masterAssetKey))
+                throw new ArgumentException(
+                    "Player-facing theme master asset key required.",
+                    nameof(masterAssetKey));
 
             GameId = gameId;
             Surface = surface;
             State = state;
+            MasterAssetKey = masterAssetKey;
             _textKeys = new ReadOnlyCollection<string>(
                 FreezeKeys(textKeys, "text"));
             _iconKeys = new ReadOnlyCollection<string>(
