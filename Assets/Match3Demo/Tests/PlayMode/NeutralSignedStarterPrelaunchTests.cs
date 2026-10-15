@@ -38,6 +38,9 @@ namespace Match3.Engine.Demo.Tests
             try
             {
                 var view = root.AddComponent<NeutralPatchBootstrapView>();
+                var demo = root.AddComponent<NeutralMatch3Demo>();
+                demo.RequireSignedPrelaunch(view);
+                Assert.That(demo.IsBoardInputAllowed, Is.False);
                 Assert.That(view.CanEnterGame, Is.False);
                 using (var rsa = new RSACryptoServiceProvider(2048))
                 {
@@ -58,6 +61,7 @@ namespace Match3.Engine.Demo.Tests
                         new EngineVersion(1, 0, 0), 2000);
                     Assert.That(view.HasVerifiedSession, Is.True);
                     Assert.That(view.CanEnterGame, Is.True);
+                    Assert.That(demo.IsBoardInputAllowed, Is.True);
                     Assert.That(view.VisibleStatus,
                         Does.Contain("verified content available"));
                     Assert.That(view.Snapshot().CanPurchase, Is.False);
@@ -79,6 +83,9 @@ namespace Match3.Engine.Demo.Tests
             try
             {
                 var view = root.AddComponent<NeutralPatchBootstrapView>();
+                var demo = root.AddComponent<NeutralMatch3Demo>();
+                demo.RequireSignedPrelaunch(view);
+                Assert.That(demo.IsBoardInputAllowed, Is.False);
                 using (var rsa = new RSACryptoServiceProvider(2048))
                 using (var attacker = new RSACryptoServiceProvider(2048))
                 {
@@ -111,6 +118,7 @@ namespace Match3.Engine.Demo.Tests
                             new EngineVersion(1, 0, 0), 2000));
                     Assert.That(view.CanEnterGame, Is.False);
                     Assert.That(view.HasVerifiedSession, Is.False);
+                    Assert.That(demo.IsBoardInputAllowed, Is.False);
                 }
             }
             finally { UnityEngine.Object.DestroyImmediate(root); }
