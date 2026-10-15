@@ -139,8 +139,89 @@ namespace Match3.Engine.Runtime
         }
     }
 
+
+    public sealed class RemoteFetchedPackage
+    {
+        private readonly IReadOnlyDictionary<string, byte[]> _bytes;
+        public RemoteVerifiedRelease Verified { get; }
+        public long TotalBytes { get; }
+
+        internal RemoteFetchedPackage(RemoteVerifiedRelease verified,
+            IReadOnlyDictionary<string, byte[]> bytes)
+        {
+            Verified = verified;
+            var copy = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (var pair in bytes)
+                copy.Add(pair.Key, (byte[])pair.Value.Clone());
+            _bytes = new System.Collections.ObjectModel
+                .ReadOnlyDictionary<string, byte[]>(copy);
+            TotalBytes = copy.Sum(x => (long)x.Value.Length);
+        }
+
+        public byte[] GetVerifiedBytes(string path)
+        {
+            byte[] item;
+            if (path == null || !_bytes.TryGetValue(path, out item))
+                throw new ArgumentException("Unknown verified staged path.", nameof(path));
+            return (byte[])item.Clone();
+        }
+    }
+
     public static class RemoteDownloadCoordinator
     {
+        public static async Task<RemoteFetchedPackage> FetchStageAsync(
+            RemoteContentManifest manifest, byte[] signature,
+            IEnumerable<RemotePublicSigningKey> trusted,
+            RemoteReadOrigin origin, IRemoteReadTransport transport,
+            string gameId, RemotePlatform platform, RemoteChannel channel,
+            EngineVersion engine, long nowUnixSeconds,
+            CancellationToken cancellation, int maxParallel = 2,
+            Action<long, long> onVerifiedProgress = null)
+        {
+            if (manifest == null) throw new ArgumentNullException(nameof(manifest));
+            if (maxParallel < 1 || maxParallel > 3)
+                throw new ArgumentOutOfRangeException(nameof(maxParallel));
+            // Verify before any requests, preventing untrusted manifests
+            // from sending reads to attacker-chosen URLs.
+            RemoteManifestVerifier.Verify(manifest, signature, trusted,
+                gameId, platform, channel, engine, nowUnixSeconds);
+            var keys = trusted.ToArray();
+            var total = manifest.Entries.Sum(x => x.Length);
+            long verified = 0;
+            var output = new System.Collections.Concurrent
+                .ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
+            using (var semaphore = new SemaphoreSlim(maxParallel, maxParallel))
+            {
+                var tasks = manifest.Entries.Select(async entry =>
+                {
+                    await semaphore.WaitAsync(cancellation).ConfigureAwait(false);
+                    try
+                    {
+                        var receipt = await FetchVerifiedAsync(
+                            manifest, signature, keys, origin, transport,
+                            entry, gameId, platform, channel,
+                            engine, nowUnixSeconds, cancellation)
+                            .ConfigureAwait(false);
+                        if (!output.TryAdd(receipt.Path, receipt.Bytes))
+                            throw new InvalidOperationException(
+                                "Duplicate staged path discovered.");
+                        var current = Interlocked.Add(ref verified, entry.Length);
+                        if (onVerifiedProgress != null)
+                            onVerifiedProgress(current, total);
+                    }
+                    finally { semaphore.Release(); }
+                }).ToArray();
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
+            cancellation.ThrowIfCancellationRequested();
+            var snapshot = new Dictionary<string, byte[]>(output,
+                StringComparer.Ordinal);
+            var sealedPackage = RemoteContentStager.VerifyComplete(
+                manifest, signature, keys, gameId, platform, channel,
+                engine, nowUnixSeconds, snapshot);
+            return new RemoteFetchedPackage(sealedPackage, snapshot);
+        }
+
         public static async Task<RemoteDownloadReceipt> FetchVerifiedAsync(
             RemoteContentManifest manifest, byte[] signature,
             IEnumerable<RemotePublicSigningKey> trusted,
