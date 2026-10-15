@@ -105,13 +105,15 @@ namespace Match3.Engine.Runtime
                 progress?.Invoke(flow.Snapshot());
                 return new RemotePrelaunchResult(flow, signed, true, false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
             {
-                cancellation.ThrowIfCancellationRequested();
+                // A user's requested cancellation must not auto-retry or
+                // silently change the current signed offline state.
                 throw;
             }
             catch (Exception ex) when (ex is InvalidOperationException ||
-                ex is IOException || ex is HttpRequestException)
+                ex is IOException || ex is HttpRequestException ||
+                ex is OperationCanceledException)
             {
                 cancellation.ThrowIfCancellationRequested();
                 try
