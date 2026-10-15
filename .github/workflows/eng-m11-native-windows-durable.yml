@@ -1,0 +1,46 @@
+name: ENG-M11 Native Windows Durable Contracts
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Tools/NativeDurableSmoke/**'
+      - 'Packages/com.match3.engine/Runtime/Remote*.cs'
+      - 'Packages/com.match3.engine/Runtime/GameProfiles.cs'
+      - '.github/workflows/eng-m11-native-windows-durable.yml'
+permissions:
+  contents: read
+concurrency:
+  group: eng-m11-native-windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-native-signed-content:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Real Windows .NET native signed-content durability and crash check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet --version
+          & dotnet run --project Tools/NativeDurableSmoke/M11NativeDurableSmoke.csproj --configuration Release 2>&1 |
+            Tee-Object -FilePath "${{ runner.temp }}/m11-win64-native-qa.log"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native durability QA failed.' }
+          $log = Get-Content -LiteralPath "${{ runner.temp }}/m11-win64-native-qa.log" -Raw
+          foreach ($key in @(
+            'M11_WIN64_SIGNED_DURABLE_RESTART=PASS',
+            'M11_WIN64_ATOMIC_POINTER_SWAP=PASS',
+            'M11_WIN64_TAMPER_ROLLBACK_HIGHEST_SEQUENCE=PASS',
+            'M11_WIN64_POINTER_LOSS_FAIL_CLOSED=PASS'
+          )) {
+            if ($log.Split([Environment]::NewLine).Where({ $_ -eq $key }).Count -ne 1) {
+              throw "Missing/duplicated native Windows assertion: $key"
+            }
+          }
+          Write-Output 'M11_WIN64_NATIVE_DURABILITY=PASS CASES=4 FAILED=0'
+          Write-Output "PINNED_SOURCE_SHA=$(git rev-parse HEAD)"
+          git diff --exit-code
