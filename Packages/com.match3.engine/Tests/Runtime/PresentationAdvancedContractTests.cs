@@ -396,6 +396,14 @@ namespace Match3.Engine.Tests
                         dismissible: true),
                     "unsafe-push"));
 
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new DynamicOverlayRequest(
+                    "default-rect",
+                    DynamicOverlayKind.Modal,
+                    default(PixelRect),
+                    interactive: true,
+                    dismissible: true));
+
             var nondismissible = DynamicOverlayPlanner.Push(
                 layout, policy, start,
                 new DynamicOverlayRequest(
