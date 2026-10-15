@@ -286,6 +286,11 @@ namespace Match3.Engine.Tests
                 layout, policy, p1.Result, consent, "push-consent");
             Assert.That(p2.Result.Stack.Count, Is.EqualTo(2));
 
+            var maxDepthReplay = DynamicOverlayPlanner.Push(
+                layout, policy, p2.Result, consent, "push-consent");
+            Assert.That(maxDepthReplay.Applied, Is.False);
+            Assert.That(maxDepthReplay.Result, Is.SameAs(p2.Result));
+
             Assert.Throws<InvalidOperationException>(() =>
                 DynamicOverlayPlanner.Push(
                     layout, policy, p2.Result,
@@ -311,6 +316,10 @@ namespace Match3.Engine.Tests
                 back1.Result, "back-2");
             Assert.That(back2.Applied, Is.True);
             Assert.That(back2.Result.Stack, Is.Empty);
+
+            var emptyReplay = DynamicOverlayPlanner.Back(
+                back2.Result, "back-2");
+            Assert.That(emptyReplay.Applied, Is.False);
 
             Assert.Throws<InvalidOperationException>(() =>
                 DynamicOverlayPlanner.Push(
