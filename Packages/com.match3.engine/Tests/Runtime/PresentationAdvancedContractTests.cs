@@ -182,6 +182,9 @@ namespace Match3.Engine.Tests
             Assert.That(reduced.DurationMilliseconds, Is.EqualTo(340));
             Assert.That(reduced.DurationMilliseconds,
                 Is.LessThan(normal.DurationMilliseconds));
+            Assert.That(reduced.EffectBudget, Is.EqualTo(3));
+            Assert.That(reduced.EffectBudget,
+                Is.LessThan(normal.EffectBudget));
             Assert.That(reduced.HapticsEnabled, Is.False);
 
             var skipped = CeremonyPlanner.Project(
@@ -274,6 +277,28 @@ namespace Match3.Engine.Tests
                 layout, policy, p1.Result,
                 keyboard, "push-keyboard");
             Assert.That(pushReplay.Applied, Is.False);
+
+            var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+            try
+            {
+                System.Globalization.CultureInfo.CurrentCulture =
+                    new System.Globalization.CultureInfo("tr-TR");
+                var cultureReplay = DynamicOverlayPlanner.Push(
+                    layout, policy, p1.Result,
+                    new DynamicOverlayRequest(
+                        "keyboard",
+                        DynamicOverlayKind.Keyboard,
+                        new PixelRect(10, 500, 370, 300),
+                        interactive: false,
+                        dismissible: true),
+                    "push-keyboard");
+                Assert.That(cultureReplay.Applied, Is.False);
+            }
+            finally
+            {
+                System.Globalization.CultureInfo.CurrentCulture =
+                    originalCulture;
+            }
 
             var consent = new DynamicOverlayRequest(
                 "consent",
