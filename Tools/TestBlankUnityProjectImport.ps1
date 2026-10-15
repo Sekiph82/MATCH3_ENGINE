@@ -47,14 +47,17 @@ function Invoke-BlankUnityImport {
 
 $exitCode = Invoke-BlankUnityImport -StartInfo $start
 
-# Unity 6000.6 hosted runners can transiently return 198 when a prior
-# batchmode Editor process has not fully released its activation/editor lock.
-# Retry exactly once only for that specific startup code. All package,
-# compiler, lockfile and other exit failures remain fail-closed.
-if ($exitCode -eq 198) {
-    Write-Output 'UNITY_BLANK_PROJECT_EXIT_198_RETRY=1'
-    Start-Sleep -Seconds 8
+# Exit 198 is Unity's transient Editor/activation lock while prior
+# batchmode processes release licensing. Keep the package acceptance strict,
+# but allow up to three bounded startup-only retries (15/20/25 seconds).
+# Retrying any other error would conceal a real compiler/package failure.
+for ($retry = 1; $retry -le 3 -and $exitCode -eq 198; $retry++) {
+    Write-Output "UNITY_BLANK_PROJECT_EXIT_198_RETRY=$retry"
+    Start-Sleep -Seconds (10 + 5 * $retry)
     $exitCode = Invoke-BlankUnityImport -StartInfo $start
+}
+if ($exitCode -eq 198) {
+    throw "Blank-project Unity licensing/editor lock persisted after bounded retries ($exitCode). See $logPath"
 }
 
 if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) { throw "Unity produced no blank-import log (exit $exitCode)." }
