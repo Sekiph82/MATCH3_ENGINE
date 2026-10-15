@@ -38,7 +38,22 @@ namespace Match3.Engine.Runtime
                 return false;
             var segments = path.Split('/');
             return segments.All(s => s != "." && s != ".." &&
-                IsSafeToken(s, 96) && !s.EndsWith(".", StringComparison.Ordinal));
+                IsSafeToken(s, 96) &&
+                !s.EndsWith(".", StringComparison.Ordinal) &&
+                !IsDevicePathSegment(s));
+        }
+
+        private static bool IsDevicePathSegment(string segment)
+        {
+            // A signed Linux-compatible name must also be safe to stage
+            // on Windows. DOS device names stay reserved with extensions.
+            var stem = segment.Split('.')[0].ToUpperInvariant();
+            if (stem == "CON" || stem == "PRN" || stem == "AUX" ||
+                stem == "NUL") return true;
+            if (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal) ||
+                stem.StartsWith("LPT", StringComparison.Ordinal)) &&
+                stem[3] >= '1' && stem[3] <= '9') return true;
+            return false;
         }
 
         public static bool AllowedKindPath(RemoteContentKind kind, string path)
