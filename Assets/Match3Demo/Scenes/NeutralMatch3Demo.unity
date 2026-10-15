@@ -212,6 +212,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1528169408}
   - component: {fileID: 1528169407}
+  - component: {fileID: 1528169409}
   m_Layer: 0
   m_Name: Neutral Match-3 Demo
   m_TagString: Untagged
@@ -231,6 +232,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1707397d3c5130342810bcec54242c94, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Match3.Engine.Demo::Match3.Engine.Demo.NeutralMatch3Demo
+--- !u!114 &1528169409
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1528169406}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5bc6e1442b504348a6868585029a9c02, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Match3.Engine.Demo::Match3.Engine.Demo.NeutralPatchBootstrapView
 --- !u!4 &1528169408
 Transform:
   m_ObjectHideFlags: 0
