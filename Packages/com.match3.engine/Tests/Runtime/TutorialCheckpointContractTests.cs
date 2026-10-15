@@ -49,7 +49,7 @@ namespace Match3.Engine.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 FtueCheckpointCodec.Read(new SaveEnvelope(2, saved.Payload),
                     catalog.GameId));
-            var broken = saved.Payload.Substring(0, saved.Payload.Length - 1) + "0";
+            var broken = saved.Payload.Substring(0, saved.Payload.Length - 1) + "z";
             Assert.Throws<InvalidOperationException>(() =>
                 FtueCheckpointCodec.Restore(
                     catalog, new SaveEnvelope(1, broken)));
