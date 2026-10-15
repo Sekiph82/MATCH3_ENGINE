@@ -59,9 +59,8 @@ namespace Match3.Engine.Tests
             FakeTransport transport, CancellationToken cancellation,
             bool corruptSignature = false, int maxAttempts = 3)
         {
-            using (var signer = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
                 var m = Manifest();
                 var k = signer.ExportParameters(false);
                 var key = new RemotePublicSigningKey("key-1",
@@ -164,9 +163,8 @@ namespace Match3.Engine.Tests
                 { "levels/extra.csv", second }
             };
             var completed = new List<long>();
-            using (var signer = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
                 var manifest = new RemoteContentManifest("Coral_Rescue",
                     RemotePlatform.Android, RemoteChannel.FamilyTest,
                     "release-2", "key-1", new EngineVersion(1, 0, 0),
