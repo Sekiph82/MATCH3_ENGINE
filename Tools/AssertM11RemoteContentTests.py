@@ -46,6 +46,8 @@ EXPECTED = {
     "M11_003_BadSignedManifestRejectedBeforeExternalNetworkAndStorage",
     "M11_006_ActualUnityStreamingAssetsLoadAuthenticatesBundledStarter",
     "M11_006_UnityStreamingStarterRejectsTamperedContentsAndForgedKey",
+    "M11_008_SignedCatalogAndBundleDeliveredAsImmutableBytes",
+    "M11_008_CrossTitleUnknownBundleAndChangedDownloadFailClosed",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -60,6 +62,7 @@ SUITES = {
     "NeutralPatchBootstrapViewPlayModeTests",
     "RemotePrelaunchBootstrapContractTests",
     "NeutralUnityStreamingStarterPlayModeTests",
+    "RemoteVerifiedAddressablesPayloadTests",
 }
 
 def check(paths):
