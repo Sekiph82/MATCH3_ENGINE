@@ -2,6 +2,7 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # ENG-M11 R15: exact Unity 42-case signed starter plus public pinned-manifest R2 3/3.
   # ENG-M11 R14: 42 exact Unity contract and real signed R2 envelope + real Addressables.
   # ENG-M11 R12: retry startup-only blank UPM exit 198, preserve exact Unity 40-case proof.
   # ENG-M11 R11: use canonical host-gated activation and check all 40 Unity tests.
