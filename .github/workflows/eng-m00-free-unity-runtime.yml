@@ -834,6 +834,15 @@ jobs:
             "$PWD/artifacts/editmode-results.xml" \
             "$PWD/artifacts/playmode-results.xml"
 
+      # ENG-M11 neutral remote content and signature evidence (no cloud writes).
+      - name: Verify actual Unity ENG-M11 signed-content 001-014 unit cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Tools/AssertM11RemoteContentTests.py \
+            "$PWD/artifacts/editmode-results.xml" \
+            "$PWD/artifacts/playmode-results.xml"
+
       # This is intentionally a FAILING NUnit test. PASS means Unity returned
       # nonzero and the XML identifies exactly one failed assertion. Never
       # replace it with an exit-0 fake or swallow an unexpected Unity error.
