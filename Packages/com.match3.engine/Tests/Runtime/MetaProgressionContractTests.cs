@@ -417,6 +417,30 @@ namespace Match3.Engine.Tests
                 nativeSignedIn: true);
             Assert.That(apple, Is.EqualTo(new[] { "gc.win10" }));
             Assert.That(google, Is.EqualTo(new[] { "gpgs.win10" }));
+
+            Assert.Throws<ArgumentException>(() =>
+                AchievementPlanner.Apply(
+                    new AchievementSnapshot(
+                        new[]
+                        {
+                            new KeyValuePair<string, int>("win-10", 10)
+                        }),
+                    definitions,
+                    new AchievementProgressEvent(
+                        "bad-save", "collect-5", 1)));
+
+            Assert.Throws<ArgumentException>(() =>
+                AchievementPlatformProjector.ProjectUnlocked(
+                    two.Result,
+                    new[]
+                    {
+                        new AchievementDefinition(
+                            "win-10", 10, "gc.same", "gpgs.win10"),
+                        new AchievementDefinition(
+                            "collect-5", 5, "gc.same", "gpgs.collect5")
+                    },
+                    AchievementPlatform.AppleGameCenter,
+                    nativeSignedIn: true));
         }
 
         [Test]
