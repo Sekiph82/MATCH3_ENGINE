@@ -62,6 +62,14 @@ namespace Match3.Engine.Tests
                     new FtueReceipt("x", "intro", FtueReceiptKind.Presented),
                     new FtueReceipt("y", "intro", FtueReceiptKind.Presented)
                 }));
+            // A self-consistent checksum is not proof of a valid event history.
+            var forgedFutureStep = new FtueSnapshot(catalog.GameId, 1, new [] {
+                new FtueReceipt("synthetic.special", "special",
+                    FtueReceiptKind.Presented)
+            });
+            Assert.Throws<InvalidOperationException>(() =>
+                FtueCheckpointCodec.Restore(catalog,
+                    FtueCheckpointCodec.Write(forgedFutureStep)));
         }
     }
 }
