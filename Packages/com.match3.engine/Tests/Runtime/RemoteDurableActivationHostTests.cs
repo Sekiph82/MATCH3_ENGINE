@@ -148,6 +148,41 @@ namespace Match3.Engine.Tests
         }
 
         [Test]
+        public async Task M11_011_InvalidStageDoesNotTouchDiskAndOrphanQuotaFailsClosed()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var trust = Trust(signer);
+                var pack = await Package(signer, trust, 1);
+                var host = Host();
+                var wrong = new Dictionary<string, byte[]> {
+                    { "levels/sample.json", Encoding.UTF8.GetBytes("{\"level\":9}") }
+                };
+                Assert.Throws<InvalidOperationException>(() =>
+                    host.PrepareVerifiedAsync(pack.Verified, wrong,
+                        CancellationToken.None).GetAwaiter().GetResult());
+                var partitionDir = Path.Combine(_sandbox,
+                    "Coral_Rescue", "0", "1");
+                Assert.That(Directory.GetDirectories(partitionDir,
+                    "stage-*").Length, Is.Zero,
+                    "Invalid input must not write a single orphan stage.");
+                for (var i = 0; i < 4; i++)
+                    Directory.CreateDirectory(Path.Combine(partitionDir,
+                        "stage-owner-review-" + i));
+                var valid = new Dictionary<string, byte[]> {
+                    { "levels/sample.json", pack.GetVerifiedBytes("levels/sample.json") }
+                };
+                Assert.Throws<InvalidOperationException>(() =>
+                    host.PrepareVerifiedAsync(pack.Verified, valid,
+                        CancellationToken.None).GetAwaiter().GetResult());
+                Assert.That(Directory.GetDirectories(partitionDir,
+                    "stage-*").Length, Is.EqualTo(4));
+                Assert.That(Host().Restore(new[] { trust },
+                    new EngineVersion(1, 0, 0), 2000).Active, Is.Null);
+            }
+        }
+
+        [Test]
         public async Task M11_011_InterruptedStagingAndPointerTamperNeverActivateContent()
         {
             using (var signer = new RSACryptoServiceProvider(2048))
