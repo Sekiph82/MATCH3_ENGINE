@@ -321,12 +321,22 @@ namespace Match3.Engine.Tests
                 policy, candidates, true);
             Assert.That(win.Result.ConsecutiveFailures, Is.EqualTo(0));
 
+            var nextFrontier = FailRecoveryPlanner.ApplyResult(
+                win.Result,
+                R("next-frontier-loss", false, false, false,
+                    level: "L6", frontier: "L6",
+                    score: 0, stars: 0, attempt: 8),
+                policy, candidates, true);
+            Assert.That(nextFrontier.Result.FrontierLevelId, Is.EqualTo("L6"));
+            Assert.That(nextFrontier.Result.ConsecutiveFailures, Is.EqualTo(1));
+            Assert.That(nextFrontier.Recommendations, Is.Empty);
+
             Assert.Throws<InvalidOperationException>(() =>
                 FailRecoveryPlanner.ApplyResult(
                     win.Result,
                     R("forged", false, false, false,
                         level: "L5", frontier: "L5",
-                        score: 0, stars: 0, attempt: 8,
+                        score: 0, stars: 0, attempt: 9,
                         verified: false),
                     policy, candidates, true));
         }
