@@ -824,6 +824,7 @@ jobs:
             "$PWD/artifacts/editmode-results.xml" \
             "$PWD/artifacts/playmode-results.xml"
 
+      # ENG-M10 R02 25-case full neutral replay/engagement regression final verification.
       # ENG-M10 must be discovered in real Unity XML, not inferred from 209/209 counts.
       - name: Require real Unity ENG-M10 tutorial 001-013 contracts
         shell: bash
