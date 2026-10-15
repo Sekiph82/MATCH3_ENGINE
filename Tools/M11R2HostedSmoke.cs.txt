@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Match3.Engine.Runtime;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Match3.Engine.HostedOptionalAddressables
 {
@@ -61,6 +62,68 @@ namespace Match3.Engine.HostedOptionalAddressables
                 Assert.That(RemoteContentSafety.Sha256(receipt.Bytes),
                     Is.EqualTo(ExpectedDigest));
             }
+        }
+
+        // This second test does NOT generate a new signature for the remote
+        // object. It verifies the canonical manifest and signature fetched
+        // from real Cloudflare R2 against a code-pinned QA public key.
+        private const string PinnedQaModulusBase64 =
+            "rEhpHM6pi7K9QJWueacRKZkTVrhOBkXLMq9aHjfCaCYFUjC9BfVhbDNpxi4WDxxfEPgjdJP4b3JFbwcka8yKE5qYIeLPuLEg6nmIuYTAZ3W/YJlbqnZ+I+3WJvGroQkPtyRg/uI9WbSoXa7e7uh0m4crqsfbnrN6eMbiShO8BKFgH1KlpCzNjgoR+XjEa2gFv+Vsjx2bImxKwUtMp2fjqbnkoNpXcA8/gc1kidHn0nDgBlV0EPD1EZmgxEZ1Ntw74cVndJQUbI6grZwOePa/zMCrzvCa7W+nsLndc2rZKMstBwU4Lk892bY+IdBTKV5kKKYuib2IJM5TxfttOXZfEQ==";
+        private const string PinnedCanonicalSha256 =
+            "0af60d84ddf9a140008b4dc2d751bbe027a0c177c5d4b97e416eb5e92e6b15ac";
+
+        [Serializable]
+        private sealed class QaSignedEnvelope
+        {
+            public int schema;
+            public string manifest_b64;
+            public string signature_b64;
+            public string key_id;
+        }
+
+        [Test]
+        public async Task M11_003_R2RemoteSignedManifestAndPayloadValidateWithPinnedPublicKey()
+        {
+            var transport = new RemoteHttpsReadTransport();
+            var envelopeResponse = await transport.FetchAsync(
+                new Uri(Origin + "qa/signed-manifest-v1.json"),
+                2048, CancellationToken.None);
+            Assert.That(envelopeResponse.HttpStatus, Is.EqualTo(200));
+            var json = Encoding.UTF8.GetString(envelopeResponse.Bytes);
+            var envelope = JsonUtility.FromJson<QaSignedEnvelope>(json);
+            Assert.That(envelope, Is.Not.Null);
+            Assert.That(envelope.schema, Is.EqualTo(1));
+            Assert.That(envelope.key_id, Is.EqualTo("match3-qa-pub-v1"));
+            var wire = Convert.FromBase64String(envelope.manifest_b64);
+            var signature = Convert.FromBase64String(envelope.signature_b64);
+            Assert.That(wire.Length, Is.EqualTo(196));
+            Assert.That(RemoteContentSafety.Sha256(wire),
+                Is.EqualTo(PinnedCanonicalSha256));
+            var qaKey = new RemotePublicSigningKey("match3-qa-pub-v1",
+                Convert.FromBase64String(PinnedQaModulusBase64),
+                Convert.FromBase64String("AQAB"), 0, 1823472000);
+            const long qaNow = 1792100000;
+            var manifest = RemoteManifestCodec.ParseVerified(
+                wire, signature, new[] { qaKey }, "Coral_Rescue",
+                RemotePlatform.Android, RemoteChannel.FamilyTest,
+                new EngineVersion(1, 0, 0), qaNow);
+            Assert.That(manifest.ReleaseId, Is.EqualTo("match3-qa-v1"));
+            Assert.That(manifest.Entries.Count, Is.EqualTo(1));
+            Assert.That(manifest.Entries[0].Sha256,
+                Is.EqualTo(ExpectedDigest));
+            var downloaded = await RemoteDownloadCoordinator.FetchVerifiedAsync(
+                manifest, signature, new[] { qaKey },
+                new RemoteReadOrigin(Origin), transport, manifest.Entries[0],
+                manifest.GameId, manifest.Platform, manifest.Channel,
+                new EngineVersion(1, 0, 0), qaNow, CancellationToken.None);
+            Assert.That(downloaded.Bytes,
+                Is.EqualTo(Encoding.UTF8.GetBytes(ExpectedBody)));
+            var invalid = (byte[])signature.Clone();
+            invalid[0] ^= 1;
+            Assert.Throws<InvalidOperationException>(() =>
+                RemoteManifestCodec.ParseVerified(wire, invalid,
+                    new[] { qaKey }, manifest.GameId, manifest.Platform,
+                    manifest.Channel, new EngineVersion(1, 0, 0), qaNow));
         }
     }
 }
