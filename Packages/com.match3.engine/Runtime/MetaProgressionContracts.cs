@@ -79,12 +79,16 @@ namespace Match3.Engine.Runtime
         private readonly ReadOnlyDictionary<string, CollectionItemDefinition> _items;
         private readonly ReadOnlyDictionary<string, CollectionSetDefinition> _sets;
 
+        public string GameId { get; }
         public IReadOnlyDictionary<string, CollectionItemDefinition> Items => _items;
         public IReadOnlyDictionary<string, CollectionSetDefinition> Sets => _sets;
 
-        public CollectionCatalog(IEnumerable<CollectionItemDefinition> items,
+        public CollectionCatalog(string gameId,
+            IEnumerable<CollectionItemDefinition> items,
             IEnumerable<CollectionSetDefinition> sets)
         {
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                throw new ArgumentException("Unknown game ID.", nameof(gameId));
             var itemArray = (items ?? throw new ArgumentNullException(nameof(items)))
                 .Take(4097).ToArray();
             var setArray = (sets ?? throw new ArgumentNullException(nameof(sets)))
@@ -129,6 +133,7 @@ namespace Match3.Engine.Runtime
                 }
             }
 
+            GameId = gameId;
             _items = new ReadOnlyDictionary<string, CollectionItemDefinition>(itemMap);
             _sets = new ReadOnlyDictionary<string, CollectionSetDefinition>(setMap);
         }
@@ -150,15 +155,19 @@ namespace Match3.Engine.Runtime
         private readonly ReadOnlyCollection<string> _processedEarnIds;
         private readonly ReadOnlyCollection<string> _completedSetIds;
 
+        public string GameId { get; }
         public IReadOnlyDictionary<string, int> Counts => _counts;
         public IReadOnlyList<string> ProcessedEarnIds => _processedEarnIds;
         public IReadOnlyList<string> CompletedSetIds => _completedSetIds;
 
-        public CollectionSnapshot(
+        public CollectionSnapshot(string gameId,
             IEnumerable<KeyValuePair<string, int>> counts = null,
             IEnumerable<string> processedEarnIds = null,
             IEnumerable<string> completedSetIds = null)
         {
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                throw new ArgumentException("Unknown game ID.", nameof(gameId));
+            GameId = gameId;
             var map = new Dictionary<string, int>(StringComparer.Ordinal);
             foreach (var pair in counts ??
                 Enumerable.Empty<KeyValuePair<string, int>>())
@@ -225,6 +234,9 @@ namespace Match3.Engine.Runtime
             if (!catalog.Items.ContainsKey(itemId))
                 throw new ArgumentException("Unknown collection item.", nameof(itemId));
 
+            if (!StringComparer.Ordinal.Equals(catalog.GameId, snapshot.GameId))
+                throw new InvalidOperationException(
+                    "Collection snapshot belongs to another game.");
             ValidateSnapshot(catalog, snapshot);
             if (snapshot.ProcessedEarnIds.Contains(earnId))
                 return new CollectionEarnPlan(snapshot, false, false, false,
@@ -251,6 +263,7 @@ namespace Match3.Engine.Runtime
             }
 
             var result = new CollectionSnapshot(
+                snapshot.GameId,
                 counts,
                 snapshot.ProcessedEarnIds.Concat(new[] { earnId }),
                 completed);
@@ -314,14 +327,23 @@ namespace Match3.Engine.Runtime
     {
         private readonly ReadOnlyCollection<string> _processedReceiptIds;
 
+        public string GameId { get; }
+        public string PackId { get; }
         public int PityCounter { get; }
         public IReadOnlyList<string> ProcessedReceiptIds => _processedReceiptIds;
 
-        public EarnedPackSnapshot(int pityCounter = 0,
+        public EarnedPackSnapshot(string gameId, string packId,
+            int pityCounter = 0,
             IEnumerable<string> processedReceiptIds = null)
         {
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                throw new ArgumentException("Unknown pack game ID.", nameof(gameId));
+            if (string.IsNullOrWhiteSpace(packId))
+                throw new ArgumentException("Pack ID required.", nameof(packId));
             if (pityCounter < 0 || pityCounter > 1000)
                 throw new ArgumentOutOfRangeException(nameof(pityCounter));
+            GameId = gameId;
+            PackId = packId;
             PityCounter = pityCounter;
             var ids = (processedReceiptIds ?? Enumerable.Empty<string>())
                 .Take(100001).ToList();
@@ -337,16 +359,21 @@ namespace Match3.Engine.Runtime
     public sealed class EarnedPackReceipt
     {
         public string ReceiptId { get; }
+        public string GameId { get; }
         public string PackId { get; }
         public RewardSourceKind SourceKind { get; }
         public bool Verified { get; }
 
-        public EarnedPackReceipt(string receiptId, string packId,
-            RewardSourceKind sourceKind, bool verified = true)
+        public EarnedPackReceipt(string receiptId, string gameId,
+            string packId, RewardSourceKind sourceKind,
+            bool verified = true)
         {
             if (string.IsNullOrWhiteSpace(receiptId))
                 throw new ArgumentException(
                     "Earned pack receipt ID required.", nameof(receiptId));
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                throw new ArgumentException(
+                    "Unknown earned-pack game ID.", nameof(gameId));
             if (string.IsNullOrWhiteSpace(packId))
                 throw new ArgumentException(
                     "Earned pack ID required.", nameof(packId));
@@ -360,6 +387,7 @@ namespace Match3.Engine.Runtime
                     "Random pack opening cannot originate from paid, replay, ad-randomized or recursive pack sources.",
                     nameof(sourceKind));
             ReceiptId = receiptId;
+            GameId = gameId;
             PackId = packId;
             SourceKind = sourceKind;
             Verified = verified;
@@ -401,8 +429,14 @@ namespace Match3.Engine.Runtime
             if (!receipt.Verified)
                 throw new InvalidOperationException(
                     "Unverified earned receipt cannot open a pack.");
-            if (!StringComparer.Ordinal.Equals(
-                receipt.PackId, definition.PackId))
+            if (!StringComparer.Ordinal.Equals(catalog.GameId, collection.GameId) ||
+                !StringComparer.Ordinal.Equals(catalog.GameId, snapshot.GameId) ||
+                !StringComparer.Ordinal.Equals(catalog.GameId, receipt.GameId))
+                throw new InvalidOperationException(
+                    "Pack catalog, collection, pity state and receipt must belong to the same game.");
+            if (!StringComparer.Ordinal.Equals(snapshot.PackId, definition.PackId) ||
+                !StringComparer.Ordinal.Equals(
+                    receipt.PackId, definition.PackId))
                 throw new InvalidOperationException(
                     "Earned receipt belongs to another pack.");
             if (seed == 0)
@@ -439,6 +473,8 @@ namespace Match3.Engine.Runtime
 
             return new EarnedPackPlan(
                 new EarnedPackSnapshot(
+                    snapshot.GameId,
+                    snapshot.PackId,
                     pity,
                     snapshot.ProcessedReceiptIds.Concat(
                         new[] { receipt.ReceiptId })),
