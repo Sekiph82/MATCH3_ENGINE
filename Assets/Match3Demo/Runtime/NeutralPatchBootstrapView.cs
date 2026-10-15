@@ -75,6 +75,8 @@ namespace Match3.Engine.Demo
                         return "Signed content activated. Continue";
                     case RemotePatchStage.Offline:
                         return "Offline: verified content available";
+                    case RemotePatchStage.NoUpdate:
+                        return "Signed content already current. Continue";
                     case RemotePatchStage.Failed:
                         return "Content unavailable. Retry or use verified offline content";
                     default:
