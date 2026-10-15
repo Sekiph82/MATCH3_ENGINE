@@ -199,6 +199,8 @@ namespace Match3.Engine.Tests
                 Assert.That(transport.Calls, Is.EqualTo(2));
                 Assert.That(transport.PeakConcurrency, Is.LessThanOrEqualTo(2));
                 Assert.That(completed.Count, Is.EqualTo(2));
+                Assert.That(completed.SequenceEqual(completed.OrderBy(x => x)),
+                    Is.True, "Verified progress must never run backwards.");
                 Assert.That(completed.Max(), Is.EqualTo(finished.TotalBytes));
                 var edited = finished.GetVerifiedBytes("levels/chunk.json");
                 edited[0] = 0;
