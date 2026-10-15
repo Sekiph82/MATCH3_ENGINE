@@ -8,25 +8,33 @@ namespace Match3.Engine.Runtime
     public sealed class AudioVoiceRule
     {
         public string CueKey { get; }
+        public AudioCueKind Kind { get; }
         public int MaximumVoices { get; }
         public long CooldownMilliseconds { get; }
         public int Priority { get; }
         public bool DucksMusic { get; }
 
-        public AudioVoiceRule(string cueKey, int maximumVoices,
-            long cooldownMilliseconds, int priority,
-            bool ducksMusic = false)
+        public AudioVoiceRule(string cueKey, AudioCueKind kind,
+            int maximumVoices, long cooldownMilliseconds,
+            int priority, bool ducksMusic = false)
         {
             if (string.IsNullOrWhiteSpace(cueKey))
                 throw new ArgumentException("Audio voice cue key required.", nameof(cueKey));
+            if (!Enum.IsDefined(typeof(AudioCueKind), kind))
+                throw new ArgumentOutOfRangeException(nameof(kind));
             if (maximumVoices < 1 || maximumVoices > 128)
                 throw new ArgumentOutOfRangeException(nameof(maximumVoices));
             if (cooldownMilliseconds < 0 || cooldownMilliseconds > 60000)
                 throw new ArgumentOutOfRangeException(nameof(cooldownMilliseconds));
             if (priority < 0 || priority > 1000)
                 throw new ArgumentOutOfRangeException(nameof(priority));
+            if (ducksMusic && kind == AudioCueKind.Music)
+                throw new ArgumentException(
+                    "Music voices cannot request music ducking.",
+                    nameof(ducksMusic));
 
             CueKey = cueKey;
+            Kind = kind;
             MaximumVoices = maximumVoices;
             CooldownMilliseconds = cooldownMilliseconds;
             Priority = priority;
@@ -237,6 +245,9 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentException(
                     "Audio request references an unconfigured cue.",
                     nameof(request));
+            if (request.Kind != rule.Kind)
+                throw new InvalidOperationException(
+                    "Audio request kind does not match the configured cue kind.");
 
             string existing;
             if (snapshot.ProcessedSignatures.TryGetValue(
