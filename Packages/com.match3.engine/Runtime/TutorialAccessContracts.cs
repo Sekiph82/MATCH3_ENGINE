@@ -147,8 +147,11 @@ namespace Match3.Engine.Runtime
         public string Resolve(string key, string language,
             params object[] formatArguments)
         {
-            if (string.IsNullOrWhiteSpace(key))
-                throw new ArgumentException("Text key required.", nameof(key));
+            if (string.IsNullOrWhiteSpace(key) || key.Length > 96 ||
+                key.Any(ch => !(char.IsLetterOrDigit(ch) ||
+                    ch == '.' || ch == '_' || ch == '-')))
+                throw new ArgumentException(
+                    "Bounded neutral text key required.", nameof(key));
             if (language != "en" && language != "tr")
                 throw new ArgumentException("Explicit supported locale required.", nameof(language));
             string text;
