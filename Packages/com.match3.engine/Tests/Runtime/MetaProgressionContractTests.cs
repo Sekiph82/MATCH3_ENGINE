@@ -98,6 +98,24 @@ namespace Match3.Engine.Tests
                         "Coral_Rescue",
                         completedSetIds: new[] { "set-core" }),
                     "bad-state", "card-a"));
+
+            Assert.Throws<ArgumentException>(() =>
+                new CollectionCatalog(
+                    "Coral_Rescue",
+                    new[]
+                    {
+                        new CollectionItemDefinition(
+                            "x", "sx", CollectionItemKind.Card),
+                        new CollectionItemDefinition(
+                            "y", "sy", CollectionItemKind.Card)
+                    },
+                    new[]
+                    {
+                        new CollectionSetDefinition(
+                            "sx", new[] { "x" }, "reward:same"),
+                        new CollectionSetDefinition(
+                            "sy", new[] { "y" }, "reward:same")
+                    }));
         }
 
         [Test]
@@ -152,7 +170,7 @@ namespace Match3.Engine.Tests
                     new EarnedPackDefinition(
                         "bad-pack", new[] { "not-in-catalog" }, 1, 1),
                     new EarnedPackSnapshot(
-                    "Coral_Rescue", "earned-core"),
+                    "Coral_Rescue", "bad-pack"),
                     new EarnedPackReceipt(
                     "earned-only-receipt", "Coral_Rescue", "bad-pack",
                     RewardSourceKind.Event), 1u));
