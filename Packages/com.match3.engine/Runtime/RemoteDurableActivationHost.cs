@@ -123,6 +123,10 @@ namespace Match3.Engine.Runtime
                     replacementEnvelopeDigest != _prepared.SignedEnvelopeDigest ||
                     highestSequence != _prepared.Manifest.Sequence)
                     throw new InvalidOperationException("Unprepared/mismatched pointer request.");
+                if (!File.Exists(_activePointer) &&
+                    File.Exists(_previousPointer))
+                    throw new InvalidOperationException(
+                        "Missing active pointer with rollback history: fail closed.");
                 var current = ReadPointer(_activePointer);
                 if ((current == null ? "" : current.Digest) != expectedEnvelopeDigest ||
                     (current != null && highestSequence <= current.HighWater) ||
@@ -158,6 +162,10 @@ namespace Match3.Engine.Runtime
             if (trusted == null) throw new ArgumentNullException(nameof(trusted));
             lock (_gate)
             {
+                if (!File.Exists(_activePointer) &&
+                    File.Exists(_previousPointer))
+                    throw new InvalidOperationException(
+                        "Missing active pointer cannot erase existing high-water history.");
                 var pointer = ReadPointer(_activePointer);
                 if (pointer == null)
                     return new RemoteReleaseState(PartitionGame(),
