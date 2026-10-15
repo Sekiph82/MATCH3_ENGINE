@@ -46,11 +46,13 @@ namespace Match3.Engine.Runtime
         public string SetId { get; }
         public string SeasonId { get; }
         public string FixedRewardSourceId { get; }
+        public bool RewardClaimExpiresWithSeason { get; }
         public IReadOnlyList<string> ItemIds => _itemIds;
 
         public CollectionSetDefinition(string setId,
             IEnumerable<string> itemIds, string fixedRewardSourceId,
-            string seasonId = null)
+            string seasonId = null,
+            bool rewardClaimExpiresWithSeason = false)
         {
             if (string.IsNullOrWhiteSpace(setId))
                 throw new ArgumentException("Collection set ID required.", nameof(setId));
@@ -69,6 +71,7 @@ namespace Match3.Engine.Runtime
             SetId = setId;
             SeasonId = seasonId;
             FixedRewardSourceId = fixedRewardSourceId;
+            RewardClaimExpiresWithSeason = rewardClaimExpiresWithSeason;
             _itemIds = new ReadOnlyCollection<string>(
                 ids.OrderBy(x => x, StringComparer.Ordinal).ToList());
         }
@@ -159,16 +162,19 @@ namespace Match3.Engine.Runtime
         private readonly ReadOnlyDictionary<string, int> _counts;
         private readonly ReadOnlyCollection<string> _processedEarnIds;
         private readonly ReadOnlyCollection<string> _completedSetIds;
+        private readonly ReadOnlyCollection<string> _claimedSetRewardIds;
 
         public string GameId { get; }
         public IReadOnlyDictionary<string, int> Counts => _counts;
         public IReadOnlyList<string> ProcessedEarnIds => _processedEarnIds;
         public IReadOnlyList<string> CompletedSetIds => _completedSetIds;
+        public IReadOnlyList<string> ClaimedSetRewardIds => _claimedSetRewardIds;
 
         public CollectionSnapshot(string gameId,
             IEnumerable<KeyValuePair<string, int>> counts = null,
             IEnumerable<string> processedEarnIds = null,
-            IEnumerable<string> completedSetIds = null)
+            IEnumerable<string> completedSetIds = null,
+            IEnumerable<string> claimedSetRewardIds = null)
         {
             if (!GameProfileCatalog.IsKnownId(gameId))
                 throw new ArgumentException("Unknown game ID.", nameof(gameId));
@@ -188,6 +194,8 @@ namespace Match3.Engine.Runtime
                 Freeze(processedEarnIds, "collection earn"));
             _completedSetIds = new ReadOnlyCollection<string>(
                 Freeze(completedSetIds, "completed set"));
+            _claimedSetRewardIds = new ReadOnlyCollection<string>(
+                Freeze(claimedSetRewardIds, "claimed set reward"));
         }
 
         private static List<string> Freeze(IEnumerable<string> ids, string label)
@@ -224,6 +232,21 @@ namespace Match3.Engine.Runtime
             _newlyCompletedSetIds = new ReadOnlyCollection<string>(
                 newlyCompletedSetIds.OrderBy(x => x, StringComparer.Ordinal).ToList());
             MasterComplete = masterComplete;
+        }
+    }
+
+    public sealed class CollectionRewardClaimPlan
+    {
+        public CollectionSnapshot Result { get; }
+        public bool Applied { get; }
+        public string RewardSourceId { get; }
+
+        internal CollectionRewardClaimPlan(
+            CollectionSnapshot result, bool applied, string rewardSourceId)
+        {
+            Result = result ?? throw new ArgumentNullException(nameof(result));
+            Applied = applied;
+            RewardSourceId = rewardSourceId;
         }
     }
 
@@ -271,19 +294,64 @@ namespace Match3.Engine.Runtime
                 snapshot.GameId,
                 counts,
                 snapshot.ProcessedEarnIds.Concat(new[] { earnId }),
-                completed);
+                completed,
+                snapshot.ClaimedSetRewardIds);
             return new CollectionEarnPlan(
                 result, true, before == 0, before > 0, newly,
                 completed.Count == catalog.Sets.Count);
+        }
+
+        public static CollectionRewardClaimPlan ClaimSetReward(
+            CollectionCatalog catalog, CollectionSnapshot snapshot,
+            string setId, string activeSeasonId)
+        {
+            if (catalog == null) throw new ArgumentNullException(nameof(catalog));
+            if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            if (!StringComparer.Ordinal.Equals(catalog.GameId, snapshot.GameId))
+                throw new InvalidOperationException(
+                    "Collection snapshot belongs to another game.");
+            ValidateSnapshot(catalog, snapshot);
+
+            CollectionSetDefinition set;
+            if (!catalog.Sets.TryGetValue(setId, out set))
+                throw new ArgumentException("Unknown collection set.", nameof(setId));
+            if (!snapshot.CompletedSetIds.Contains(setId))
+                throw new InvalidOperationException(
+                    "Collection set reward is not complete.");
+            if (snapshot.ClaimedSetRewardIds.Contains(setId))
+                return new CollectionRewardClaimPlan(snapshot, false, null);
+            if (set.SeasonId != null &&
+                set.RewardClaimExpiresWithSeason &&
+                !StringComparer.Ordinal.Equals(set.SeasonId, activeSeasonId))
+                throw new InvalidOperationException(
+                    "Seasonal collection reward claim has expired.");
+
+            return new CollectionRewardClaimPlan(
+                new CollectionSnapshot(
+                    snapshot.GameId,
+                    snapshot.Counts,
+                    snapshot.ProcessedEarnIds,
+                    snapshot.CompletedSetIds,
+                    snapshot.ClaimedSetRewardIds.Concat(new[] { setId })),
+                true,
+                set.FixedRewardSourceId);
         }
 
         private static void ValidateSnapshot(
             CollectionCatalog catalog, CollectionSnapshot snapshot)
         {
             if (snapshot.Counts.Keys.Any(x => !catalog.Items.ContainsKey(x)) ||
-                snapshot.CompletedSetIds.Any(x => !catalog.Sets.ContainsKey(x)))
+                snapshot.CompletedSetIds.Any(x => !catalog.Sets.ContainsKey(x)) ||
+                snapshot.ClaimedSetRewardIds.Any(x => !catalog.Sets.ContainsKey(x)))
                 throw new ArgumentException(
                     "Collection snapshot references unknown catalog IDs.");
+
+            foreach (var claimedSetId in snapshot.ClaimedSetRewardIds)
+            {
+                if (!snapshot.CompletedSetIds.Contains(claimedSetId))
+                    throw new ArgumentException(
+                        "Collection snapshot claims reward for incomplete set.");
+            }
 
             foreach (var setId in snapshot.CompletedSetIds)
             {
