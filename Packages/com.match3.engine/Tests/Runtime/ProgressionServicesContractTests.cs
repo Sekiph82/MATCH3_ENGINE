@@ -212,6 +212,32 @@ namespace Match3.Engine.Tests
                     },
                     new TaskProgressEvent(
                         "dup-def", "day:100", "match", 1)));
+
+            Assert.Throws<ArgumentException>(() =>
+                TaskProgressPlanner.ApplyEvent(
+                    new TaskPeriodSnapshot(
+                        TaskPeriodKind.Daily, "day:100", 100,
+                        new[]
+                        {
+                            new KeyValuePair<string, int>(
+                                "unknown-task", 1)
+                        }),
+                    definitions,
+                    new TaskProgressEvent(
+                        "bad-snapshot-1", "day:100", "match", 1)));
+
+            Assert.Throws<ArgumentException>(() =>
+                TaskProgressPlanner.Claim(
+                    new TaskPeriodSnapshot(
+                        TaskPeriodKind.Daily, "day:100", 100,
+                        new[]
+                        {
+                            new KeyValuePair<string, int>(
+                                "daily-match", 1)
+                        },
+                        claimedTaskIds: new[] { "daily-match" }),
+                    definitions,
+                    "daily-match"));
         }
 
         [Test]
