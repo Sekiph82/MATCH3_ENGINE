@@ -253,6 +253,13 @@ jobs:
           mkdir -p artifacts
           for mode in EditMode PlayMode; do
             lower="${mode,,}"
+            if [[ "$mode" == "PlayMode" ]]; then
+              # Unity 6000.6 hosted Personal activation can retain the editor
+              # startup lock after EditMode exits. Give only that inter-mode
+              # handoff a bounded cooldown before starting PlayMode.
+              echo 'UNITY_INTERMODE_LOCK_COOLDOWN_SECONDS=30'
+              sleep 30
+            fi
             results="$PWD/artifacts/${lower}-results.xml"
             log="$RUNNER_TEMP/eng-m00-unity-${lower}.log"
             echo "RUN_UNITY_TEST_MODE=$mode"
@@ -264,10 +271,10 @@ jobs:
             # Hosted disposable runners can return exit 198 immediately after
             # another Unity batch process releases the activation/editor lock.
             # Retry ONLY that exact no-XML launch failure, for either mode,
-            # with a strict three-attempt bound. Compiler/NUnit/timeout/other
+            # with a strict five-attempt bound. Compiler/NUnit/timeout/other
             # failures are never retried or masked.
             exit_code=198
-            for launch_attempt in 1 2 3; do
+            for launch_attempt in 1 2 3 4 5; do
               rm -f -- "$results"
               timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" -batchmode -nographics \
                 -projectPath "$PWD" -runTests -testPlatform "$mode" \
@@ -276,9 +283,9 @@ jobs:
               if (( exit_code == 0 )) && [[ -s "$results" ]]; then
                 break
               fi
-              if (( exit_code == 198 )) && [[ ! -s "$results" ]] && (( launch_attempt < 3 )); then
+              if (( exit_code == 198 )) && [[ ! -s "$results" ]] && (( launch_attempt < 5 )); then
                 echo "UNITY_${mode^^}_EXIT_198_RETRY=$launch_attempt"
-                sleep $((launch_attempt * 8))
+                sleep $((launch_attempt * 15))
                 continue
               fi
               break
