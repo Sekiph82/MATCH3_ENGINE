@@ -11,6 +11,7 @@ namespace Match3.Engine.Tests
         private static CollectionCatalog Catalog()
         {
             return new CollectionCatalog(
+                "Coral_Rescue",
                 new[]
                 {
                     new CollectionItemDefinition(
@@ -50,7 +51,7 @@ namespace Match3.Engine.Tests
         public void M08_013_CollectionsTrackNewDuplicateSetMasterSeasonVisibilityAndRetainEarnedItems()
         {
             var catalog = Catalog();
-            var snapshot = new CollectionSnapshot();
+            var snapshot = new CollectionSnapshot("Coral_Rescue");
 
             var a = CollectionPlanner.Earn(
                 catalog, snapshot, "earn-a", "card-a");
@@ -94,6 +95,7 @@ namespace Match3.Engine.Tests
                 CollectionPlanner.Earn(
                     catalog,
                     new CollectionSnapshot(
+                        "Coral_Rescue",
                         completedSetIds: new[] { "set-core" }),
                     "bad-state", "card-a"));
         }
@@ -109,20 +111,22 @@ namespace Match3.Engine.Tests
                 pityThreshold: 2);
 
             var collection = CollectionPlanner.Earn(
-                catalog, new CollectionSnapshot(),
+                catalog, new CollectionSnapshot("Coral_Rescue"),
                 "existing-a", "card-a").Result;
 
-            var state = new EarnedPackSnapshot(pityCounter: 2);
+            var state = new EarnedPackSnapshot(
+                "Coral_Rescue", "earned-core", pityCounter: 2);
             var one = EarnedPackPlanner.Open(
                 catalog, collection, pack, state,
                 new EarnedPackReceipt(
-                    "earned-receipt-1", "earned-core",
+                    "earned-receipt-1", "Coral_Rescue", "earned-core",
                     RewardSourceKind.Event), 12345u);
             var two = EarnedPackPlanner.Open(
                 catalog, collection, pack,
-                new EarnedPackSnapshot(pityCounter: 2),
+                new EarnedPackSnapshot(
+                "Coral_Rescue", "earned-core", pityCounter: 2),
                 new EarnedPackReceipt(
-                    "earned-receipt-2", "earned-core",
+                    "earned-receipt-2", "Coral_Rescue", "earned-core",
                     RewardSourceKind.Event), 12345u);
 
             Assert.That(one.Applied, Is.True);
@@ -137,7 +141,7 @@ namespace Match3.Engine.Tests
             var replay = EarnedPackPlanner.Open(
                 catalog, collection, pack, one.Result,
                 new EarnedPackReceipt(
-                    "earned-receipt-1", "earned-core",
+                    "earned-receipt-1", "Coral_Rescue", "earned-core",
                     RewardSourceKind.Event), 12345u);
             Assert.That(replay.Applied, Is.False);
             Assert.That(replay.ItemIds, Is.Empty);
@@ -147,29 +151,44 @@ namespace Match3.Engine.Tests
                     catalog, collection,
                     new EarnedPackDefinition(
                         "bad-pack", new[] { "not-in-catalog" }, 1, 1),
-                    new EarnedPackSnapshot(),
+                    new EarnedPackSnapshot(
+                    "Coral_Rescue", "earned-core"),
                     new EarnedPackReceipt(
-                    "earned-only-receipt", "bad-pack",
+                    "earned-only-receipt", "Coral_Rescue", "bad-pack",
                     RewardSourceKind.Event), 1u));
 
             Assert.Throws<ArgumentException>(() =>
                 new EarnedPackReceipt(
-                    "paid-random", "earned-core",
+                    "paid-random", "Coral_Rescue", "earned-core",
                     RewardSourceKind.Purchase));
+
+            Assert.Throws<InvalidOperationException>(() =>
+                EarnedPackPlanner.Open(
+                    catalog,
+                    new CollectionSnapshot("Garage_Legends"),
+                    pack,
+                    new EarnedPackSnapshot(
+                        "Garage_Legends", "earned-core"),
+                    new EarnedPackReceipt(
+                        "foreign-game", "Garage_Legends", "earned-core",
+                        RewardSourceKind.Event),
+                    7u));
             Assert.Throws<InvalidOperationException>(() =>
                 EarnedPackPlanner.Open(
                     catalog, collection, pack,
-                    new EarnedPackSnapshot(),
+                    new EarnedPackSnapshot(
+                    "Coral_Rescue", "earned-core"),
                     new EarnedPackReceipt(
-                        "unverified", "earned-core",
+                        "unverified", "Coral_Rescue", "earned-core",
                         RewardSourceKind.Event, false), 99u));
 
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 EarnedPackPlanner.Open(
                     catalog, collection, pack,
-                    new EarnedPackSnapshot(),
+                    new EarnedPackSnapshot(
+                    "Coral_Rescue", "earned-core"),
                     new EarnedPackReceipt(
-                        "earned-receipt-3", "earned-core",
+                        "earned-receipt-3", "Coral_Rescue", "earned-core",
                         RewardSourceKind.Event), 0u));
         }
 
