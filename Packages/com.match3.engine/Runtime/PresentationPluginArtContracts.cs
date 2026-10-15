@@ -155,6 +155,8 @@ namespace Match3.Engine.Runtime
                 if (segments.Any(x =>
                         StringComparer.OrdinalIgnoreCase.Equals(x, "Editor") ||
                         StringComparer.OrdinalIgnoreCase.Equals(x, "Examples") ||
+                        StringComparer.OrdinalIgnoreCase.Equals(x, "Examples~") ||
+                        StringComparer.OrdinalIgnoreCase.Equals(x, "Samples") ||
                         StringComparer.OrdinalIgnoreCase.Equals(x, "Samples~") ||
                         StringComparer.OrdinalIgnoreCase.Equals(x, "Debug")))
                     violations.Add(normalized);
@@ -344,6 +346,15 @@ namespace Match3.Engine.Runtime
             if (source.EstimatedRuntimeBytes > policy.MaximumRuntimeBytes)
                 throw new InvalidOperationException(
                     "Source-art runtime byte budget exceeded.");
+
+            var sourceAspect =
+                (double)source.SourceWidth / source.SourceHeight;
+            var targetAspect =
+                (double)request.TargetWidth / request.TargetHeight;
+            if (Math.Abs(sourceAspect - targetAspect) >
+                Math.Max(0.000001, sourceAspect * 0.000001))
+                throw new InvalidOperationException(
+                    "Source-art render request would distort the authored shape.");
 
             var scaleX = (double)request.TargetWidth / source.SourceWidth;
             var scaleY = (double)request.TargetHeight / source.SourceHeight;
