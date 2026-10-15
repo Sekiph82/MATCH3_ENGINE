@@ -44,6 +44,8 @@ EXPECTED = {
     "M11_007_AtomicPointerRefusalCannotPretendContentActivated",
     "M11_013_IdenticalInstalledSignatureProducesNoUpdateNotOfflineLabel",
     "M11_003_BadSignedManifestRejectedBeforeExternalNetworkAndStorage",
+    "M11_006_ActualUnityStreamingAssetsLoadAuthenticatesBundledStarter",
+    "M11_006_UnityStreamingStarterRejectsTamperedContentsAndForgedKey",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -57,6 +59,7 @@ SUITES = {
     "RemotePatchFlowContractTests",
     "NeutralPatchBootstrapViewPlayModeTests",
     "RemotePrelaunchBootstrapContractTests",
+    "NeutralUnityStreamingStarterPlayModeTests",
 }
 
 def check(paths):
