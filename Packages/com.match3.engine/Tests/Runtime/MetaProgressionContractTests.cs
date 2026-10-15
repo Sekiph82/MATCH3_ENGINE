@@ -311,6 +311,10 @@ namespace Match3.Engine.Tests
                     score: 1500, stars: 3, attempt: 3));
             Assert.That(higher.PersonalBestImproved, Is.True);
             Assert.That(higher.Result.PersonalBests[key].Score, Is.EqualTo(1500));
+            Assert.That(higher.Result.PersonalBests[key].PreviousScore,
+                Is.EqualTo(1200));
+            Assert.That(higher.Result.PersonalBests[key].PreviousResultId,
+                Is.EqualTo("jr1"));
 
             var nextWeek = JourneyPlanner.ApplyResult(
                 definition, higher.Result,
@@ -341,6 +345,17 @@ namespace Match3.Engine.Tests
                 R("bad-week", true, false, true,
                     level: "L1", frontier: "L2",
                     week: "2026|W42"));
+
+            Assert.Throws<ArgumentException>(() =>
+                JourneyPlanner.UpcomingLevel(
+                    definition,
+                    new JourneySnapshot(
+                        personalBests: new[]
+                        {
+                            new PersonalBestRecord(
+                                "Garage_Legends|P1|campaign|L1|2026-W42",
+                                100, "foreign-pb")
+                        })));
         }
 
         [Test]
