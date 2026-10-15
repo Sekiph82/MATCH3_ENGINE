@@ -150,7 +150,7 @@ namespace Match3.Engine.Runtime
             var violations = new List<string>();
             foreach (var raw in paths)
             {
-                var normalized = raw.Replace('\', '/');
+                var normalized = raw.Replace('\\', '/');
                 var segments = normalized.Split('/');
                 if (segments.Any(x =>
                         StringComparer.OrdinalIgnoreCase.Equals(x, "Editor") ||
