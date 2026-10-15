@@ -8,6 +8,8 @@ namespace Match3.Engine.Runtime
     public sealed class RemoteVerifiedRelease
     {
         private readonly ReadOnlyDictionary<string, string> _fileDigests;
+        private readonly byte[] _signature;
+        public byte[] Signature => (byte[])_signature.Clone();
         public RemoteContentManifest Manifest { get; }
         public string SignedEnvelopeDigest { get; }
         public IReadOnlyDictionary<string, string> FileDigests => _fileDigests;
@@ -16,6 +18,7 @@ namespace Match3.Engine.Runtime
             byte[] signature, IEnumerable<RemoteContentEntry> entries)
         {
             Manifest = manifest;
+            _signature = (byte[])signature.Clone();
             SignedEnvelopeDigest = RemoteContentSafety.Sha256(
                 manifest.CanonicalBytes().Concat(signature).ToArray());
             _fileDigests = new ReadOnlyDictionary<string, string>(
