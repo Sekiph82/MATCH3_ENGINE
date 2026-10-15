@@ -249,6 +249,14 @@ namespace Match3.Engine.Tests
             Assert.That(isolated.Result.UnlockedLevelIds,
                 Does.Not.Contain("B1"),
                 "A result in one game must never unlock another game's root level.");
+
+            Assert.Throws<InvalidOperationException>(() =>
+                UnlockPlanner.ApplyVerifiedWin(
+                    multiGame,
+                    new UnlockSnapshot(unlockedLevelIds: new[] { "A1" }),
+                    new LevelResultAttempt(
+                        "locked-win", "A2", true, 150, 1, true),
+                    thresholds));
         }
 
         [Test]
