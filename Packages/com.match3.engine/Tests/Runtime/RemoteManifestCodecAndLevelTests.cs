@@ -54,7 +54,7 @@ namespace Match3.Engine.Tests
                 RemoteManifestCodec.ParseCanonical(
                     Encoding.UTF8.GetBytes(
                         Encoding.UTF8.GetString(wire).Replace(
-                            "MATCH3-CONTENT-V1\n", "MATCH3-CONTENT-V1\n01\n"))));
+                            "MATCH3-CONTENT-V1\n1\n", "MATCH3-CONTENT-V1\n01\n"))));
             Assert.Throws<InvalidOperationException>(() =>
                 RemoteManifestCodec.ParseCanonical(
                     wire.Take(wire.Length - 1).ToArray()));
