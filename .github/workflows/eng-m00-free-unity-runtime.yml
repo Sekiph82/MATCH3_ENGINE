@@ -11,6 +11,7 @@ on:
   # ENG-M07 final 10-child goals-score acceptance refresh.
   # ENG-M07 blank-project exit-198 harness retry verification.
   # ENG-M08 final 19-child progression acceptance refresh.
+  # ENG-M08 frozen-source rerun after independent authority hardening.
   # ENG-M06 final guarded-interruption acceptance refresh.
   # ENG-M06 final journal-aware recovery and refund-boundary acceptance refresh.
   # ENG-M05 final source refresh after replay-idempotency and bounded-loop hardening.
