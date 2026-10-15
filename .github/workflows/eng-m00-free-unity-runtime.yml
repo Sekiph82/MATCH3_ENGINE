@@ -2,6 +2,7 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # ENG-M11 R05 hosted current 27-case app-private signed crash/restart regression.
   # ENG-M11 R04 hosted-only durable pointer and rollback tests, exact 26-case gate.
   # ENG-M11 final 23-case host activation and ordered progress suite.
   # ENG-M11 third hosted regression after NUnit assertion compatibility update.
