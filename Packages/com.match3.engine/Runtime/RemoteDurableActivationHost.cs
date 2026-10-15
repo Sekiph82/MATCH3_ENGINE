@@ -60,6 +60,11 @@ namespace Match3.Engine.Runtime
             {
                 if (_prepared != null)
                     throw new InvalidOperationException("Pending release must be committed first.");
+                // Never auto-delete owner-visible crash evidence or grow
+                // private storage without bound after repeated interruptions.
+                if (Directory.GetDirectories(_folder, "stage-*").Length >= 4)
+                    throw new InvalidOperationException(
+                        "Orphan staging quota reached; explicit review required.");
                 var stage = Path.Combine(_folder, "stage-" +
                     Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(stage);
