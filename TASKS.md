@@ -331,8 +331,12 @@
 - [x] **ENG-M08-019 Graceful re-entry and pause states** `PASS/CLOSED: INDEPENDENT UNITY 6.6 + WIN64 AUDIT`. **Implementation and independent acceptance:** First-time, returning, failed, no-heart and resumed player routes preserve existing rewards and correct frontier; no modal stack or incomplete animation causes save divergence. **Proof:** deterministic positive and negative tests, actual Unity 6000.6.5f1 source commit, redacted Drive evidence, Factory schema parity where relevant, and ChatGPT audit PASS before closure. **Audit R01:** https://docs.google.com/document/d/1uWonvG-29ye6SYItWCeDt5bJ6RxFUU7jyt5-Ptb6Ey0/edit.
 **Milestone closure:** PASS/CLOSED. All 19 child receipts and master audit independently verified; ENG-M09 unlocked.
 
-### ENG-M09 | Neutral UI and theme effects
-**State:** PLANNED. **Exit gate:** independent audit PASS with complete Drive evidence; dependent work remains gated.
+### ENG-M09 | Neutral UI and theme effects | IN_PROGRESS | 2026-10-15
+**State:** IN_PROGRESS / 0 of 16 independently audited PASS. **Exit gate:** 16/16 independent audit PASS + real Unity/Win64 closure; ENG-M10 remains gated. **M09-014 additionally requires owner visual + real-device signoff.**
+**FROZEN IMPLEMENTATION SPEC:** https://docs.google.com/document/d/1iAOz_7VO1cuG8C5oFG4gkCdVQcSnrDqrTT8OKSb_Xs4/edit
+**FROZEN MASTER CRITERIA:** https://docs.google.com/document/d/10E6Cu-7cZqgB6xvkwZhtTqTA9oUZZJb-IzdoXA2yMlU/edit
+**FROZEN 16-CHILD ACCEPTANCE:** https://docs.google.com/document/d/1TFueNLCdcjhkEzjM86kCyl3sDaAYBPEzi4ERRMoEq8c/edit
+**CURRENT_OWNER:** CHATGPT_ENG_M09_IMPLEMENT_AND_INDEPENDENT_AUDIT. **ENTRY BASE:** ENG-M08 closure `4038b156a592c4330904d52d6fddf5ec2dfa9347`.
 
 - [ ] **ENG-M09-001 Board visuals adapter** `PLANNED`. **Contract:** Sprite atlas pooled render with no game asset references. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
 - [ ] **ENG-M09-002 Event based VFX** `PLANNED`. **Contract:** Swap clear rocket bomb color combo refill synced to core. **Required proof:** implementation commit, focused positive and negative tests, commands/output, compatibility or security notes, and link to evidence in Drive. Independent audit determines PASS.
