@@ -15,9 +15,8 @@ namespace Match3.Engine.Tests
         {
             var catalogBytes = Encoding.UTF8.GetBytes("{\"m_InternalIds\":[]}");
             var bundleBytes = Encoding.ASCII.GetBytes("UnityFSsigned-reference");
-            using (var signer = RSA.Create())
+            using (var signer = new RSACryptoServiceProvider(2048))
             {
-                signer.KeySize = 2048;
                 var m = new RemoteContentManifest(
                     "Garage_Legends", RemotePlatform.Android,
                     RemoteChannel.FamilyTest, "signed-catalog",
