@@ -164,6 +164,28 @@ namespace Match3.Engine.Tests
             Assert.That(replay.Applied, Is.False);
             Assert.That(replay.ItemIds, Is.Empty);
 
+            var childA = EarnedPackPlanner.Open(
+                catalog, collection, pack,
+                new EarnedPackSnapshot(
+                    "Coral_Rescue", "earned-core"),
+                new EarnedPackReceipt(
+                    "child-a", "Coral_Rescue", "earned-core",
+                    RewardSourceKind.Gift, true, true),
+                11u);
+            var childB = EarnedPackPlanner.Open(
+                catalog, collection, pack,
+                new EarnedPackSnapshot(
+                    "Coral_Rescue", "earned-core"),
+                new EarnedPackReceipt(
+                    "child-b", "Coral_Rescue", "earned-core",
+                    RewardSourceKind.Gift, true, true),
+                999u);
+            Assert.That(childA.ItemIds, Is.EqualTo(childB.ItemIds));
+            Assert.That(childA.MissingItemGuaranteeUsed, Is.False);
+            Assert.That(childA.ItemIds,
+                Is.EqualTo(new[] { "card-a", "card-b" }),
+                "Child profiles receive fixed transparent pack contents, not randomized contents.");
+
             Assert.Throws<ArgumentException>(() =>
                 EarnedPackPlanner.Open(
                     catalog, collection,
@@ -274,6 +296,14 @@ namespace Match3.Engine.Tests
                     R("cross-game", true, false, true,
                         level: "L1", frontier: "L2",
                         game: "Garage_Legends")));
+
+            Assert.Throws<ArgumentException>(() =>
+                new JourneyDefinition(
+                    "Coral_Rescue", "P|1", "campaign", levels));
+            Assert.Throws<ArgumentException>(() =>
+                R("bad-week", true, false, true,
+                    level: "L1", frontier: "L2",
+                    week: "2026|W42"));
         }
 
         [Test]
@@ -338,13 +368,25 @@ namespace Match3.Engine.Tests
             Assert.That(nonFrontier.Result.ConsecutiveFailures, Is.EqualTo(3));
             Assert.That(nonFrontier.Recommendations, Is.Empty);
 
+            var disabledCandidates = new[]
+            {
+                new BoosterRecommendationCandidate(
+                    "ad-only", 0, 0, true, false),
+                new BoosterRecommendationCandidate(
+                    "slot", 1, 1, true, true),
+                new BoosterRecommendationCandidate(
+                    "selector", 2, 0, true, true)
+            };
             var disabledAds = FailRecoveryPlanner.ApplyResult(
                 nonFrontier.Result,
                 R("fail-4", false, false, false,
                     level: "L5", frontier: "L5",
                     score: 0, stars: 0, attempt: 6),
-                policy, candidates, false);
+                policy, disabledCandidates, false);
             Assert.That(disabledAds.Recommendations.Count, Is.EqualTo(2));
+            Assert.That(disabledAds.Recommendations.Select(x => x.BoosterId),
+                Is.EqualTo(new[] { "slot", "selector" }),
+                "Ad-only recommendation must disappear when rewarded ads are unavailable.");
             Assert.That(disabledAds.Recommendations[1].RewardedOfferAvailable,
                 Is.False);
             Assert.That(disabledAds.Recommendations[1].PurchaseOfferAvailable,
