@@ -83,6 +83,71 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [Test]
+        public void M11_013_UnavailablePlayerShowsHostRetryOnlyWhenRealHostIsRegistered()
+        {
+            var root = new GameObject("signed-unavailable-host-retry");
+            try
+            {
+                var view = root.AddComponent<NeutralPatchBootstrapView>();
+                view.ShowUnavailable("content-unavailable");
+                Assert.That(view.CanEnterGame, Is.False);
+                Assert.That(view.CanRequestHostRetry, Is.False);
+                Assert.That(view.TryRequestHostRetry(), Is.False);
+                Assert.That(view.VisibleStatus,
+                    Does.Contain("content-unavailable"));
+
+                var requested = 0;
+                view.RegisterHostRetry(() =>
+                {
+                    requested++;
+                    return true; // Test-only host scheduling receipt.
+                });
+                Assert.Throws<InvalidOperationException>(() =>
+                    view.RegisterHostRetry(() => true));
+                Assert.That(view.CanRequestHostRetry, Is.True);
+                Assert.That(view.TryRequestHostRetry(), Is.True);
+                Assert.That(requested, Is.EqualTo(1));
+                Assert.That(view.HostRetryPending, Is.True);
+                Assert.That(view.CanEnterGame, Is.False);
+                Assert.That(view.LastPublicAction,
+                    Is.EqualTo("host-retry-scheduled"));
+                Assert.That(view.TryRequestHostRetry(), Is.False);
+                Assert.That(requested, Is.EqualTo(1));
+
+                // A host may re-enable another attempt only after reporting
+                // an actual completed failure. This never unlocks the board.
+                view.ShowUnavailable("network-unavailable");
+                Assert.That(view.HostRetryPending, Is.False);
+                Assert.That(view.CanRequestHostRetry, Is.True);
+                Assert.That(view.TryRequestHostRetry(), Is.True);
+                Assert.That(requested, Is.EqualTo(2));
+                Assert.That(view.CanEnterGame, Is.False);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+
+        [Test]
+        public void M11_013_RejectedHostRetryCannotClaimProgressOrUnlockGame()
+        {
+            var root = new GameObject("signed-rejected-host-retry");
+            try
+            {
+                var view = root.AddComponent<NeutralPatchBootstrapView>();
+                view.ShowUnavailable("no-signed-starter");
+                var attempts = 0;
+                view.RegisterHostRetry(() => { attempts++; return false; });
+                Assert.That(view.TryRequestHostRetry(), Is.False);
+                Assert.That(attempts, Is.EqualTo(1));
+                Assert.That(view.HostRetryPending, Is.False);
+                Assert.That(view.CanEnterGame, Is.False);
+                Assert.That(view.Snapshot(), Is.Null);
+                Assert.That(view.VisibleStatus,
+                    Does.Contain("no-signed-starter"));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+
+        [Test]
         public void M11_013_UnityPatchPanelShowsOnlyAuthenticatedOfflinePlay()
         {
             var root = new GameObject("neutral-verified-offline-view");
