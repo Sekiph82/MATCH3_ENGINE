@@ -490,6 +490,7 @@ namespace Match3.Engine.Runtime
                 return new TaskPeriodPlan(snapshot, false);
 
             var defs = ValidateDefinitions(definitions, snapshot.Kind);
+            ValidateTaskSnapshot(snapshot, defs);
             var counts = snapshot.Counts.ToDictionary(
                 x => x.Key, x => x.Value, StringComparer.Ordinal);
             foreach (var def in defs.Where(x =>
@@ -524,6 +525,7 @@ namespace Match3.Engine.Runtime
             if (string.IsNullOrWhiteSpace(taskId))
                 throw new ArgumentException("Task ID required.", nameof(taskId));
             var defs = ValidateDefinitions(definitions, snapshot.Kind);
+            ValidateTaskSnapshot(snapshot, defs);
             var def = defs.SingleOrDefault(x =>
                 StringComparer.Ordinal.Equals(x.TaskId, taskId));
             if (def == null)
@@ -573,6 +575,31 @@ namespace Match3.Engine.Runtime
                 new TaskPeriodSnapshot(
                     snapshot.Kind, newPeriodId, newPeriodOrdinal),
                 true);
+        }
+
+        private static void ValidateTaskSnapshot(
+            TaskPeriodSnapshot snapshot, TaskDefinition[] definitions)
+        {
+            var byId = definitions.ToDictionary(
+                x => x.TaskId, x => x, StringComparer.Ordinal);
+            foreach (var pair in snapshot.Counts)
+            {
+                TaskDefinition def;
+                if (!byId.TryGetValue(pair.Key, out def) ||
+                    pair.Value > def.RequiredCount)
+                    throw new ArgumentException(
+                        "Task snapshot contains unknown or over-complete progress.");
+            }
+            foreach (var claimed in snapshot.ClaimedTaskIds)
+            {
+                TaskDefinition def;
+                int count;
+                if (!byId.TryGetValue(claimed, out def) ||
+                    !snapshot.Counts.TryGetValue(claimed, out count) ||
+                    count < def.RequiredCount)
+                    throw new ArgumentException(
+                        "Task snapshot contains invalid claimed state.");
+            }
         }
 
         private static TaskDefinition[] ValidateDefinitions(
