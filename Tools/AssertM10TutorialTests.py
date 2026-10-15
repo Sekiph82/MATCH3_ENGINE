@@ -30,7 +30,9 @@ EXPECTED = {
     "M10_011_ScreenReaderFocusOrderHasLabelsAndReasonedDisabledStates",
     "M10_011_SafeHintsAndChildNoLossDoNotRequireAds",
     "M10_012_SeventeenSurfaceGraphRejectsUnreachableDeadActions",
+    "M10_012_DuplicateUiActivationCannotReopenOrRepurchaseAcrossProfiles",
     "M10_013_NoFakeClaimsOrUrgencyFromUnverifiedRewardStates",
+    "M10_013_AllEngagementViewsRequireVerifiedLedgerAndNeverInventOffers",
 }
 SUITES = {
     "TutorialFtueContractTests",
