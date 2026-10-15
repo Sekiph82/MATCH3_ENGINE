@@ -189,10 +189,14 @@ namespace Match3.Engine.Runtime
                 throw new ArgumentOutOfRangeException(nameof(intensity));
             if (positions == null) throw new ArgumentNullException(nameof(positions));
 
-            var array = positions.Take(1025).Distinct().ToArray();
-            if (array.Length > 1024)
+            var array = positions.Take(1025).ToArray();
+            if (array.Length < 1 || array.Length > 1024)
                 throw new ArgumentException(
-                    "Presentation event position limit exceeded.", nameof(positions));
+                    "Presentation event requires 1..1024 positions.", nameof(positions));
+            if (array.Distinct().Count() != array.Length)
+                throw new ArgumentException(
+                    "Presentation event cannot contain duplicate positions.",
+                    nameof(positions));
 
             EventId = eventId;
             Sequence = sequence;
@@ -478,6 +482,16 @@ namespace Match3.Engine.Runtime
                     throw new ArgumentException(
                         "Animation processed ledger exceeds bound.");
                 processed.Add(pair.Key, pair.Value);
+            }
+
+            foreach (var pair in activeMap)
+            {
+                string signature;
+                if (!processed.TryGetValue(pair.Key, out signature) ||
+                    !StringComparer.Ordinal.Equals(
+                        signature, pair.Value.Signature))
+                    throw new ArgumentException(
+                        "Active animation must have a matching processed signature.");
             }
 
             ReducedMotion = reducedMotion;
