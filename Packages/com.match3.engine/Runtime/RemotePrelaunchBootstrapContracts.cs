@@ -59,6 +59,22 @@ namespace Match3.Engine.Runtime
                 previousVerifiedState.Platform,
                 previousVerifiedState.Channel, engine, nowUnixSeconds);
             progress?.Invoke(flow.Snapshot());
+            // The installed state is already verified by the trusted host.
+            // When the candidate signed envelope is identical, do not
+            // re-download unchanged bytes or touch atomic storage.
+            if (previousVerifiedState.Active != null &&
+                StringComparer.Ordinal.Equals(
+                    previousVerifiedState.Active.SignedEnvelopeDigest,
+                    RemoteContentSafety.Sha256(
+                        candidate.CanonicalBytes().Concat(candidateSignature)
+                            .ToArray())))
+            {
+                flow.RecordCurrentInstalled(previousVerifiedState.Active,
+                    keys, engine, nowUnixSeconds);
+                progress?.Invoke(flow.Snapshot());
+                return new RemotePrelaunchResult(flow,
+                    previousVerifiedState.Active, false, false);
+            }
             try
             {
                 var data = new Dictionary<string, byte[]>(StringComparer.Ordinal);
