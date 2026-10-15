@@ -220,6 +220,35 @@ namespace Match3.Engine.Tests
                     new LevelResultAttempt(
                         "attempt-malformed", "L1", true, 150, 1, true),
                     thresholds));
+
+            var multiGame = new ProgressionGraph(
+                new[]
+                {
+                    new WorldDefinition("wa", "Coral_Rescue"),
+                    new WorldDefinition("wb", "Garage_Legends")
+                },
+                new[]
+                {
+                    new ChapterDefinition("ca", "wa"),
+                    new ChapterDefinition("cb", "wb")
+                },
+                new[]
+                {
+                    new LevelDefinition("A1", "ca"),
+                    new LevelDefinition("A2", "ca", new[] { "A1" }, 1),
+                    new LevelDefinition("B1", "cb")
+                });
+            var isolated = UnlockPlanner.ApplyVerifiedWin(
+                multiGame,
+                new UnlockSnapshot(unlockedLevelIds: new[] { "A1" }),
+                new LevelResultAttempt(
+                    "attempt-game-a", "A1", true, 150, 1, true),
+                thresholds);
+            Assert.That(isolated.NewlyUnlockedLevelIds,
+                Is.EqualTo(new[] { "A2" }));
+            Assert.That(isolated.Result.UnlockedLevelIds,
+                Does.Not.Contain("B1"),
+                "A result in one game must never unlock another game's root level.");
         }
 
         [Test]
