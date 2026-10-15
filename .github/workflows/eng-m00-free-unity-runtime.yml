@@ -914,6 +914,75 @@ jobs:
             -EvidenceDirectory "$RUNNER_TEMP/eng-m00-blank-import"
           echo 'UNITY_BLANK_PROJECT_UPM_IMPORT=PASS'
 
+      # Dedicated hosted-only optional Addressables consumer: never commit
+      # a new UPM dependency, raw art or test files into the owner's project.
+      - name: Stage official Unity Addressables 2.11.2 in disposable CI checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('Packages/manifest.json')
+          manifest = json.loads(path.read_text(encoding='utf-8'))
+          assert 'com.unity.addressables' not in manifest['dependencies']
+          manifest['dependencies']['com.unity.addressables'] = '2.11.2'
+          path.write_text(json.dumps(manifest, indent=2) + '\\n', encoding='utf-8')
+          print('HOSTED_ONLY_ADDRESSABLES_MANIFEST=2.11.2')
+          PY
+          mkdir -p Assets/EngineM11HostedNeutral/Editor
+          cp Tools/M11AddressablesHostedSmoke.cs.txt \
+            Assets/EngineM11HostedNeutral/Editor/M11HostedAddressablesSmoke.cs
+          cat > Assets/EngineM11HostedNeutral/Editor/M11HostedAddressablesTests.asmdef <<'JSON'
+          {
+            "name": "Match3.Engine.HostedAddressablesTests",
+            "rootNamespace": "Match3.Engine.HostedOptionalAddressables",
+            "references": ["Unity.Addressables", "Unity.ResourceManager", "Unity.Addressables.Editor"],
+            "includePlatforms": ["Editor"],
+            "optionalUnityReferences": ["TestAssemblies"],
+            "autoReferenced": false
+          }
+          JSON
+
+      - name: Build a real neutral Addressables catalog and its bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/m11-hosted-addressables-build.log"
+          timeout 1200s xvfb-run -a "$UNITY_EDITOR_PATH" \
+            -batchmode -nographics -quit -projectPath "$PWD" \
+            -executeMethod Match3.Engine.HostedOptionalAddressables.M11HostedAddressablesBootstrap.CreateAndBuild \
+            -logFile "$log"
+          grep -F 'M11_REAL_ADDRESSABLES_NEUTRAL_CONTENT_BUILD=PASS' "$log" >/dev/null || {
+            echo '::error::Real Addressables content/catalog build marker missing'
+            exit 1
+          }
+
+      - name: Execute real Unity Addressables consumer on neutral hosted content
+        shell: bash
+        run: |
+          set -euo pipefail
+          results="$PWD/artifacts/addressables-results.xml"
+          log="$RUNNER_TEMP/m11-hosted-addressables-consumer.log"
+          timeout 600s xvfb-run -a "$UNITY_EDITOR_PATH" \
+            -batchmode -nographics -projectPath "$PWD" -runTests \
+            -testPlatform EditMode \
+            -testFilter 'Match3.Engine.HostedOptionalAddressables.M11HostedAddressablesConsumerTests.M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset' \
+            -testResults "$results" -logFile "$log"
+          python3 - "$results" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          target = 'Match3.Engine.HostedOptionalAddressables.M11HostedAddressablesConsumerTests.M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset'
+          matches = [x for x in root.findall('.//test-case')
+                     if x.get('fullname') == target and x.get('result') == 'Passed']
+          counts = tuple(int(root.get(k, '-1')) for k in
+                         ('total', 'passed', 'failed', 'skipped'))
+          if root.tag != 'test-run' or counts != (1, 1, 0, 0) or len(matches) != 1:
+              raise SystemExit('FAIL: real official Addressables fixture did not load through Unity runtime')
+          print('M11_REAL_ADDRESSABLES_CATALOG_BUNDLE_CONSUMER=PASS REAL_UNITY=1')
+          PY
+
       - name: Enforce bounded evidence size
         id: evidence-size
         if: always()
