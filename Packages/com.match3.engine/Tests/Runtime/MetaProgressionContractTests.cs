@@ -115,11 +115,15 @@ namespace Match3.Engine.Tests
             var state = new EarnedPackSnapshot(pityCounter: 2);
             var one = EarnedPackPlanner.Open(
                 catalog, collection, pack, state,
-                "earned-receipt-1", 12345u);
+                new EarnedPackReceipt(
+                    "earned-receipt-1", "earned-core",
+                    RewardSourceKind.Event), 12345u);
             var two = EarnedPackPlanner.Open(
                 catalog, collection, pack,
                 new EarnedPackSnapshot(pityCounter: 2),
-                "earned-receipt-2", 12345u);
+                new EarnedPackReceipt(
+                    "earned-receipt-2", "earned-core",
+                    RewardSourceKind.Event), 12345u);
 
             Assert.That(one.Applied, Is.True);
             Assert.That(one.ItemIds, Is.EqualTo(two.ItemIds));
@@ -132,7 +136,9 @@ namespace Match3.Engine.Tests
 
             var replay = EarnedPackPlanner.Open(
                 catalog, collection, pack, one.Result,
-                "earned-receipt-1", 12345u);
+                new EarnedPackReceipt(
+                    "earned-receipt-1", "earned-core",
+                    RewardSourceKind.Event), 12345u);
             Assert.That(replay.Applied, Is.False);
             Assert.That(replay.ItemIds, Is.Empty);
 
@@ -142,13 +148,29 @@ namespace Match3.Engine.Tests
                     new EarnedPackDefinition(
                         "bad-pack", new[] { "not-in-catalog" }, 1, 1),
                     new EarnedPackSnapshot(),
-                    "earned-only-receipt", 1u));
+                    new EarnedPackReceipt(
+                    "earned-only-receipt", "bad-pack",
+                    RewardSourceKind.Event), 1u));
+
+            Assert.Throws<ArgumentException>(() =>
+                new EarnedPackReceipt(
+                    "paid-random", "earned-core",
+                    RewardSourceKind.Purchase));
+            Assert.Throws<InvalidOperationException>(() =>
+                EarnedPackPlanner.Open(
+                    catalog, collection, pack,
+                    new EarnedPackSnapshot(),
+                    new EarnedPackReceipt(
+                        "unverified", "earned-core",
+                        RewardSourceKind.Event, false), 99u));
 
             Assert.Throws<ArgumentOutOfRangeException>(() =>
                 EarnedPackPlanner.Open(
                     catalog, collection, pack,
                     new EarnedPackSnapshot(),
-                    "earned-receipt-3", 0u));
+                    new EarnedPackReceipt(
+                        "earned-receipt-3", "earned-core",
+                        RewardSourceKind.Event), 0u));
         }
 
         [Test]
@@ -371,6 +393,10 @@ namespace Match3.Engine.Tests
         [Test]
         public void M08_019_ReentryRoutesPreserveAuthoritativeFrontierRewardsAndSaveRevision()
         {
+            var graph = new ProgressionGraph(
+                new[] { new WorldDefinition("w", "Coral_Rescue") },
+                new[] { new ChapterDefinition("c", "w") },
+                new[] { new LevelDefinition("L5", "c") });
             var current = new NavigationRoute(
                 NavigationRouteKind.Level,
                 "route-current", "w", "c", "L5");
@@ -386,7 +412,7 @@ namespace Match3.Engine.Tests
                     new[] { "firstclear:L4", "daily:100" });
 
             var resumed = ReentryPlanner.Resolve(
-                authority, ReentryReason.Resumed, "stale-modal-A");
+                graph, authority, ReentryReason.Resumed, "stale-modal-A");
             Assert.That(resumed.Authority, Is.SameAs(authority));
             Assert.That(resumed.TargetRoute, Is.SameAs(current));
 
@@ -407,18 +433,27 @@ namespace Match3.Engine.Tests
             }
 
             var first = ReentryPlanner.Resolve(
-                authority, ReentryReason.FirstTime, "ignored");
+                graph, authority, ReentryReason.FirstTime, "ignored");
             Assert.That(first.TargetRoute.Kind,
                 Is.EqualTo(NavigationRouteKind.Home));
             Assert.That(first.Authority.HeartBalance, Is.EqualTo(0));
 
             var tokenA = ReentryPlanner.Resolve(
-                authority, ReentryReason.Returning, "A");
+                graph, authority, ReentryReason.Returning, "A");
             var tokenB = ReentryPlanner.Resolve(
-                authority, ReentryReason.Returning, "B");
+                graph, authority, ReentryReason.Returning, "B");
             Assert.That(tokenA.Authority, Is.SameAs(tokenB.Authority));
             Assert.That(tokenA.TargetRoute, Is.SameAs(tokenB.TargetRoute),
                 "Modal/animation tokens must never become save authority.");
+
+            var foreignGraph = new ProgressionGraph(
+                new[] { new WorldDefinition("w2", "Garage_Legends") },
+                new[] { new ChapterDefinition("c2", "w2") },
+                new[] { new LevelDefinition("L5", "c2") });
+            Assert.Throws<InvalidOperationException>(() =>
+                ReentryPlanner.Resolve(
+                    foreignGraph, authority,
+                    ReentryReason.Returning, "ignored"));
         }
     }
 }
