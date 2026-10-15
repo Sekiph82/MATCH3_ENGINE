@@ -69,9 +69,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_002_VerifiedWireRejectsTamperingAndWrongGame()
         {
-            using (var rsa = RSA.Create())
+            using (var rsa = new RSACryptoServiceProvider(2048))
             {
-                rsa.KeySize = 2048;
                 var m = Manifest("Coral_Rescue", 11);
                 var sig = Sign(rsa, m);
                 var key = Trust(rsa);
@@ -96,9 +95,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_012_DisabledNeighborProjectionRequiresSignedVerifiedProfile()
         {
-            using (var rsa = RSA.Create())
+            using (var rsa = new RSACryptoServiceProvider(2048))
             {
-                rsa.KeySize = 2048;
                 foreach (var game in GameProfileCatalog.Ids)
                 {
                     var m = Manifest(game, 2);
@@ -140,9 +138,8 @@ namespace Match3.Engine.Tests
         [Test]
         public void M11_012_NewSignedManifestCanReenableWithoutForgingRewards()
         {
-            using (var rsa = RSA.Create())
+            using (var rsa = new RSACryptoServiceProvider(2048))
             {
-                rsa.KeySize = 2048;
                 var m = new RemoteContentManifest(
                     "Coral_Rescue", RemotePlatform.Android,
                     RemoteChannel.FamilyTest, "v2", "public-key",
