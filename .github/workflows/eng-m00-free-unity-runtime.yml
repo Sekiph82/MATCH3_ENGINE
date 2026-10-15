@@ -14,6 +14,7 @@ on:
   # ENG-M08 frozen-source rerun after independent authority hardening.
   # ENG-M08 compile-callsite closure rerun.
   # ENG-M08 final acceptance after locked-level season-claim and durable-PB closure.
+  # ENG-M09 rerun after overlay value-type compile guard repair.
   # ENG-M06 final guarded-interruption acceptance refresh.
   # ENG-M06 final journal-aware recovery and refund-boundary acceptance refresh.
   # ENG-M05 final source refresh after replay-idempotency and bounded-loop hardening.
