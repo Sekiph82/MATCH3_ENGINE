@@ -811,6 +811,7 @@ jobs:
             "$PWD/artifacts/playmode-results.xml"
 
       # ENG-M09 frozen 16-child presentation source evidence rerun.
+      # ENG-M09 final typed-audio/passive-state authority closure rerun.
       - name: Require real Unity ENG-M09 presentation 001-016 contracts
         shell: bash
         run: |
