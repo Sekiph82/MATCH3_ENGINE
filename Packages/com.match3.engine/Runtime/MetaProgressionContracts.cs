@@ -779,10 +779,18 @@ namespace Match3.Engine.Runtime
             if (snapshot.ProcessedResultIds.Contains(result.ResultId))
                 return new FailRecoveryPlan(snapshot, false, new FailRecoveryRecommendation[0]);
 
+            var frontierLevelId = snapshot.FrontierLevelId;
             var failures = snapshot.ConsecutiveFailures;
+            if (!StringComparer.Ordinal.Equals(
+                frontierLevelId, result.FrontierLevelId))
+            {
+                frontierLevelId = result.FrontierLevelId;
+                failures = 0;
+            }
+
             if (!result.Replay && result.IsFrontier &&
                 StringComparer.Ordinal.Equals(
-                    snapshot.FrontierLevelId, result.LevelId))
+                    frontierLevelId, result.LevelId))
             {
                 failures = result.Won ? 0 : Math.Min(100000, failures + 1);
             }
@@ -791,7 +799,7 @@ namespace Match3.Engine.Runtime
                 snapshot.GameId,
                 snapshot.ProfileId,
                 snapshot.ModeId,
-                snapshot.FrontierLevelId,
+                frontierLevelId,
                 failures,
                 snapshot.ProcessedResultIds.Concat(
                     new[] { result.ResultId }));
@@ -800,7 +808,7 @@ namespace Match3.Engine.Runtime
             var genuineFrontierFailure =
                 !result.Replay && !result.Won && result.IsFrontier &&
                 StringComparer.Ordinal.Equals(
-                    snapshot.FrontierLevelId, result.LevelId);
+                    frontierLevelId, result.LevelId);
             if (failures >= policy.FailureThreshold &&
                 genuineFrontierFailure)
             {
