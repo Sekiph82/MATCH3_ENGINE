@@ -205,8 +205,11 @@ namespace Match3.Engine.Tests
                     m.Platform, m.Channel, active: installed,
                     highestSequence: 1);
                 var host = new ScriptedAtomicHost();
+                var network = new ScriptedReader { NetworkFails = true };
                 var result = await Run(m, sig, key,
-                    new ScriptedReader(), host, state);
+                    network, host, state);
+                Assert.That(network.Calls, Is.Zero,
+                    "Already-installed signed content must not hit the CDN.");
                 Assert.That(result.CanPlay, Is.True);
                 Assert.That(result.NewReleaseActivated, Is.False);
                 Assert.That(result.FellBackOffline, Is.False);
