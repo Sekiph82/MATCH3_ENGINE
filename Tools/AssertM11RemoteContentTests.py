@@ -34,6 +34,9 @@ EXPECTED = {
     "M11_006_SignedPackagedStarterLoadsForFiveNeutralProfiles",
     "M11_006_PackagedPayloadTamperAndRevokedKeyCannotBoot",
     "M11_006_RevokedInstalledReleaseFallsBackToSeparateSignedStarter",
+    "M11_013_VerifiedProgressAndCommitAreSeparatelyHonest",
+    "M11_013_DuplicateReceiptCannotFabricateHundredPercentOrReward",
+    "M11_013_OfflineFallbackRequiresFreshValidSignedContent",
 }
 SUITES = {
     "RemoteContentManifestContractTests",
@@ -44,6 +47,7 @@ SUITES = {
     "RemoteAddressablesContractTests",
     "RemoteDurableActivationHostTests",
     "RemotePackagedStarterContractTests",
+    "RemotePatchFlowContractTests",
 }
 
 def check(paths):
