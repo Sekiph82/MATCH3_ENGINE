@@ -51,26 +51,29 @@ namespace Match3.Engine.Runtime
                 throw new InvalidOperationException(
                     "UI completeness is missing one or more required surfaces.");
 
-            var visibleCount = 0;
-            foreach (var state in array)
+            var visibleCount = array.Sum(state =>
+                state.Actions.Values.Count(x => x.Visible));
+
+            foreach (var surface in required)
             {
-                var visible = state.Actions.Values
+                var visible = array
+                    .Where(x => x.Surface == surface)
+                    .SelectMany(x => x.Actions.Values)
                     .Where(x => x.Visible)
                     .ToArray();
                 if (visible.Length == 0)
                     throw new InvalidOperationException(
-                        "Player-facing UI surface has no visible action: " +
-                        state.Surface + ".");
-                visibleCount += visible.Length;
+                        "Player-facing UI surface has no visible action in any state: " +
+                        surface + ".");
 
-                if (RequiresEscape(state.Surface) &&
+                if (RequiresEscape(surface) &&
                     !visible.Any(x => x.Enabled &&
                         (x.Kind == UiActionKind.Back ||
                          x.Kind == UiActionKind.Close ||
                          x.Kind == UiActionKind.Navigate)))
                     throw new InvalidOperationException(
                         "UI surface lacks an enabled escape route: " +
-                        state.Surface + ".");
+                        surface + ".");
             }
 
             return new UiCompletenessReport(actual, visibleCount);
