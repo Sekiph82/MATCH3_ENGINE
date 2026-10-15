@@ -24,6 +24,9 @@ public static class Match3DemoSceneBuilder
 
         var demoObject = new GameObject("Neutral Match-3 Demo");
         demoObject.AddComponent<NeutralMatch3Demo>();
+        // Dormant until an authenticated prelaunch session is bound;
+        // preserve the existing playable demo and never invent a patch.
+        demoObject.AddComponent<NeutralPatchBootstrapView>();
 
         if (!EditorSceneManager.SaveScene(scene, scenePath))
         {
