@@ -16,13 +16,13 @@ namespace Match3.Engine.Tests
                 rules: new[]
                 {
                     new AudioVoiceRule(
-                        "music.home", 1, 0, 50),
+                        "music.home", AudioCueKind.Music, 1, 0, 50),
                     new AudioVoiceRule(
-                        "music.battle", 1, 0, 60),
+                        "music.battle", AudioCueKind.Music, 1, 0, 60),
                     new AudioVoiceRule(
-                        "sfx.clear", 2, 100, 10),
+                        "sfx.clear", AudioCueKind.Sfx, 2, 100, 10),
                     new AudioVoiceRule(
-                        "sfx.major", 1, 0, 100, ducksMusic: true)
+                        "sfx.major", AudioCueKind.Sfx, 1, 0, 100, ducksMusic: true)
                 });
         }
 
@@ -117,6 +117,18 @@ namespace Match3.Engine.Tests
                         "clear-rollback", "sfx.clear",
                         AudioCueKind.Sfx, 200)));
 
+            Assert.Throws<InvalidOperationException>(() =>
+                AudioConcurrencyPlanner.Request(
+                    newMusic.Result, policy,
+                    new AudioVoiceRequest(
+                        "wrong-kind", "music.home",
+                        AudioCueKind.Sfx, 700)));
+
+            Assert.Throws<ArgumentException>(() =>
+                new AudioVoiceRule(
+                    "bad-duck", AudioCueKind.Music,
+                    1, 0, 1, ducksMusic: true));
+
             var released = AudioConcurrencyPlanner.Release(
                 newMusic.Result, "major-1");
             Assert.That(released.Applied, Is.True);
@@ -131,8 +143,8 @@ namespace Match3.Engine.Tests
                     3, 40, 250,
                     new[]
                     {
-                        new AudioVoiceRule("dup", 1, 0, 1),
-                        new AudioVoiceRule("dup", 1, 0, 2)
+                        new AudioVoiceRule("dup", AudioCueKind.Sfx, 1, 0, 1),
+                        new AudioVoiceRule("dup", AudioCueKind.Sfx, 1, 0, 2)
                     }));
         }
 
