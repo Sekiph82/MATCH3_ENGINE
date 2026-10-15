@@ -940,11 +940,13 @@ jobs:
           mkdir -p Assets/EngineM11HostedNeutral/Editor
           cp Tools/M11AddressablesHostedSmoke.cs.txt \
             Assets/EngineM11HostedNeutral/Editor/M11HostedAddressablesSmoke.cs
+          cp Tools/M11R2HostedSmoke.cs.txt \
+            Assets/EngineM11HostedNeutral/Editor/M11HostedR2ReadOnlyTests.cs
           cat > Assets/EngineM11HostedNeutral/Editor/M11HostedAddressablesTests.asmdef <<'JSON'
           {
             "name": "Match3.Engine.HostedAddressablesTests",
             "rootNamespace": "Match3.Engine.HostedOptionalAddressables",
-            "references": ["Unity.Addressables", "Unity.ResourceManager", "Unity.Addressables.Editor"],
+            "references": ["Unity.Addressables", "Unity.ResourceManager", "Unity.Addressables.Editor", "Match3.Engine.Runtime"],
             "includePlatforms": ["Editor"],
             "optionalUnityReferences": ["TestAssemblies"],
             "autoReferenced": false
@@ -974,20 +976,24 @@ jobs:
           timeout 600s xvfb-run -a "$UNITY_EDITOR_PATH" \
             -batchmode -nographics -projectPath "$PWD" -runTests \
             -testPlatform EditMode \
-            -testFilter 'Match3.Engine.HostedOptionalAddressables.M11HostedAddressablesConsumerTests.M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset' \
+            -testFilter 'Match3.Engine.HostedOptionalAddressables' \
             -testResults "$results" -logFile "$log"
           python3 - "$results" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
           root = ET.parse(sys.argv[1]).getroot()
-          target = 'Match3.Engine.HostedOptionalAddressables.M11HostedAddressablesConsumerTests.M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset'
-          matches = [x for x in root.findall('.//test-case')
-                     if x.get('fullname') == target and x.get('result') == 'Passed']
+          expected = {
+              'Match3.Engine.HostedOptionalAddressables.M11HostedAddressablesConsumerTests.M11_008_OfficialAddressablesCatalogLoadsActualNeutralTextAsset',
+              'Match3.Engine.HostedOptionalAddressables.M11HostedR2ReadOnlyTests.M11_003_CloudflareR2PublicReadUsesPinnedSignedManifest',
+          }
+          found = {x.get('fullname') for x in root.findall('.//test-case')
+                   if x.get('result') == 'Passed'}
           counts = tuple(int(root.get(k, '-1')) for k in
                          ('total', 'passed', 'failed', 'skipped'))
-          if root.tag != 'test-run' or counts != (1, 1, 0, 0) or len(matches) != 1:
-              raise SystemExit('FAIL: real official Addressables fixture did not load through Unity runtime')
+          if root.tag != 'test-run' or counts != (2, 2, 0, 0) or found != expected:
+              raise SystemExit('FAIL: original Unity Addressables + public Cloudflare R2 HTTP test evidence invalid: '+str((counts,found)))
           print('M11_REAL_ADDRESSABLES_CATALOG_BUNDLE_CONSUMER=PASS REAL_UNITY=1')
+          print('M11_REAL_R2_PUBLIC_HTTPS_SIGNED_READ=PASS REAL_UNITY=1')
           PY
 
       - name: Enforce bounded evidence size
