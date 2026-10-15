@@ -123,7 +123,11 @@ jobs:
           p=Path(sys.argv[1]); raw=p.read_bytes() if p.exists() else b''
           text=raw.decode('utf8','replace')
           print('BUILD_LOG_SHA256='+hashlib.sha256(raw).hexdigest())
-          print('BUILD_COMPILE_ERROR_COUNT='+str(len(re.findall(r'error CS\d{4}',text))))
+          compiler = [line.strip() for line in text.splitlines()
+                      if re.search(r'error CS\d{4}', line)]
+          print('BUILD_COMPILE_ERROR_COUNT='+str(len(compiler)))
+          for line in compiler[:16]:
+              print('UNITY_COMPILER_ERROR='+line[:420])
           print('BUILD_PIPELINE_ERROR_COUNT='+str(len(re.findall(r'BuildPipeline.*failed|BuildFailedException',text))))
           PY
             exit 1
