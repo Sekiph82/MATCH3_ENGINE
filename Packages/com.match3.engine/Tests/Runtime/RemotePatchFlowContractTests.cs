@@ -199,9 +199,10 @@ namespace Match3.Engine.Tests
                     Is.EqualTo(RemotePatchStage.Offline));
                 Assert.That(flow.Snapshot().CanPlay, Is.True);
                 Assert.That(flow.Snapshot().CanClaimReward, Is.False);
+                var rejectedAfterOffline = await Receipt(m, sig,
+                    key, m.Entries[0]);
                 Assert.Throws<InvalidOperationException>(() =>
-                    flow.RecordVerified(await Receipt(m, sig,
-                        key, m.Entries[0])));
+                    flow.RecordVerified(rejectedAfterOffline));
             }
         }
     }
