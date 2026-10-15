@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Packages/com.match3.engine/Runtime/GameProfiles.cs" Link="Runtime/GameProfiles.cs" />
+    <Compile Include="../../Packages/com.match3.engine/Runtime/Remote*.cs" Link="Runtime/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
