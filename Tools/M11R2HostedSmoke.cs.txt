@@ -1,0 +1,66 @@
+// CI-only hosted real-network test. This source is copied into a disposable
+// Unity checkout; it is never included in a shipping Engine package or game.
+using System;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Match3.Engine.Runtime;
+using NUnit.Framework;
+
+namespace Match3.Engine.HostedOptionalAddressables
+{
+    public sealed class M11HostedR2ReadOnlyTests
+    {
+        // Public, tiny, Engine-neutral fixture. The private signing key is
+        // EPHEMERAL in the hosted runner; never shipped or uploaded to R2.
+        private const string ExpectedBody =
+            "{\"neutral\":\"match3-r2-qa-v1\",\"level\":1}";
+        private const string ExpectedDigest =
+            "0160ce606a68def670f4f74600c6a6c08fd91dae2ad9e2caedab3e827de42e53";
+        private const string Origin =
+            "https://pub-39632e9ddf304be7b407919f185cceac.r2.dev/";
+        private const string FixturePath = "qa/neutral-v2.json";
+
+        [Test]
+        public async Task M11_003_CloudflareR2PublicReadUsesPinnedSignedManifest()
+        {
+            var expected = Encoding.UTF8.GetBytes(ExpectedBody);
+            Assert.That(expected.Length, Is.EqualTo(39));
+            Assert.That(RemoteContentSafety.Sha256(expected),
+                Is.EqualTo(ExpectedDigest));
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var manifest = new RemoteContentManifest(
+                    "Coral_Rescue", RemotePlatform.Android,
+                    RemoteChannel.FamilyTest, "r2-read-only-qa-v1",
+                    "test-public-key", new EngineVersion(1, 0, 0),
+                    new EngineVersion(1, 1, 0), 1000, 9000,
+                    new[] {
+                        new RemoteContentEntry(FixturePath,
+                            RemoteContentKind.Json, expected.Length,
+                            ExpectedDigest)
+                    });
+                var k = signer.ExportParameters(false);
+                var trust = new RemotePublicSigningKey("test-public-key",
+                    k.Modulus, k.Exponent, 0, 10000);
+                var signed = signer.SignData(manifest.CanonicalBytes(),
+                    HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                var entry = manifest.Entries[0];
+                var receipt = await RemoteDownloadCoordinator.FetchVerifiedAsync(
+                    manifest, signed, new[] { trust },
+                    new RemoteReadOrigin(Origin),
+                    new RemoteHttpsReadTransport(),
+                    entry, manifest.GameId, manifest.Platform,
+                    manifest.Channel, new EngineVersion(1, 0, 0),
+                    2000, CancellationToken.None, maxAttempts: 2);
+                Assert.That(receipt.Bytes, Is.EqualTo(expected));
+                Assert.That(receipt.Bytes.Length, Is.EqualTo(39));
+                Assert.That(receipt.Path, Is.EqualTo(FixturePath));
+                Assert.That(receipt.Attempts, Is.InRange(1, 2));
+                Assert.That(RemoteContentSafety.Sha256(receipt.Bytes),
+                    Is.EqualTo(ExpectedDigest));
+            }
+        }
+    }
+}
