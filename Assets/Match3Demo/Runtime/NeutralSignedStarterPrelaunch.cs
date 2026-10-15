@@ -46,6 +46,23 @@ namespace Match3.Engine.Demo
                     "Signed offline content never reached a playable stage.");
         }
 
+        // Complete opt-in game-host integration: never allow a board swap
+        // before the installed starter has passed signature and byte checks.
+        public static async Task<bool> RequireAndBindAppPackagedStarterAsync(
+            NeutralMatch3Demo demo, NeutralPatchBootstrapView view,
+            string gameId, RemotePlatform platform, RemoteChannel channel,
+            EngineVersion engine,
+            IEnumerable<RemotePublicSigningKey> trustedPublicKeys,
+            long nowUnixSeconds, CancellationToken cancellation)
+        {
+            if (demo == null) throw new ArgumentNullException(nameof(demo));
+            if (view == null) throw new ArgumentNullException(nameof(view));
+            demo.RequireSignedPrelaunch(view);
+            return await TryBindAppPackagedStarterAsync(view, gameId,
+                platform, channel, engine, trustedPublicKeys,
+                nowUnixSeconds, cancellation);
+        }
+
         public static async Task<bool> TryBindAppPackagedStarterAsync(
             NeutralPatchBootstrapView view,
             string gameId, RemotePlatform platform, RemoteChannel channel,
