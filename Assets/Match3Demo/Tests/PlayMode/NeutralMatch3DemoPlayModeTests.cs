@@ -1,5 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Cysharp.Threading.Tasks;
 using Match3.Core.Structs;
 using Match3.Engine.Runtime;
@@ -157,6 +160,81 @@ namespace Match3.Engine.Demo.Tests
             Assert.That(demo.BoardSnapshot, Is.EqualTo(before));
             Assert.That(demo.Metrics.MovesRemaining, Is.EqualTo(movesBefore));
             Assert.That(demo.Metrics.MoveAccepted, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator M11_013_VisibleReadyAndBoardSwapsRequireVerifiedSession()
+        {
+            yield return LoadDemoScene();
+            var demo = Object.FindAnyObjectByType<NeutralMatch3Demo>();
+            var view = Object.FindAnyObjectByType<NeutralPatchBootstrapView>();
+            Assert.That(demo, Is.Not.Null);
+            Assert.That(view, Is.Not.Null);
+            Assert.That(demo.IsReady, Is.True);
+            Assert.That(demo.IsPlayable, Is.True);
+
+            demo.RequireSignedPrelaunch(view);
+            Assert.That(demo.IsSignedContentRequired, Is.True);
+            Assert.That(demo.IsPlayable, Is.False);
+            Assert.That(demo.IsBoardInputAllowed, Is.False);
+            Assert.That(demo.VisibleGameplayStatus, Does.StartWith("Locked:"));
+            Assert.That(demo.VisibleGameplayStatus, Does.Not.Contain("Ready"));
+            var before = demo.BoardSnapshot;
+            var movesBefore = demo.Metrics.MovesRemaining;
+
+            var blocked = demo.TrySwapAsync(new GridPosition(1, 0),
+                new GridPosition(2, 0)).AsTask();
+            while (!blocked.IsCompleted)
+                yield return null;
+            Assert.That(blocked.IsFaulted, Is.False);
+            Assert.That(blocked.Result, Is.False);
+            Assert.That(demo.BoardSnapshot, Is.EqualTo(before));
+            Assert.That(demo.Metrics.MovesRemaining, Is.EqualTo(movesBefore));
+
+            // Only actual signed staged level bytes may unlock this demo.
+            // RSA private material lives for this test only, never in a player.
+            var bytes = Encoding.UTF8.GetBytes("{\"neutral\":\"test\"}");
+            using (var rsa = new RSACryptoServiceProvider(2048))
+            {
+                var manifest = new RemoteContentManifest(
+                    "Coral_Rescue", RemotePlatform.Windows,
+                    RemoteChannel.FamilyTest, "visible-demo-qa",
+                    "ephemeral-public", new EngineVersion(1, 0, 0),
+                    new EngineVersion(1, 1, 0), 1000, 9000,
+                    new[] { new RemoteContentEntry(
+                        "levels/neutral.json", RemoteContentKind.Json,
+                        bytes.Length, RemoteContentSafety.Sha256(bytes)) });
+                var parameters = rsa.ExportParameters(false);
+                var key = new RemotePublicSigningKey(
+                    "ephemeral-public", parameters.Modulus,
+                    parameters.Exponent, 0, 10000);
+                var signature = rsa.SignData(manifest.CanonicalBytes(),
+                    HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                var verified = RemoteContentStager.VerifyComplete(
+                    manifest, signature, new[] { key },
+                    manifest.GameId, manifest.Platform, manifest.Channel,
+                    new EngineVersion(1, 0, 0), 2000,
+                    new Dictionary<string, byte[]> {
+                        { "levels/neutral.json", bytes }
+                    });
+                NeutralSignedStarterPrelaunch.BindVerifiedOffline(
+                    view, verified, new[] { key }, manifest.GameId,
+                    manifest.Platform, manifest.Channel,
+                    new EngineVersion(1, 0, 0), 2000);
+                Assert.That(view.CanEnterGame, Is.True);
+                Assert.That(demo.IsPlayable, Is.True);
+                Assert.That(demo.VisibleGameplayStatus, Is.EqualTo("Ready"));
+            }
+
+            var accepted = demo.TrySwapAsync(new GridPosition(1, 0),
+                new GridPosition(2, 0)).AsTask();
+            while (!accepted.IsCompleted)
+                yield return null;
+            Assert.That(accepted.IsFaulted, Is.False);
+            Assert.That(accepted.Result, Is.True);
+            Assert.That(demo.Metrics.GameFinished, Is.True);
+            Assert.That(demo.Metrics.MovesRemaining, Is.EqualTo(1));
+            Assert.That(demo.VisibleGameplayStatus, Does.StartWith("WIN"));
         }
 
         private static IEnumerator LoadDemoScene()
