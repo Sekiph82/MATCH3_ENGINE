@@ -13,6 +13,12 @@ EXPECTED = {
     "M09_008_PresentationBudgetsReportDeterministicTierSpecificOveragesWithoutClaimingDeviceProfiling",
     "M09_009_AudioConcurrencyIsBoundedPriorityCooldownReplaySafeAndDucksCrossfadesMusic",
     "M09_010_HapticsAreOptionalRateLimitedReplaySafeAndReducedEffectsSuppressesOutput",
+    "M09_011_AllPlayerSurfacesAreCompleteEscapableAndDoubleSubmitSafe",
+    "M09_012_TimingQualityKeepsCeremonyOrderAndTerminalParityAcrossSkipAndReducedMotion",
+    "M09_013_DynamicOverlaysRespectSafeAreaDepthBackAndReplaySafety",
+    "M09_014_PlayerSurfaceMatrixIsCodeCompleteButFinalGateRequiresOwnerAndBothDevices",
+    "M09_015_OptionalPluginsAreVersionLicenseLockedFallbackSafeAndShippingBaggageFree",
+    "M09_016_ScalableAndRasterArtShareNeutralAccessibleContractWithoutProhibitedQmlImport",
 }
 
 def main(paths):
@@ -23,7 +29,8 @@ def main(paths):
             fullname = case.get("fullname", "")
             if ("PresentationCoreContractTests." in fullname or
                     "PresentationPlatformContractTests." in fullname or
-                    "PresentationFeedbackContractTests." in fullname):
+                    "PresentationFeedbackContractTests." in fullname or
+                    "PresentationAdvancedContractTests." in fullname):
                 short = fullname.rsplit(".", 1)[-1]
                 found.setdefault(short, []).append(case.get("result"))
     if set(found) != EXPECTED or any(v != ["Passed"] for v in found.values()):
@@ -31,7 +38,7 @@ def main(paths):
             "FAIL: M09 presentation cases missing, skipped, duplicated or failed: "
             + repr(found)
         )
-    print("UNITY_M09_001_010_PRESENTATION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
+    print("UNITY_M09_001_016_PRESENTATION=PASS DISCOVERED=%d SKIPPED=0" % len(found))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
