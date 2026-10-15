@@ -546,6 +546,9 @@ namespace Match3.Engine.Runtime
                     id => !graph.Levels.ContainsKey(id)))
                 throw new ArgumentException(
                     "Unlock snapshot references unknown level.");
+            if (!snapshot.UnlockedLevelIds.Contains(attempt.LevelId))
+                throw new InvalidOperationException(
+                    "A locked level result cannot mutate unlock progression.");
             var canonicalStars = thresholds.StarsFor(attempt.Score);
             if (attempt.Stars != canonicalStars)
                 throw new InvalidOperationException(
