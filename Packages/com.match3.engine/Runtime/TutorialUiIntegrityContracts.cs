@@ -25,7 +25,8 @@ namespace Match3.Engine.Runtime
                 double.IsNaN(v) || double.IsInfinity(v)) ||
                 minimumLogicalSize < 44 || minimumLogicalSize > 128 ||
                 x < 0 || y < 0 ||
-                width < minimumLogicalSize || height < minimumLogicalSize)
+                width < minimumLogicalSize || height < minimumLogicalSize ||
+                double.IsInfinity(x + width) || double.IsInfinity(y + height))
                 throw new ArgumentOutOfRangeException(
                     nameof(width), "Touch hitboxes must be finite and 44pt minimum.");
             ActionId = actionId;
