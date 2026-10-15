@@ -82,26 +82,26 @@ namespace Match3.Engine.Runtime
                     previousVerifiedState.Platform,
                     previousVerifiedState.Channel, engine, nowUnixSeconds, data);
                 var fetched = new RemoteFetchedPackage(signed, data);
-                var commit = await RemoteActivationCoordinator.CommitVerifiedAsync(
-                    previousVerifiedState, fetched,
-                    new RemoteCommitAdapter(host, candidate.PartitionKey),
+                var activation = await RemoteActivationCoordinator.ApplyAsync(
+                    previousVerifiedState, fetched, host,
                     cancellation).ConfigureAwait(false);
-                if (!commit.Result.Active.SignedEnvelopeDigest.Equals(
-                    signed.SignedEnvelopeDigest, StringComparison.Ordinal))
+                if (activation.State.Active == null ||
+                    !StringComparer.Ordinal.Equals(
+                        activation.State.Active.SignedEnvelopeDigest,
+                        signed.SignedEnvelopeDigest))
                     throw new InvalidOperationException(
-                        "Host did not acknowledge the expected signed release.");
-                if (commit.Result.Active == previousVerifiedState.Active)
+                        "Host did not acknowledge expected signed release.");
+                if (!activation.Activated)
                 {
                     flow.RecordCurrentInstalled(previousVerifiedState.Active,
                         keys, engine, nowUnixSeconds);
                     progress?.Invoke(flow.Snapshot());
-                    return new RemotePrelaunchResult(
-                        flow, previousVerifiedState.Active, false, false);
+                    return new RemotePrelaunchResult(flow,
+                        previousVerifiedState.Active, false, false);
                 }
-                // Create a receipt using the same authenticated release the
-                // host committed; never infer success from byte progress.
-                var activated = new RemoteActivationResult(commit.Result, true);
-                flow.RecordActivation(activated);
+                // Never mark ready from 100% progress. The verified host
+                // must explicitly confirm the actual atomic pointer exchange.
+                flow.RecordActivation(activation);
                 progress?.Invoke(flow.Snapshot());
                 return new RemotePrelaunchResult(flow, signed, true, false);
             }
@@ -138,36 +138,5 @@ namespace Match3.Engine.Runtime
             }
         }
 
-        // Reuse the Engine host's actual atomic acknowledgement and do not
-        // replace it with an optimistic in-memory pointer mutation.
-        private sealed class RemoteCommitAdapter : IRemoteAtomicCommitBackend
-        {
-            private readonly IRemoteActivationHost _host;
-            private readonly string _partition;
-            public RemoteCommitAdapter(IRemoteActivationHost host, string partition)
-            {
-                _host = host;
-                _partition = partition;
-            }
-
-            public Task PrepareAsync(RemoteVerifiedRelease release,
-                IReadOnlyDictionary<string, byte[]> data,
-                CancellationToken cancellation) =>
-                _host.PrepareVerifiedAsync(release, data, cancellation);
-
-            public async Task CommitPointerAsync(RemoteVerifiedRelease expectedOld,
-                RemoteVerifiedRelease requested, long highWater,
-                CancellationToken cancellation)
-            {
-                var oldDigest = expectedOld == null ? "" :
-                    expectedOld.SignedEnvelopeDigest;
-                var ok = await _host.ExchangeActiveAsync(_partition,
-                    oldDigest, requested.SignedEnvelopeDigest, highWater,
-                    cancellation).ConfigureAwait(false);
-                if (!ok)
-                    throw new InvalidOperationException(
-                        "Storage host refused atomic signed pointer commit.");
-            }
-        }
     }
 }
