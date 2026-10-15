@@ -2,6 +2,7 @@ name: ENG-M00 Free Unity Personal Runtime Verification
 
 on:
   workflow_dispatch:
+  # ENG-M10 initial neutral tutorial contracts run from main, source+test evidence only.
   # One workflow-only push lets the current Unity CI preflight run without
   # changing game code, secrets, licensing, or local owner files.
   # ENG-M04 final acceptance refresh after callback-atomicity and 0x presentation hardening.
