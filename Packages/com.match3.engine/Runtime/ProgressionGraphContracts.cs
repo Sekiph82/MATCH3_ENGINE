@@ -291,6 +291,7 @@ namespace Match3.Engine.Runtime
 
     public sealed class NavigationState
     {
+        private readonly ReadOnlyDictionary<string, string> _routeSignatures;
         private readonly ReadOnlyCollection<string> _processedRouteIds;
 
         public NavigationRoute Current { get; }
@@ -307,8 +308,41 @@ namespace Match3.Engine.Runtime
                 ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
                 throw new ArgumentException("Invalid route history.",
                     nameof(processedRouteIds));
+            var legacy = ids.ToDictionary(
+                x => x, x => (string)null, StringComparer.Ordinal);
+            _routeSignatures =
+                new ReadOnlyDictionary<string, string>(legacy);
             _processedRouteIds = new ReadOnlyCollection<string>(
                 ids.OrderBy(x => x, StringComparer.Ordinal).ToList());
+        }
+
+        internal NavigationState(NavigationRoute current,
+            IDictionary<string, string> routeSignatures)
+        {
+            Current = current ?? throw new ArgumentNullException(nameof(current));
+            if (routeSignatures == null)
+                throw new ArgumentNullException(nameof(routeSignatures));
+            if (routeSignatures.Count > 100000 ||
+                routeSignatures.Keys.Any(string.IsNullOrWhiteSpace))
+                throw new ArgumentException("Invalid route signature history.",
+                    nameof(routeSignatures));
+            var copy = new Dictionary<string, string>(
+                routeSignatures, StringComparer.Ordinal);
+            _routeSignatures =
+                new ReadOnlyDictionary<string, string>(copy);
+            _processedRouteIds = new ReadOnlyCollection<string>(
+                copy.Keys.OrderBy(x => x, StringComparer.Ordinal).ToList());
+        }
+
+        internal bool TryGetRouteSignature(string routeId, out string signature)
+        {
+            return _routeSignatures.TryGetValue(routeId, out signature);
+        }
+
+        internal Dictionary<string, string> CopyRouteSignatures()
+        {
+            return _routeSignatures.ToDictionary(
+                x => x.Key, x => x.Value, StringComparer.Ordinal);
         }
     }
 
@@ -333,8 +367,17 @@ namespace Match3.Engine.Runtime
             if (state == null) throw new ArgumentNullException(nameof(state));
             if (next == null) throw new ArgumentNullException(nameof(next));
 
-            if (state.ProcessedRouteIds.Contains(next.RouteId))
+            var nextSignature = RouteSignature(next);
+            string priorSignature;
+            if (state.TryGetRouteSignature(next.RouteId, out priorSignature))
+            {
+                if (priorSignature != null &&
+                    !StringComparer.Ordinal.Equals(
+                        priorSignature, nextSignature))
+                    throw new InvalidOperationException(
+                        "Navigation route ID is bound to another route payload.");
                 return new NavigationPlan(state, false);
+            }
 
             ValidateRoute(graph, state.Current);
             ValidateRoute(graph, next);
@@ -343,10 +386,10 @@ namespace Match3.Engine.Runtime
                     "Illegal progression navigation transition: " +
                     state.Current.Kind + " -> " + next.Kind);
 
+            var signatures = state.CopyRouteSignatures();
+            signatures.Add(next.RouteId, nextSignature);
             return new NavigationPlan(
-                new NavigationState(next,
-                    state.ProcessedRouteIds.Concat(
-                        new[] { next.RouteId })),
+                new NavigationState(next, signatures),
                 true);
         }
 
@@ -380,6 +423,14 @@ namespace Match3.Engine.Runtime
                     throw new ArgumentException(
                         "Level route belongs to another chapter.");
             }
+        }
+
+        private static string RouteSignature(NavigationRoute route)
+        {
+            return ((int)route.Kind).ToString() + "|" +
+                (route.WorldId ?? string.Empty) + "|" +
+                (route.ChapterId ?? string.Empty) + "|" +
+                (route.LevelId ?? string.Empty);
         }
 
         private static bool IsAllowed(NavigationRouteKind from,
