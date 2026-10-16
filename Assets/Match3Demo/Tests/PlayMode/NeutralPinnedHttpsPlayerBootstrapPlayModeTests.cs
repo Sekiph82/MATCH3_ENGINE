@@ -52,8 +52,11 @@ namespace Match3.Engine.Demo.Tests
                 Assert.That(view.CanEnterGame, Is.False);
                 Assert.That(host.AttemptCount, Is.Zero);
                 Assert.That(host.HasConfiguredCandidate, Is.False);
-                Assert.That(player.CanRetryDiscovery, Is.True);
-                Assert.That(player.RequestNewSignedDiscovery(), Is.True);
+                Assert.That(player.CanRetryDiscovery, Is.False,
+                    "An absent RSA trust anchor is not a retryable network error.");
+                Assert.That(player.PlayerStatus,
+                    Is.EqualTo("Signed update is not configured"));
+                Assert.That(player.RequestNewSignedDiscovery(), Is.False);
                 Assert.That(host.AttemptCount, Is.Zero,
                     "Missing pinned public trust must never start HTTPS.");
                 Assert.That(view.CanEnterGame, Is.False);
