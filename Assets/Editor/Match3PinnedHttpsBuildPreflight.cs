@@ -19,6 +19,10 @@ public sealed class Match3PinnedHttpsBuildPreflight : IProcessSceneWithReport
 
     public void OnProcessScene(Scene scene, BuildReport report)
     {
+        // Unity can invoke scene-process hooks during Editor play with no
+        // BuildReport. This is a build gate, not a PlayMode gate.
+        if (report == null) return;
+
         // Development QA scenes are built with frozen test-only credentials
         // and a separate non-development QA fixture firewall.
         if ((report.summary.options & BuildOptions.Development) != 0)
