@@ -96,10 +96,6 @@ namespace Match3.Engine.Demo
                     new byte[] { 0x01, 0x00, 0x01 },
                     keyValidFromUnixSeconds, keyValidUntilUnixSeconds);
                 var origin = new RemoteReadOrigin(approvedHttpsPrefix);
-                // The full immutable production trust configuration must
-                // be valid before a first-party discovery retry is offered.
-                // This does not verify remote content or imply online access.
-                _configurationReady = true;
                 // All persistent signed state is confined to Unity's
                 // application-private location, not arbitrary scene strings.
                 var existingRoot = Application.persistentDataPath;
@@ -115,6 +111,9 @@ namespace Match3.Engine.Demo
                 var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var engine = new EngineVersion(1, 0, 0);
                 var installed = durable.Restore(new[] { trustKey }, engine, now);
+                // Only a valid immutable trust config, approved origin and
+                // usable app-private durable state make retry meaningful.
+                _configurationReady = true;
 
                 // Discovery fetches ONLY canonical manifest and detached
                 // signature from a pinned HTTPS origin first. Payload bytes
