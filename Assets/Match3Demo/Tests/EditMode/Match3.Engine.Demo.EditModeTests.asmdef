@@ -21,6 +21,12 @@
   "optionalUnityReferences": [
     "TestAssemblies"
   ],
-  "versionDefines": [],
+  "versionDefines": [
+    {
+      "name": "com.unity.modules.assetbundle",
+      "expression": "1.0.0",
+      "define": "MATCH3_NATIVE_ASSETBUNDLE"
+    }
+  ],
   "noEngineReferences": false
 }
