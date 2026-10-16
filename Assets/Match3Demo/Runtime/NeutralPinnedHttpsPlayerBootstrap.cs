@@ -31,6 +31,9 @@ namespace Match3.Engine.Demo
         private bool _destroyed;
         private bool _checking;
         private bool _failedToDiscover;
+        // A missing/invalid trust anchor is a permanent configuration error,
+        // not a network error. Never offer a retry that can only fail.
+        private bool _configurationReady;
         private string _playerStatus = "Not configured";
 
         public bool IsChecking => _checking;
@@ -38,7 +41,7 @@ namespace Match3.Engine.Demo
         public string PlayerStatus => _playerStatus;
         public bool CanRetryDiscovery =>
             enableSignedUpdates && !_destroyed && !_checking &&
-            _failedToDiscover && _view != null &&
+            _failedToDiscover && _configurationReady && _view != null &&
             !_view.HasVerifiedSession && _host != null &&
             !_host.HasConfiguredCandidate && !_host.IsDiscovering;
 
@@ -74,6 +77,7 @@ namespace Match3.Engine.Demo
         {
             _checking = true;
             _failedToDiscover = false;
+            _configurationReady = false;
             _playerStatus = "Checking first-party signed content...";
             try
             {
@@ -92,6 +96,10 @@ namespace Match3.Engine.Demo
                     new byte[] { 0x01, 0x00, 0x01 },
                     keyValidFromUnixSeconds, keyValidUntilUnixSeconds);
                 var origin = new RemoteReadOrigin(approvedHttpsPrefix);
+                // The full immutable production trust configuration must
+                // be valid before a first-party discovery retry is offered.
+                // This does not verify remote content or imply online access.
+                _configurationReady = true;
                 // All persistent signed state is confined to Unity's
                 // application-private location, not arbitrary scene strings.
                 var existingRoot = Application.persistentDataPath;
@@ -152,7 +160,8 @@ namespace Match3.Engine.Demo
                         return;
                     }
                 }
-                _failedToDiscover = !_host.HasConfiguredCandidate;
+                _failedToDiscover = _configurationReady &&
+                    !_host.HasConfiguredCandidate;
                 _playerStatus = _failedToDiscover
                     ? "Signed notice unavailable. Check connection to retry"
                     : "Signed content unavailable. Use signed host Retry";
@@ -171,9 +180,11 @@ namespace Match3.Engine.Demo
                 {
                     // No sensitive exception detail, server identity, paths,
                     // or tokens are written to the user-facing patch panel.
-                    _failedToDiscover = _host != null &&
-                        !_host.HasConfiguredCandidate;
-                    _playerStatus = "Signed content unavailable";
+                    _failedToDiscover = _configurationReady &&
+                        _host != null && !_host.HasConfiguredCandidate;
+                    _playerStatus = _configurationReady
+                        ? "Signed content unavailable. Connection may be retried"
+                        : "Signed update is not configured";
                 }
             }
             finally
@@ -211,7 +222,10 @@ namespace Match3.Engine.Demo
             // games will replace it through their own title/UI factory.
             var width = Mathf.Min(470f, Mathf.Max(250f, Screen.width - 32f));
             var y = Mathf.Max(210f, Screen.height - 210f);
-            if (_checking && !HasVerifiedPlay)
+            // Never silently show a blank locked board after a failed
+            // bootstrap. Permanent configuration errors get a truthful
+            // message, but no dead retry CTA.
+            if (!HasVerifiedPlay)
                 GUI.Box(new Rect(16f, y, width, 45f), _playerStatus);
             if (CanRetryDiscovery &&
                 GUI.Button(new Rect(16f, y, 175f, 36f),
