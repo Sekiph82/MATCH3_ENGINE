@@ -7,6 +7,20 @@ using Match3.Engine.Runtime;
 
 namespace Match3.Engine.Demo
 {
+    public sealed class NeutralVerifiedSignedCandidate
+    {
+        private readonly byte[] _signature;
+        public RemoteContentManifest Manifest { get; }
+        public byte[] Signature => (byte[])_signature.Clone();
+
+        internal NeutralVerifiedSignedCandidate(
+            RemoteContentManifest manifest, byte[] signature)
+        {
+            Manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
+            _signature = (byte[])signature.Clone();
+        }
+    }
+
     // Signed update discovery for a FIRST-PARTY pinned HTTPS base URL.
     // The manifest and detached signature are retrieved as untrusted bytes.
     // Neither can provide a URL, redirect, signing key or trust authority.
@@ -19,20 +33,17 @@ namespace Match3.Engine.Demo
         public const int MinimumSignatureBytes = 256;
         public const int MaximumSignatureBytes = 1024;
 
-        public static async Task<RemoteContentManifest> FetchVerifiedAsync(
+        public static async Task<NeutralVerifiedSignedCandidate> FetchVerifiedAsync(
             RemoteReadOrigin pinnedOrigin, IRemoteReadTransport transport,
             IEnumerable<RemotePublicSigningKey> pinnedPublicKeys,
             string gameId, RemotePlatform platform, RemoteChannel channel,
             EngineVersion engine, long nowUnixSeconds,
-            Action<byte[]> onVerifiedSignature,
             CancellationToken cancellation)
         {
             if (pinnedOrigin == null) throw new ArgumentNullException(nameof(pinnedOrigin));
             if (transport == null) throw new ArgumentNullException(nameof(transport));
             if (pinnedPublicKeys == null)
                 throw new ArgumentNullException(nameof(pinnedPublicKeys));
-            if (onVerifiedSignature == null)
-                throw new ArgumentNullException(nameof(onVerifiedSignature));
             var keys = pinnedPublicKeys.Take(17).ToArray();
             if (keys.Length == 0 || keys.Length > 16 || keys.Any(x => x == null))
                 throw new ArgumentException("A bounded first-party public trust set is required.");
@@ -76,8 +87,7 @@ namespace Match3.Engine.Demo
                 engine, verifiedAt);
             // Do not leak the signature until validation finishes. Caller
             // takes ownership of this fresh clone; no raw HTTP body reuse.
-            onVerifiedSignature((byte[])detached.Clone());
-            return verified;
+            return new NeutralVerifiedSignedCandidate(verified, detached);
         }
     }
 }
