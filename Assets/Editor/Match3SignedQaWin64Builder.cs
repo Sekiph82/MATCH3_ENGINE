@@ -40,6 +40,14 @@ public static class Match3SignedQaWin64Builder
         if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64)
             throw new InvalidOperationException(
                 "Switch to installed Windows x64 target first; no package or module installs.");
+        // Real Unity player builds consume many gigabytes of caches. This
+        // preflight is read-only and never initiates any disk cleanup.
+        var tempRoot = Path.GetFullPath(Path.GetTempPath());
+        var volume = new DriveInfo(Path.GetPathRoot(tempRoot));
+        if (volume.AvailableFreeSpace < 8L * 1024L * 1024L * 1024L)
+            throw new InvalidOperationException(
+                "At least 8 GiB of free space is required for a local QA build. " +
+                "Do not delete owner files automatically.");
 
         // Refuse to mutate any existing owner fixture. Re-run is idempotent
         // only when every existing artifact has exactly the approved bytes.
