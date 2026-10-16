@@ -13,6 +13,7 @@ using UnityEngine.TestTools;
 
 namespace Match3.Engine.Demo.Tests
 {
+#if MATCH3_NATIVE_ASSETBUNDLE
     public sealed class NeutralSignedNativeBundleEditorTests
     {
         // A real Unity-built, Windows-native AssetBundle containing only a
@@ -143,5 +144,5 @@ namespace Match3.Engine.Demo.Tests
                 Assert.That(corrupted.Exception, Is.Not.Null);
             }
         }
-    }
+  #endif
 }
