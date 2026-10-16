@@ -25,6 +25,7 @@ namespace Match3.Engine.Demo
         private bool _running;
         private bool _destroyed;
         private int _attemptCount;
+        private long _lastVerifiedNow;
 
         public bool IsRunning => _running;
         public int AttemptCount => _attemptCount;
@@ -121,11 +122,17 @@ namespace Match3.Engine.Demo
             LastResult = null;
             try
             {
+                // Every retry must recheck key and manifest validity at
+                // the actual current time. A pinned old timestamp must not
+                // extend an expired signature's acceptance window.
+                _lastVerifiedNow = Math.Max(_lastVerifiedNow,
+                    Math.Max(_request.NowUnixSeconds,
+                        DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
                 var result = await RemotePrelaunchBootstrap.ExecuteAsync(
                     _request.Manifest, _request.Signature, _request.PublicKeys,
                     _request.Origin, _request.Transport, _request.Installed,
                     _request.PackagedStarter, _request.DurableHost,
-                    _request.Engine, _request.NowUnixSeconds,
+                    _request.Engine, _lastVerifiedNow,
                     _request.Cancellation, PublishProgress);
 
                 if (_destroyed || _request.Cancellation.IsCancellationRequested)
