@@ -4,7 +4,8 @@
   "references": [
     "Match3.Engine.Demo",
     "Match3.App",
-    "Match3.Core"
+    "Match3.Core",
+    "Match3.Engine.Runtime"
   ],
   "includePlatforms": [
     "Editor"
