@@ -40,6 +40,12 @@ public sealed class Match3PinnedHttpsBuildPreflight : IProcessSceneWithReport
         var count = ValidateScenes(scenes,
             EditorUserBuildSettings.activeBuildTarget,
             DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        if (count == 0)
+        {
+            Debug.LogWarning("MATCH3_PINNED_HTTPS_BUILD_AUDIT=NOT_CONFIGURED" +
+                             " VERIFIED_SCENE_BOOTSTRAPS=0 ACTUAL_NETWORK=NOT_RUN");
+            return;
+        }
         Debug.Log("MATCH3_PINNED_HTTPS_BUILD_AUDIT=PASS" +
                   " VERIFIED_SCENE_BOOTSTRAPS=" + count +
                   " ACTUAL_NETWORK=NOT_RUN");
