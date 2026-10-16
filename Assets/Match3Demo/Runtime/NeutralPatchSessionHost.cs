@@ -30,6 +30,8 @@ namespace Match3.Engine.Demo
         private long _lastVerifiedNow;
 
         public bool IsRunning => _running;
+        public bool IsDiscovering => _discoveryInProgress;
+        public bool HasConfiguredCandidate => _request != null;
         public int AttemptCount => _attemptCount;
         public RemotePrelaunchResult LastResult { get; private set; }
         public Task<RemotePrelaunchResult> CurrentAttempt => _attempt;
