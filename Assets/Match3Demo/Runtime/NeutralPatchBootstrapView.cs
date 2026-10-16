@@ -92,6 +92,16 @@ namespace Match3.Engine.Demo
             _lastPublicAction = "status-unavailable";
         }
 
+        // Called only by the owning host when signature configuration,
+        // cancellation, or platform setup is unrecoverable. Never leave
+        // a visible Retry button that cannot actually issue a safe request.
+        internal void DisableHostRetry()
+        {
+            _requestHostRetry = null;
+            _hostRetryPending = false;
+            _completedHostAttempts++;
+        }
+
         public bool TryRequestHostRetry()
         {
             if (!CanRequestHostRetry)
