@@ -176,6 +176,7 @@ namespace Match3.Engine.Demo.Tests
             demo.RequireSignedPrelaunch(view);
             Assert.That(demo.IsSignedContentRequired, Is.True);
             Assert.That(demo.IsPlayable, Is.False);
+            Assert.That(demo.VisibleBoardCellCount, Is.Zero);
             Assert.That(demo.IsBoardInputAllowed, Is.False);
             Assert.That(demo.VisibleGameplayStatus, Does.StartWith("Locked:"));
             Assert.That(demo.VisibleGameplayStatus, Does.Not.Contain("Ready"));
@@ -223,6 +224,9 @@ namespace Match3.Engine.Demo.Tests
                     new EngineVersion(1, 0, 0), 2000);
                 Assert.That(view.CanEnterGame, Is.True);
                 Assert.That(demo.IsPlayable, Is.True);
+                Assert.That(demo.VisibleBoardCellCount,
+                    Is.EqualTo(DemoScenario.Rows * DemoScenario.Columns));
+                Assert.That(demo.VisibleBoardCellCount, Is.EqualTo(16));
                 Assert.That(demo.VisibleGameplayStatus, Is.EqualTo("Ready"));
             }
 
