@@ -142,6 +142,19 @@ namespace Match3.Engine.Demo.Tests
             return path;
         }
 
+        // A broken async integration may never complete. Keep failures
+        // bounded and report the gate rather than hanging Unity for hours.
+        private static IEnumerator WaitFor(Func<bool> condition, string gate)
+        {
+            var deadline = Time.realtimeSinceStartup + 60f;
+            while (!condition())
+            {
+                if (Time.realtimeSinceStartup >= deadline)
+                    Assert.Fail("R21 local Unity host timeout: " + gate);
+                yield return null;
+            }
+        }
+
         [UnityTest]
         public IEnumerator M11_013_RealHostRetryRefetchesThenRestartsWithoutPrematureGameAccess()
         {
@@ -166,7 +179,7 @@ namespace Match3.Engine.Demo.Tests
                         scripted, installed, null, durable, Engine, now);
                     Assert.That(game.IsSignedContentRequired, Is.True);
                     Assert.That(game.IsBoardInputAllowed, Is.False);
-                    yield return new WaitUntil(() => first.IsCompleted);
+                    yield return WaitFor(() => first.IsCompleted, "async-gate-1");
                     Assert.That(first.IsFaulted, Is.False);
                     Assert.That(first.Result, Is.Not.Null);
                     Assert.That(first.Result.CanPlay, Is.False);
@@ -183,8 +196,8 @@ namespace Match3.Engine.Demo.Tests
 
                     scripted.Failing = false;
                     Assert.That(view.TryRequestHostRetry(), Is.True);
-                    yield return new WaitUntil(() =>
-                        !host.IsRunning && host.LastResult != null);
+                    yield return WaitFor(() =>
+                        !host.IsRunning && host.LastResult != null, "async-gate-2");
                     Assert.That(host.AttemptCount, Is.EqualTo(2));
                     Assert.That(scripted.Calls, Is.GreaterThan(beforeRetry),
                         "Retry must do a fresh verified-byte network fetch.");
@@ -222,7 +235,7 @@ namespace Match3.Engine.Demo.Tests
                             new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                             noUpdateTransport, restored, null, restarted,
                             Engine, now);
-                        yield return new WaitUntil(() => noUpdate.IsCompleted);
+                        yield return WaitFor(() => noUpdate.IsCompleted, "async-gate-3");
                         Assert.That(noUpdate.IsFaulted, Is.False);
                         Assert.That(noUpdate.Result.CanPlay, Is.True);
                         Assert.That(noUpdate.Result.Flow.Snapshot().Stage,
@@ -264,7 +277,7 @@ namespace Match3.Engine.Demo.Tests
                         new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                         new ScriptedTransport(v1Bytes, false), initial,
                         null, durable, Engine, now);
-                    yield return new WaitUntil(() => committed.IsCompleted);
+                    yield return WaitFor(() => committed.IsCompleted, "async-gate-4");
                     Assert.That(committed.Result.NewReleaseActivated, Is.True);
                 }
                 finally { UnityEngine.Object.DestroyImmediate(firstRoot); }
@@ -281,7 +294,7 @@ namespace Match3.Engine.Demo.Tests
                         v2, Sign(signer, v2), new[] { key },
                         new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                         failedNetwork, restored, null, durable, Engine, now);
-                    yield return new WaitUntil(() => offline.IsCompleted);
+                    yield return WaitFor(() => offline.IsCompleted, "async-gate-5");
                     Assert.That(offline.IsFaulted, Is.False);
                     Assert.That(offline.Result.FellBackOffline, Is.True);
                     Assert.That(offline.Result.CanPlay, Is.True);
@@ -325,9 +338,9 @@ namespace Match3.Engine.Demo.Tests
                         new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                         new ScriptedTransport(payload, false),
                         installed, null, held, Engine, now);
-                    yield return new WaitUntil(() => held.ExchangeStarted &&
+                    yield return WaitFor(() => held.ExchangeStarted &&
                         view.Snapshot() != null &&
-                        view.Snapshot().VerifiedPercent == 100);
+                        view.Snapshot().VerifiedPercent == 100, "async-gate-6");
                     Assert.That(task.IsCompleted, Is.False);
                     Assert.That(view.Snapshot(), Is.Not.Null);
                     Assert.That(view.Snapshot().VerifiedPercent,
@@ -337,7 +350,7 @@ namespace Match3.Engine.Demo.Tests
                     Assert.That(view.CanRequestHostRetry, Is.False);
                     Assert.That(game.IsBoardInputAllowed, Is.False);
                     held.AllowCommit();
-                    yield return new WaitUntil(() => task.IsCompleted);
+                    yield return WaitFor(() => task.IsCompleted, "async-gate-7");
                     Assert.That(task.IsFaulted, Is.False);
                     Assert.That(task.Result.NewReleaseActivated, Is.True);
                     Assert.That(view.CanEnterGame, Is.True);
@@ -373,7 +386,7 @@ namespace Match3.Engine.Demo.Tests
                         new[] { key },
                         new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                         transport, state, null, durable, Engine, now);
-                    yield return new WaitUntil(() => task.IsCompleted);
+                    yield return WaitFor(() => task.IsCompleted, "async-gate-8");
                     Assert.That(task.IsFaulted, Is.False);
                     Assert.That(task.Result, Is.Null);
                     Assert.That(transport.Calls, Is.Zero);
@@ -408,7 +421,7 @@ namespace Match3.Engine.Demo.Tests
                         Sign(signer, expired), new[] { expiredKey },
                         new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                         transport, installed, null, durable, Engine, stale);
-                    yield return new WaitUntil(() => task.IsCompleted);
+                    yield return WaitFor(() => task.IsCompleted, "async-gate-9");
                     Assert.That(task.IsFaulted, Is.False);
                     Assert.That(task.Result, Is.Null);
                     Assert.That(transport.Calls, Is.Zero);
@@ -441,7 +454,7 @@ namespace Match3.Engine.Demo.Tests
                     Engine, now, appToken.Token);
                 Assert.That(task.IsCompleted, Is.False);
                 UnityEngine.Object.DestroyImmediate(root);
-                yield return new WaitUntil(() => task.IsCompleted);
+                yield return WaitFor(() => task.IsCompleted, "async-gate-10");
                 Assert.That(task.IsFaulted, Is.False);
                 Assert.That(task.Result, Is.Null);
                 Assert.That(appToken.IsCancellationRequested, Is.False,
