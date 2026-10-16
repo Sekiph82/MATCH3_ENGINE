@@ -214,11 +214,15 @@ namespace Match3.Engine.Demo.Tests
                 var host = root.AddComponent<NeutralPatchSessionHost>();
                 try
                 {
+                    // Prove the gate is closed BEFORE synchronous scripted
+                    // receipts can complete; an immediate local disk host
+                    // may legitimately finish in the same Unity frame.
+                    game.RequireSignedPrelaunch(view);
+                    Assert.That(game.IsSignedContentRequired, Is.True);
+                    Assert.That(game.IsBoardInputAllowed, Is.False);
                     var task = host.BeginDiscoveredPrelaunchAsync(
                         origin, transport, new[] { key }, state,
                         null, durable, Engine, now);
-                    Assert.That(game.IsSignedContentRequired, Is.True);
-                    Assert.That(game.IsBoardInputAllowed, Is.False);
                     yield return WaitFor(task);
                     Assert.That(task.IsFaulted, Is.False);
                     Assert.That(task.Result, Is.Not.Null);
