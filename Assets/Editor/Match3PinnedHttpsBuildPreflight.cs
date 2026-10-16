@@ -10,53 +10,48 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// No server connection, unsigned manifest read, source-file rewrite or
-// generated build data is needed to validate a shipping scene's HTTPS
-// trust configuration. This guard does not claim that an endpoint is live.
-public sealed class Match3PinnedHttpsBuildPreflight : IPreprocessBuildWithReport
+// Audit the ACTUAL scene the Unity player builder processes. This also
+// protects custom BuildPlayerOptions.scenes arrays, not merely the default
+// EditorBuildSettings list. No remote GET, private key or file mutation.
+public sealed class Match3PinnedHttpsBuildPreflight : IProcessSceneWithReport
 {
     public int callbackOrder => -280;
 
-    public void OnPreprocessBuild(BuildReport report)
+    public void OnProcessScene(Scene scene, BuildReport report)
     {
+        // Development QA scenes are built with frozen test-only credentials
+        // and a separate non-development QA fixture firewall.
         if ((report.summary.options & BuildOptions.Development) != 0)
-            return; // Development-only, pre-signed QA fixtures are separate.
+            return;
 
-        // Unity's default build scene list. Any custom BuildPlayerOptions
-        // caller must ALSO invoke ValidateScenes on its explicit scene list.
-        var scenes = EditorBuildSettings.scenes
-            .Where(item => item.enabled).Select(item => item.path);
-        ValidateScenes(scenes, report.summary.platform,
+        ValidateLoadedScene(scene, report.summary.platform,
             DateTimeOffset.UtcNow.ToUnixTimeSeconds());
     }
 
     [MenuItem("Match3 QA/Read-only Audit Enabled HTTPS Build Scenes")]
     public static void AuditDefaultScenes()
     {
-        var activeTarget = EditorUserBuildSettings.activeBuildTarget;
         var scenes = EditorBuildSettings.scenes
             .Where(item => item.enabled).Select(item => item.path);
-        var found = ValidateScenes(scenes, activeTarget,
+        var count = ValidateScenes(scenes,
+            EditorUserBuildSettings.activeBuildTarget,
             DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         Debug.Log("MATCH3_PINNED_HTTPS_BUILD_AUDIT=PASS" +
-                  " VERIFIED_SCENE_BOOTSTRAPS=" + found +
+                  " VERIFIED_SCENE_BOOTSTRAPS=" + count +
                   " ACTUAL_NETWORK=NOT_RUN");
     }
 
-    // The caller passes exactly the scene paths used by its own player
-    // builder. Scenes loaded additively for review are closed without saving.
-    // Already-open scenes are NEVER closed, saved, unloaded or overwritten.
+    // Explicit, read-only owner preflight. It may inspect inactive components
+    // in closed scenes, but never closes, saves or unloads an owner's scene.
     public static int ValidateScenes(IEnumerable<string> scenePaths,
         BuildTarget target, long nowUnixSeconds)
     {
         if (scenePaths == null)
             throw new ArgumentNullException(nameof(scenePaths));
-
         var paths = scenePaths.ToArray();
-        if (paths.Any(string.IsNullOrWhiteSpace))
-            throw new BuildFailedException("Invalid Unity build scene path.");
-        if (paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Length)
-            throw new BuildFailedException("Repeated Unity build scene path.");
+        if (paths.Any(string.IsNullOrWhiteSpace) ||
+            paths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != paths.Length)
+            throw new BuildFailedException("Invalid or repeated build scene path.");
 
         var accepted = 0;
         foreach (var path in paths)
@@ -67,50 +62,57 @@ public sealed class Match3PinnedHttpsBuildPreflight : IPreprocessBuildWithReport
             {
                 if (openedByAudit)
                     scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-                if (!scene.IsValid() || !scene.isLoaded)
-                    throw new BuildFailedException(
-                        "Build scene could not be safely inspected.");
-                foreach (var root in scene.GetRootGameObjects())
-                {
-                    foreach (var player in root
-                        .GetComponentsInChildren<NeutralPinnedHttpsPlayerBootstrap>(true))
-                    {
-                        if (!player.SignedUpdatesEnabled) continue;
-                        if (!player.enabled || !player.gameObject.activeInHierarchy)
-                            throw new BuildFailedException(
-                                "Signed HTTPS player must run in an active build scene.");
-                        var parent = player.gameObject;
-                        if (parent.GetComponent<NeutralMatch3Demo>() == null ||
-                            parent.GetComponent<NeutralPatchBootstrapView>() == null ||
-                            parent.GetComponent<NeutralPatchSessionHost>() == null)
-                            throw new BuildFailedException(
-                                "Signed HTTPS player lacks required safe sibling components.");
-
-                        // No network I/O or filesystem changes. Public-key
-                        // import, host syntax, trusted dates, title/channel
-                        // and build-target constraints are actually checked.
-                        player.RequireValidPinnedConfiguration(
-                            MapTarget(target), nowUnixSeconds);
-                        accepted++;
-                    }
-                }
+                accepted += ValidateLoadedScene(scene, target, nowUnixSeconds);
             }
             catch (BuildFailedException) { throw; }
             catch (Exception)
             {
-                // Avoid leaking private absolute scene paths or key material
-                // in release build logs. The exception is deliberately
-                // classified, not swallowed as successful validation.
                 throw new BuildFailedException(
                     "Signed HTTPS scene preflight rejected unsafe configuration.");
             }
             finally
             {
+                // Only the scene opened by THIS audit may be closed, and it
+                // must not be saved or replace the owner's active scene.
                 if (openedByAudit && scene.IsValid() && scene.isLoaded)
                     EditorSceneManager.CloseScene(scene, true);
             }
         }
         return accepted;
+    }
+
+    private static int ValidateLoadedScene(Scene scene, BuildTarget target,
+        long nowUnixSeconds)
+    {
+        if (!scene.IsValid() || !scene.isLoaded)
+            throw new BuildFailedException("Unloaded Unity build scene.");
+        var validated = 0;
+        foreach (var root in scene.GetRootGameObjects())
+        {
+            foreach (var player in root
+                .GetComponentsInChildren<NeutralPinnedHttpsPlayerBootstrap>(true))
+            {
+                if (!player.SignedUpdatesEnabled)
+                    continue; // Dormant stand-alone neutral engine is allowed.
+                if (!player.enabled || !player.gameObject.activeInHierarchy)
+                    throw new BuildFailedException(
+                        "Signed HTTPS player requires an active behaviour.");
+                var go = player.gameObject;
+                if (go.GetComponent<NeutralMatch3Demo>() == null ||
+                    go.GetComponent<NeutralPatchBootstrapView>() == null ||
+                    go.GetComponent<NeutralPatchSessionHost>() == null)
+                    throw new BuildFailedException(
+                        "Signed HTTPS player lacks required scene siblings.");
+
+                // Same production code checks the RSA public modulus,
+                // date validity, title/channel and first-party HTTPS base.
+                // Neither a valid config nor a build proves TLS connectivity.
+                player.RequireValidPinnedConfiguration(
+                    MapTarget(target), nowUnixSeconds);
+                validated++;
+            }
+        }
+        return validated;
     }
 
     private static RemotePlatform MapTarget(BuildTarget target)
@@ -125,7 +127,7 @@ public sealed class Match3PinnedHttpsBuildPreflight : IPreprocessBuildWithReport
                 return RemotePlatform.Ios;
             default:
                 throw new BuildFailedException(
-                    "Signed HTTPS player requires a supported Android, iOS or Windows target.");
+                    "Signed HTTPS player target must be Windows, Android or iOS.");
         }
     }
 }
