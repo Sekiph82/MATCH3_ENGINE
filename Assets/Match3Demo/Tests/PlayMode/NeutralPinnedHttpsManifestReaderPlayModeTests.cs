@@ -28,6 +28,7 @@ namespace Match3.Engine.Demo.Tests
                 new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public readonly List<string> RequestedPaths = new List<string>();
             public bool RejectSignature;
+            public bool HoldSignatureUntilCancelled;
             public void AddPayload(string path, byte[] bytes)
             {
                 _receipts.Add(path, (byte[])bytes.Clone());
@@ -50,6 +51,14 @@ namespace Match3.Engine.Demo.Tests
                 Assert.That(uri.AbsolutePath, Does.StartWith("/pinned/"));
                 var path = uri.AbsolutePath.Substring("/pinned/".Length);
                 RequestedPaths.Add(path);
+                if (HoldSignatureUntilCancelled &&
+                    path == NeutralPinnedHttpsManifestReader.SignaturePath)
+                {
+                    var awaiting = new TaskCompletionSource<RemoteReadResponse>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    token.Register(() => awaiting.TrySetCanceled());
+                    return awaiting.Task;
+                }
                 byte[] bytes;
                 if (!_receipts.TryGetValue(path, out bytes))
                     throw new InvalidOperationException(
@@ -285,6 +294,37 @@ namespace Match3.Engine.Demo.Tests
                         Is.EqualTo(new[] { "manifest.canonical", "manifest.sig" }));
                 }
                 finally { UnityEngine.Object.DestroyImmediate(root); }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator M11_013_PinnedHttpsCancellationDuringSignatureCannotLeakCandidate()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            using (var cancelled = new CancellationTokenSource())
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var manifest = SignedManifest(now);
+                var transport = new ReceiptTransport(
+                    manifest.CanonicalBytes(), Sign(signer, manifest))
+                {
+                    HoldSignatureUntilCancelled = true
+                };
+                var task = NeutralPinnedHttpsManifestReader.FetchVerifiedAsync(
+                    new RemoteReadOrigin("https://signed.qa.invalid/pinned/"),
+                    transport, new[] { PublicKey(signer, now) },
+                    Game, Platform, Channel, Engine, now, cancelled.Token);
+                // The synthetic manifest returns immediately, the signature
+                // stays pending until the scene/application cancels.
+                Assert.That(transport.RequestedPaths,
+                    Is.EqualTo(new[] { "manifest.canonical", "manifest.sig" }));
+                Assert.That(task.IsCompleted, Is.False);
+                cancelled.Cancel();
+                yield return WaitFor(task);
+                Assert.That(task.IsCanceled, Is.True);
+                Assert.That(transport.RequestedPaths,
+                    Is.EqualTo(new[] { "manifest.canonical", "manifest.sig" }),
+                    "Cancelled signature cannot authorize any payload fetch.");
             }
         }
 
