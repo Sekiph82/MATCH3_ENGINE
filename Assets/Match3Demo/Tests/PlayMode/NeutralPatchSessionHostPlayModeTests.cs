@@ -52,6 +52,17 @@ namespace Match3.Engine.Demo.Tests
             }
         }
 
+        private sealed class AwaitingTransport : IRemoteReadTransport
+        {
+            public Task<RemoteReadResponse> FetchAsync(
+                Uri uri, long maximumBytes, CancellationToken cancellation)
+            {
+                var signal = new TaskCompletionSource<RemoteReadResponse>();
+                cancellation.Register(() => signal.TrySetCanceled());
+                return signal.Task;
+            }
+        }
+
         private sealed class HeldDurableCommit : IRemoteActivationHost
         {
             private readonly IRemoteActivationHost _real;
