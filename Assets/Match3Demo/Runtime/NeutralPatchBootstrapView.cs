@@ -17,6 +17,10 @@ namespace Match3.Engine.Demo
         // be a dead CTA and was rejected in the owner's Win64 visual review.
         private Func<bool> _requestHostRetry;
         private bool _hostRetryPending;
+        // A transient signed Engine snapshot may inform progress, but only
+        // Bind() may grant entry, and only after signed commit/fallback.
+        private RemotePatchUiSnapshot _prelaunchProgress;
+        private int _completedHostAttempts;
 
         public bool HasVerifiedSession => _flow != null;
         public bool CanRequestHostRetry =>
@@ -34,6 +38,8 @@ namespace Match3.Engine.Demo
                 throw new InvalidOperationException(
                     "Already bound: a bootstrap session cannot be swapped silently.");
             _flow = verifiedSession;
+            _prelaunchProgress = null;
+            _completedHostAttempts++;
             _hostRetryPending = false;
             _unavailableReason = "";
             _lastPublicAction = "signed-session-bound";
@@ -49,6 +55,8 @@ namespace Match3.Engine.Demo
                 reasonKey != "content-unavailable")
                 throw new ArgumentException("Unsafe/unbounded UI reason key.");
             _unavailableReason = reasonKey;
+            _prelaunchProgress = null;
+            _completedHostAttempts++;
             _hostRetryPending = false;
             _lastPublicAction = "status-unavailable";
         }
@@ -66,11 +74,30 @@ namespace Match3.Engine.Demo
             _requestHostRetry = requestRealRetry;
         }
 
+        // Presentation-only progress. This cannot set CanEnterGame, add a
+        // signed session, or grant a reward. Only the host calls this using
+        // Engine-produced snapshots; no arbitrary percent setter exists.
+        internal void ObservePrelaunchProgress(RemotePatchUiSnapshot snapshot)
+        {
+            if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            if (_flow != null) return;
+            _prelaunchProgress = snapshot;
+        }
+
+        internal void MarkHostAttemptFailed()
+        {
+            if (_flow != null) return;
+            _hostRetryPending = false;
+            _completedHostAttempts++;
+            _lastPublicAction = "status-unavailable";
+        }
+
         public bool TryRequestHostRetry()
         {
             if (!CanRequestHostRetry)
                 return false;
             var sessionBeforeRequest = _flow;
+            var completionBeforeRequest = _completedHostAttempts;
             var accepted = false;
             try
             {
@@ -84,17 +111,20 @@ namespace Match3.Engine.Demo
             }
             if (!accepted)
                 return false;
-            // A deterministic local host may bind verified content inline.
-            // Do not overwrite Bind()'s finished state with stale "pending".
-            _hostRetryPending = ReferenceEquals(_flow, sessionBeforeRequest);
-            _lastPublicAction = _hostRetryPending
-                ? "host-retry-scheduled" : "signed-session-bound";
+            // A synchronously completed retry may bind content OR fail.
+            // Neither outcome may be overwritten with stale pending UI.
+            if (_completedHostAttempts == completionBeforeRequest &&
+                ReferenceEquals(_flow, sessionBeforeRequest))
+            {
+                _hostRetryPending = true;
+                _lastPublicAction = "host-retry-scheduled";
+            }
             return true;
         }
 
         public RemotePatchUiSnapshot Snapshot()
         {
-            return _flow == null ? null : _flow.Snapshot();
+            return _flow == null ? _prelaunchProgress : _flow.Snapshot();
         }
 
         public bool TryRetry()
@@ -110,9 +140,9 @@ namespace Match3.Engine.Demo
         {
             get
             {
-                if (_flow == null)
+                if (_flow == null && _prelaunchProgress == null)
                     return "Content unavailable: " + _unavailableReason;
-                var snapshot = _flow.Snapshot();
+                var snapshot = Snapshot();
                 switch (snapshot.Stage)
                 {
                     case RemotePatchStage.Available:
@@ -122,11 +152,17 @@ namespace Match3.Engine.Demo
                     case RemotePatchStage.Verified:
                         return "Content verified. Waiting for safe activation";
                     case RemotePatchStage.Ready:
-                        return "Signed content activated. Continue";
+                        return _flow == null
+                            ? "Verified. Waiting for signed activation"
+                            : "Signed content activated. Continue";
                     case RemotePatchStage.Offline:
-                        return "Offline: verified content available";
+                        return _flow == null
+                            ? "Checking verified offline release"
+                            : "Offline: verified content available";
                     case RemotePatchStage.NoUpdate:
-                        return "Signed content already current. Continue";
+                        return _flow == null
+                            ? "Checking installed signed release"
+                            : "Signed content already current. Continue";
                     case RemotePatchStage.Failed:
                         return "Content unavailable. Retry or use verified offline content";
                     default:
