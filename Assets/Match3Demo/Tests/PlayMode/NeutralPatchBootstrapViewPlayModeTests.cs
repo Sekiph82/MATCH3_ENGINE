@@ -127,6 +127,51 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [Test]
+        public void M11_013_SynchronousVerifiedHostRetryCannotLeaveFalsePendingStatus()
+        {
+            var root = new GameObject("signed-inline-host-retry");
+            try
+            {
+                var view = root.AddComponent<NeutralPatchBootstrapView>();
+                view.ShowUnavailable("content-unavailable");
+                using (var rsa = new RSACryptoServiceProvider(2048))
+                {
+                    var manifest = Manifest();
+                    var signature = Sign(rsa, manifest);
+                    var key = Key(rsa);
+                    var flow = new RemotePatchFlow(manifest, signature,
+                        new[] { key }, manifest.GameId,
+                        manifest.Platform, manifest.Channel,
+                        new EngineVersion(1, 0, 0), 2000);
+                    var release = RemoteContentStager.VerifyComplete(
+                        manifest, signature, new[] { key },
+                        manifest.GameId, manifest.Platform,
+                        manifest.Channel, new EngineVersion(1, 0, 0),
+                        2000, new Dictionary<string, byte[]> {
+                            { "levels/start.json", Contents }
+                        });
+                    view.RegisterHostRetry(() =>
+                    {
+                        flow.RecordOfflineFallback(release, new[] { key },
+                            new EngineVersion(1, 0, 0), 2000);
+                        view.Bind(flow);
+                        return true;
+                    });
+
+                    Assert.That(view.TryRequestHostRetry(), Is.True);
+                    Assert.That(view.CanEnterGame, Is.True);
+                    Assert.That(view.HasVerifiedSession, Is.True);
+                    Assert.That(view.HostRetryPending, Is.False);
+                    Assert.That(view.LastPublicAction,
+                        Is.EqualTo("signed-session-bound"));
+                    Assert.That(view.CanRequestHostRetry, Is.False);
+                    Assert.That(view.TryRequestHostRetry(), Is.False);
+                }
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); }
+        }
+
+        [Test]
         public void M11_013_RejectedHostRetryCannotClaimProgressOrUnlockGame()
         {
             var root = new GameObject("signed-rejected-host-retry");
