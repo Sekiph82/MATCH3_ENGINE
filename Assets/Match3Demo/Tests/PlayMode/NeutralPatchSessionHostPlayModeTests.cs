@@ -52,6 +52,34 @@ namespace Match3.Engine.Demo.Tests
             }
         }
 
+        private sealed class HeldDurableCommit : IRemoteActivationHost
+        {
+            private readonly IRemoteActivationHost _real;
+            private readonly TaskCompletionSource<bool> _release =
+                new TaskCompletionSource<bool>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public bool ExchangeStarted { get; private set; }
+
+            public HeldDurableCommit(IRemoteActivationHost real) { _real = real; }
+            public Task PrepareVerifiedAsync(RemoteVerifiedRelease candidate,
+                IReadOnlyDictionary<string, byte[]> payload, CancellationToken token)
+            {
+                return _real.PrepareVerifiedAsync(candidate, payload, token);
+            }
+            public async Task<bool> ExchangeActiveAsync(
+                string partition, string oldDigest, string newDigest,
+                long highestSequence, CancellationToken token)
+            {
+                ExchangeStarted = true;
+                await _release.Task.ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                return await _real.ExchangeActiveAsync(partition, oldDigest,
+                    newDigest, highestSequence, token).ConfigureAwait(false);
+            }
+            public void AllowCommit() { _release.TrySetResult(true); }
+        }
+
         private static byte[] Payload(int revision) => Encoding.UTF8.GetBytes(
             "{\"neutral\":true,\"revision\":" + revision + "}");
 
