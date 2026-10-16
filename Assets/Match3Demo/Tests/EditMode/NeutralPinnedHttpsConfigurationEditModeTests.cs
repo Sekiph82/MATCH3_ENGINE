@@ -88,6 +88,29 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [Test]
+        public void M11_013_ConfigRejectsExpiredTrustEvenWithStaleCallerClock()
+        {
+            var root = new GameObject("stale-clock-public-trust");
+            root.SetActive(false);
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                try
+                {
+                    var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    var player = Configure(root,
+                        signer.ExportParameters(false).Modulus,
+                        "https://signed.qa.invalid/first-party/",
+                        now - 7200, now - 3600);
+                    Assert.Throws<InvalidOperationException>(() =>
+                        player.RequireValidPinnedConfiguration(
+                            RemotePlatform.Windows, now - 86400));
+                    Assert.That(player.IsChecking, Is.False);
+                }
+                finally { UnityEngine.Object.DestroyImmediate(root); }
+            }
+        }
+
+        [Test]
         public void M11_013_ConfigRejectsUntrustedHttpOriginAndMalformedRsaKey()
         {
             var root = new GameObject("bad-origin-preflight");
@@ -107,6 +130,11 @@ namespace Match3.Engine.Demo.Tests
                     Set(player, "approvedHttpsPrefix",
                         "https://signed.qa.invalid/first-party/");
                     Set(player, "trustedRsaModulusBase64", "bad-base64!!!");
+                    Assert.Throws<InvalidOperationException>(() =>
+                        player.RequireValidPinnedConfiguration(
+                            RemotePlatform.Windows, now));
+                    Set(player, "trustedRsaModulusBase64",
+                        new string('A', 2049));
                     Assert.Throws<InvalidOperationException>(() =>
                         player.RequireValidPinnedConfiguration(
                             RemotePlatform.Windows, now));
