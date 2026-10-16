@@ -149,16 +149,20 @@ namespace Match3.Engine.Demo
                             lifetime.Token);
                     if (_destroyed || lifetime.IsCancellationRequested)
                         return null;
+                    // The guard exception exists ONLY for the synchronous
+                    // handoff. Never keep it open while awaiting network I/O.
+                    Task<RemotePrelaunchResult> attempt;
                     _discoveryHandoff = true;
                     try
                     {
-                        return await BeginPrelaunchAsync(candidate.Manifest,
+                        attempt = BeginPrelaunchAsync(candidate.Manifest,
                             candidate.Signature, keys, trustedOrigin, transport,
                             verifiedInstalled, packagedStarter,
                             durableActivationHost, engine,
-                            nowUnixSeconds, lifetime.Token);
+                            nowUnixSeconds, cancellation);
                     }
                     finally { _discoveryHandoff = false; }
+                    return await attempt;
                 }
                 catch (OperationCanceledException) when
                     (lifetime.IsCancellationRequested)
