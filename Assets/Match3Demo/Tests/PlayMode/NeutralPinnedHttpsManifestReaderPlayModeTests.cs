@@ -28,6 +28,11 @@ namespace Match3.Engine.Demo.Tests
                 new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public readonly List<string> RequestedPaths = new List<string>();
             public bool RejectSignature;
+            public void AddPayload(string path, byte[] bytes)
+            {
+                _receipts.Add(path, (byte[])bytes.Clone());
+            }
+
             public ReceiptTransport(byte[] manifest, byte[] signature)
             {
                 _receipts.Add(NeutralPinnedHttpsManifestReader.ManifestPath,
@@ -179,6 +184,103 @@ namespace Match3.Engine.Demo.Tests
                 Assert.That(expired.IsFaulted, Is.True,
                     "Caller-provided stale time must not extend trust.");
                 Assert.That(staleTransport.RequestedPaths.Count, Is.EqualTo(2));
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator M11_013_PinnedDiscoveryActivatesRealDurableStateOnlyAfterSignature()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var manifest = SignedManifest(now);
+                var payload = Encoding.UTF8.GetBytes("{\"neutral\":true}");
+                var signature = Sign(signer, manifest);
+                var key = PublicKey(signer, now);
+                var folder = System.IO.Path.Combine(Application.persistentDataPath,
+                    "m11-r22-pinned-discovery-" + Guid.NewGuid().ToString("N"));
+                System.IO.Directory.CreateDirectory(folder);
+                var durable = new RemoteDurableActivationHost(folder,
+                    Game, Platform, Channel);
+                var state = durable.Restore(new[] { key }, Engine, now);
+                var origin = new RemoteReadOrigin(
+                    "https://signed.qa.invalid/pinned/");
+                var transport = new ReceiptTransport(
+                    manifest.CanonicalBytes(), signature);
+                transport.AddPayload("levels/neutral.json", payload);
+                var root = new GameObject("pinned-first-party-discovery");
+                var game = root.AddComponent<NeutralMatch3Demo>();
+                var view = root.AddComponent<NeutralPatchBootstrapView>();
+                var host = root.AddComponent<NeutralPatchSessionHost>();
+                try
+                {
+                    var task = host.BeginDiscoveredPrelaunchAsync(
+                        origin, transport, new[] { key }, state,
+                        null, durable, Engine, now);
+                    Assert.That(game.IsSignedContentRequired, Is.True);
+                    Assert.That(game.IsBoardInputAllowed, Is.False);
+                    yield return WaitFor(task);
+                    Assert.That(task.IsFaulted, Is.False);
+                    Assert.That(task.Result, Is.Not.Null);
+                    Assert.That(task.Result.NewReleaseActivated, Is.True);
+                    Assert.That(view.CanEnterGame, Is.True);
+                    Assert.That(game.IsBoardInputAllowed, Is.True);
+                    Assert.That(transport.RequestedPaths,
+                        Is.EqualTo(new[] {
+                            "manifest.canonical", "manifest.sig",
+                            "levels/neutral.json"
+                        }),
+                        "Only signed candidate bytes may drive payload URLs.");
+                    var restored = new RemoteDurableActivationHost(folder,
+                        Game, Platform, Channel).Restore(
+                            new[] { key }, Engine, now);
+                    Assert.That(restored.Active, Is.Not.Null);
+                    Assert.That(restored.Active.Manifest.Sequence,
+                        Is.EqualTo(manifest.Sequence));
+                    TestContext.WriteLine("HTTPS_DISCOVERY_TRANSPORT=SYNTHETIC");
+                }
+                finally { UnityEngine.Object.DestroyImmediate(root); }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator M11_013_DiscoverySignatureFailureCannotCreateDeadPlayerRetry()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var manifest = SignedManifest(now);
+                var signature = Sign(signer, manifest);
+                signature[0] ^= 0x80;
+                var key = PublicKey(signer, now);
+                var folder = System.IO.Path.Combine(Application.persistentDataPath,
+                    "m11-r22-bad-discovery-" + Guid.NewGuid().ToString("N"));
+                System.IO.Directory.CreateDirectory(folder);
+                var durable = new RemoteDurableActivationHost(folder,
+                    Game, Platform, Channel);
+                var transport = new ReceiptTransport(
+                    manifest.CanonicalBytes(), signature);
+                var root = new GameObject("forged-first-party-discovery");
+                var game = root.AddComponent<NeutralMatch3Demo>();
+                var view = root.AddComponent<NeutralPatchBootstrapView>();
+                var host = root.AddComponent<NeutralPatchSessionHost>();
+                try
+                {
+                    var task = host.BeginDiscoveredPrelaunchAsync(
+                        new RemoteReadOrigin("https://signed.qa.invalid/pinned/"),
+                        transport, new[] { key },
+                        durable.Restore(new[] { key }, Engine, now),
+                        null, durable, Engine, now);
+                    yield return WaitFor(task);
+                    Assert.That(task.IsFaulted, Is.False);
+                    Assert.That(task.Result, Is.Null);
+                    Assert.That(game.IsBoardInputAllowed, Is.False);
+                    Assert.That(view.CanEnterGame, Is.False);
+                    Assert.That(view.CanRequestHostRetry, Is.False);
+                    Assert.That(transport.RequestedPaths,
+                        Is.EqualTo(new[] { "manifest.canonical", "manifest.sig" }));
+                }
+                finally { UnityEngine.Object.DestroyImmediate(root); }
             }
         }
 
