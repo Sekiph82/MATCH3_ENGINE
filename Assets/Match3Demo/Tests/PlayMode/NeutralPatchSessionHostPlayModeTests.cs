@@ -308,7 +308,9 @@ namespace Match3.Engine.Demo.Tests
                         new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                         new ScriptedTransport(payload, false),
                         installed, null, held, Engine, now);
-                    yield return new WaitUntil(() => held.ExchangeStarted);
+                    yield return new WaitUntil(() => held.ExchangeStarted &&
+                        view.Snapshot() != null &&
+                        view.Snapshot().VerifiedPercent == 100);
                     Assert.That(task.IsCompleted, Is.False);
                     Assert.That(view.Snapshot(), Is.Not.Null);
                     Assert.That(view.Snapshot().VerifiedPercent,
