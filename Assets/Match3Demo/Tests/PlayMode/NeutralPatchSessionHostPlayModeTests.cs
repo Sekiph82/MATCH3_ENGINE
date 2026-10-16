@@ -287,6 +287,51 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [UnityTest]
+        public IEnumerator M11_013_HundredPercentVerifiedDoesNotUnlockBeforeDurableCommit()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var payload = Payload(5);
+                var manifest = Manifest(payload, 5, now);
+                var key = PublicKey(signer, now);
+                var durable = new RemoteDurableActivationHost(
+                    NewRetainedTestRoot(), GameId, Platform, Channel);
+                var held = new HeldDurableCommit(durable);
+                var installed = durable.Restore(new[] { key }, Engine, now);
+                var root = NewHost(out var game, out var view, out var host);
+                try
+                {
+                    var task = host.BeginPrelaunchAsync(manifest,
+                        Sign(signer, manifest), new[] { key },
+                        new RemoteReadOrigin("https://synthetic.invalid/qa/"),
+                        new ScriptedTransport(payload, false),
+                        installed, null, held, Engine, now);
+                    yield return new WaitUntil(() => held.ExchangeStarted);
+                    Assert.That(task.IsCompleted, Is.False);
+                    Assert.That(view.Snapshot(), Is.Not.Null);
+                    Assert.That(view.Snapshot().VerifiedPercent,
+                        Is.EqualTo(100));
+                    Assert.That(view.Snapshot().CanPlay, Is.False);
+                    Assert.That(view.CanEnterGame, Is.False);
+                    Assert.That(view.CanRequestHostRetry, Is.False);
+                    Assert.That(game.IsBoardInputAllowed, Is.False);
+                    held.AllowCommit();
+                    yield return new WaitUntil(() => task.IsCompleted);
+                    Assert.That(task.IsFaulted, Is.False);
+                    Assert.That(task.Result.NewReleaseActivated, Is.True);
+                    Assert.That(view.CanEnterGame, Is.True);
+                    Assert.That(game.IsBoardInputAllowed, Is.True);
+                }
+                finally
+                {
+                    held.AllowCommit();
+                    UnityEngine.Object.DestroyImmediate(root);
+                }
+            }
+        }
+
+        [UnityTest]
         public IEnumerator M11_013_InvalidSignatureDisablesRetryWithoutNetworkOrPlay()
         {
             using (var signer = new RSACryptoServiceProvider(2048))
