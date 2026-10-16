@@ -95,6 +95,11 @@ namespace Match3.Engine.Demo
                     Convert.FromBase64String(trustedRsaModulusBase64),
                     new byte[] { 0x01, 0x00, 0x01 },
                     keyValidFromUnixSeconds, keyValidUntilUnixSeconds);
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                if (trustKey.Revoked || now < trustKey.NotBefore ||
+                    now >= trustKey.NotAfter)
+                    throw new InvalidOperationException(
+                        "First-party public trust is expired or not yet active.");
                 var origin = new RemoteReadOrigin(approvedHttpsPrefix);
                 // All persistent signed state is confined to Unity's
                 // application-private location, not arbitrary scene strings.
@@ -108,7 +113,6 @@ namespace Match3.Engine.Demo
                 Directory.CreateDirectory(hostRoot);
                 var durable = new RemoteDurableActivationHost(
                     hostRoot, gameId, platform, channel);
-                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var engine = new EngineVersion(1, 0, 0);
                 var installed = durable.Restore(new[] { trustKey }, engine, now);
                 // Only a valid immutable trust config, approved origin and
