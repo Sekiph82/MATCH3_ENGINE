@@ -59,7 +59,8 @@ namespace Match3.Engine.Demo.Tests
                 new TaskCompletionSource<bool>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
 
-            public bool ExchangeStarted { get; private set; }
+            private volatile bool _exchangeStarted;
+            public bool ExchangeStarted => _exchangeStarted;
 
             public HeldDurableCommit(IRemoteActivationHost real) { _real = real; }
             public Task PrepareVerifiedAsync(RemoteVerifiedRelease candidate,
@@ -71,7 +72,7 @@ namespace Match3.Engine.Demo.Tests
                 string partition, string oldDigest, string newDigest,
                 long highestSequence, CancellationToken token)
             {
-                ExchangeStarted = true;
+                _exchangeStarted = true;
                 await _release.Task.ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 return await _real.ExchangeActiveAsync(partition, oldDigest,
