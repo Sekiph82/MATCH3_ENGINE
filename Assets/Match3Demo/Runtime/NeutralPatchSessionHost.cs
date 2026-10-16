@@ -58,7 +58,7 @@ namespace Match3.Engine.Demo
             EngineVersion engine, long nowUnixSeconds,
             CancellationToken cancellation = default(CancellationToken))
         {
-            if (_request != null || _running)
+            if (_discoveringOrConfigured() && !_discoveryHandoff)
                 throw new InvalidOperationException(
                     "A signed prelaunch session has already been configured.");
             // Validate all dependencies before granting any UI capability.
@@ -82,6 +82,117 @@ namespace Match3.Engine.Demo
         // Convenience for an explicit real HTTPS path. The approved origin
         // and signed candidate are supplied by the caller; no test transport
         // can be accidentally selected by this entry point.
+        private bool _discoveryInProgress;
+        private bool _discoveryHandoff;
+
+        // Safe player entry point when the first-party HTTPS server stores
+        // manifest.canonical and manifest.sig under a pinned base prefix.
+        // Verify BOTH files before the existing host may fetch payloads.
+        // A missing/invalid signed notice never unlocks the board; the
+        // caller may explicitly invoke this method again after failure.
+        public Task<RemotePrelaunchResult> BeginDiscoveredHttpsPrelaunchAsync(
+            RemoteReadOrigin trustedOrigin,
+            IEnumerable<RemotePublicSigningKey> pinnedPublicKeys,
+            RemoteReleaseState verifiedInstalled,
+            RemotePackagedStarter packagedStarter,
+            IRemoteActivationHost durableActivationHost,
+            EngineVersion engine, long nowUnixSeconds,
+            CancellationToken cancellation = default(CancellationToken))
+        {
+            return BeginDiscoveredPrelaunchAsync(trustedOrigin,
+                new RemoteHttpsReadTransport(), pinnedPublicKeys,
+                verifiedInstalled, packagedStarter, durableActivationHost,
+                engine, nowUnixSeconds, cancellation);
+        }
+
+        // Injectable TEST ONLY path for deterministic synthetic transport.
+        // Production MUST use BeginDiscoveredHttpsPrelaunchAsync instead.
+        public async Task<RemotePrelaunchResult> BeginDiscoveredPrelaunchAsync(
+            RemoteReadOrigin trustedOrigin, IRemoteReadTransport transport,
+            IEnumerable<RemotePublicSigningKey> pinnedPublicKeys,
+            RemoteReleaseState verifiedInstalled,
+            RemotePackagedStarter packagedStarter,
+            IRemoteActivationHost durableActivationHost,
+            EngineVersion engine, long nowUnixSeconds,
+            CancellationToken cancellation = default(CancellationToken))
+        {
+            if (_discoveringOrConfigured())
+                throw new InvalidOperationException("Signed host is already configured.");
+            if (trustedOrigin == null || transport == null ||
+                pinnedPublicKeys == null || verifiedInstalled == null ||
+                durableActivationHost == null)
+                throw new ArgumentNullException(
+                    "Pinned origin, transport, trust and durable state required.");
+            // Enumerate trust once, prevent lazy trust-set replacement across
+            // detached signature, manifest and subsequent payload checks.
+            var keys = pinnedPublicKeys.Take(17).ToArray();
+            if (keys.Length == 0 || keys.Length > 16 ||
+                keys.Any(x => x == null))
+                throw new ArgumentException("Invalid bounded pinned public key registry.");
+
+            RequireGate();
+            if (_view.HasVerifiedSession)
+                throw new InvalidOperationException("Authenticated session already bound.");
+            _discoveryInProgress = true;
+            _view.ShowUnavailable("network-unavailable");
+            // DO NOT dispose this token: the caller owns it. The scene-scoped
+            // linked lifetime prevents downloading into a destroyed scene.
+            using (var lifetime = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellation, _sceneLifetime.Token))
+            {
+                try
+                {
+                    var candidate = await NeutralPinnedHttpsManifestReader
+                        .FetchVerifiedAsync(trustedOrigin, transport, keys,
+                            verifiedInstalled.GameId, verifiedInstalled.Platform,
+                            verifiedInstalled.Channel, engine, nowUnixSeconds,
+                            lifetime.Token);
+                    if (_destroyed || lifetime.IsCancellationRequested)
+                        return null;
+                    _discoveryHandoff = true;
+                    try
+                    {
+                        return await BeginPrelaunchAsync(candidate.Manifest,
+                            candidate.Signature, keys, trustedOrigin, transport,
+                            verifiedInstalled, packagedStarter,
+                            durableActivationHost, engine,
+                            nowUnixSeconds, lifetime.Token);
+                    }
+                    finally { _discoveryHandoff = false; }
+                }
+                catch (OperationCanceledException) when
+                    (lifetime.IsCancellationRequested)
+                {
+                    if (!_destroyed && _view != null && !_view.HasVerifiedSession)
+                        _view.ShowUnavailable("network-unavailable");
+                    return null;
+                }
+                catch (Exception ex) when (
+                    ex is InvalidOperationException || ex is ArgumentException ||
+                    ex is System.Net.Http.HttpRequestException ||
+                    ex is System.IO.IOException ||
+                    ex is OperationCanceledException)
+                {
+                    // Manifest and detached signature errors never become
+                    // playable offline evidence, a visible URL or fake Retry.
+                    if (!_destroyed && _view != null && !_view.HasVerifiedSession)
+                        _view.ShowUnavailable("network-unavailable");
+                    return null;
+                }
+                finally
+                {
+                    _discoveryInProgress = false;
+                    if (_destroyed && !_running) DisposeLocalCancellation();
+                }
+            }
+        }
+
+        private bool _discoveringOrConfigured()
+        {
+            return _discoveryInProgress || _request != null || _running ||
+                _destroyed;
+        }
+
         public Task<RemotePrelaunchResult> BeginHttpsPrelaunchAsync(
             RemoteContentManifest candidate, byte[] signature,
             IEnumerable<RemotePublicSigningKey> pinnedKeys,
@@ -225,7 +336,8 @@ namespace Match3.Engine.Demo
             // Cancel only our linked scene token, never a caller's token,
             // signing registry, transport object, or durable installed data.
             if (_sceneLifetime != null) _sceneLifetime.Cancel();
-            if (!_running) DisposeLocalCancellation();
+            if (!_running && !_discoveryInProgress)
+                DisposeLocalCancellation();
         }
 
         private void DisposeLocalCancellation()
