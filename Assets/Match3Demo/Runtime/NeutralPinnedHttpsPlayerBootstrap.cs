@@ -128,14 +128,29 @@ namespace Match3.Engine.Demo
                 // A bad/missing discovery notice cannot unlock play on its
                 // own. Restore ONLY previously verified installed bytes;
                 // never treat an HTTP status or 100% progress as content.
-                if (!_host.HasConfiguredCandidate &&
-                    installed.Active != null && !_view.HasVerifiedSession)
+                if (!_view.HasVerifiedSession && installed.Active != null)
                 {
                     NeutralSignedStarterPrelaunch.BindVerifiedOffline(
                         _view, installed.Active, new[] { trustKey },
                         gameId, platform, channel, engine, now);
                     _playerStatus = "Verified installed offline release";
                     return;
+                }
+                if (!_view.HasVerifiedSession)
+                {
+                    // A fresh offline install may use ONLY an authentic
+                    // RSA-signed, app-owned StreamingAssets starter. Missing
+                    // or forged bundles never grant input or rewards.
+                    var starterReady = await NeutralSignedStarterPrelaunch
+                        .TryBindAppPackagedStarterAsync(
+                            _view, gameId, platform, channel, engine,
+                            new[] { trustKey }, now, _lifetime.Token);
+                    if (_destroyed) return;
+                    if (starterReady && _view.CanEnterGame)
+                    {
+                        _playerStatus = "Verified packaged offline starter";
+                        return;
+                    }
                 }
                 _failedToDiscover = !_host.HasConfiguredCandidate;
                 _playerStatus = _failedToDiscover
