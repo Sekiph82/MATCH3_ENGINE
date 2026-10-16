@@ -164,6 +164,9 @@ namespace Match3.Engine.Demo.Tests
                     Assert.That(view.CanEnterGame, Is.False);
                     Assert.That(view.Snapshot().CanPlay, Is.False);
                     Assert.That(view.CanRequestHostRetry, Is.True);
+                    Assert.That(game.Metrics, Is.Not.Null);
+                    var unchangedMetrics = game.Metrics;
+                    var unchangedMoves = game.Metrics.MovesRemaining;
                     var beforeRetry = scripted.Calls;
                     Assert.That(beforeRetry, Is.GreaterThan(0));
 
@@ -181,6 +184,9 @@ namespace Match3.Engine.Demo.Tests
                         Is.EqualTo(RemotePatchStage.Ready));
                     Assert.That(view.CanEnterGame, Is.True);
                     Assert.That(game.IsBoardInputAllowed, Is.True);
+                    Assert.That(game.Metrics, Is.SameAs(unchangedMetrics));
+                    Assert.That(game.Metrics.MovesRemaining, Is.EqualTo(unchangedMoves),
+                        "Patch activation must never spend a game move.");
                     Assert.That(view.HostRetryPending, Is.False);
                     Assert.That(view.TryRequestHostRetry(), Is.False);
 
