@@ -70,6 +70,7 @@ namespace Match3.Engine.Demo
         {
             if (!CanRequestHostRetry)
                 return false;
+            var sessionBeforeRequest = _flow;
             var accepted = false;
             try
             {
@@ -83,8 +84,11 @@ namespace Match3.Engine.Demo
             }
             if (!accepted)
                 return false;
-            _hostRetryPending = true;
-            _lastPublicAction = "host-retry-scheduled";
+            // A deterministic local host may bind verified content inline.
+            // Do not overwrite Bind()'s finished state with stale "pending".
+            _hostRetryPending = ReferenceEquals(_flow, sessionBeforeRequest);
+            _lastPublicAction = _hostRetryPending
+                ? "host-retry-scheduled" : "signed-session-bound";
             return true;
         }
 
