@@ -78,7 +78,7 @@ namespace Match3.Engine.Demo.Tests
                 using (var canceled = new CancellationTokenSource())
                 {
                     canceled.Cancel();
-                    Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                    Assert.ThrowsAsync<TaskCanceledException>(async () =>
                         await NeutralVerifiedBundleTextConsumer.ReadSignedTextAssetAsync(
                             payload, manifest.GameId, "addressables/qa.bundle",
                             "qa/neutral.txt", canceled.Token));
