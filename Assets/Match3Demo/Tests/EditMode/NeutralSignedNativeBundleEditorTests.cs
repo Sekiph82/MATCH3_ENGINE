@@ -144,5 +144,6 @@ namespace Match3.Engine.Demo.Tests
                 Assert.That(corrupted.Exception, Is.Not.Null);
             }
         }
-  #endif
+    }
+#endif
 }
