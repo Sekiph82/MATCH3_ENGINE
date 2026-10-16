@@ -96,11 +96,13 @@ public sealed class Match3PinnedHttpsBuildPreflight : IPreprocessBuildWithReport
                 }
             }
             catch (BuildFailedException) { throw; }
-            catch (Exception ex)
+            catch (Exception)
             {
+                // Avoid leaking private absolute scene paths or key material
+                // in release build logs. The exception is deliberately
+                // classified, not swallowed as successful validation.
                 throw new BuildFailedException(
-                    "Signed HTTPS scene preflight rejected unsafe configuration.",
-                    ex);
+                    "Signed HTTPS scene preflight rejected unsafe configuration.");
             }
             finally
             {
