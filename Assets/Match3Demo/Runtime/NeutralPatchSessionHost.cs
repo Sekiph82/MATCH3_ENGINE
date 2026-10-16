@@ -22,6 +22,8 @@ namespace Match3.Engine.Demo
         private SynchronizationContext _unityContext;
         private SessionRequest _request;
         private Task<RemotePrelaunchResult> _attempt;
+        private CancellationTokenSource _sceneLifetime;
+        private CancellationTokenSource _linkedRequestLifetime;
         private bool _running;
         private bool _destroyed;
         private int _attemptCount;
@@ -34,6 +36,7 @@ namespace Match3.Engine.Demo
 
         private void Awake()
         {
+            _sceneLifetime = new CancellationTokenSource();
             _unityContext = SynchronizationContext.Current;
             _game = GetComponent<NeutralMatch3Demo>();
             _view = GetComponent<NeutralPatchBootstrapView>();
@@ -69,6 +72,9 @@ namespace Match3.Engine.Demo
             _request = request;
             _view.ShowUnavailable("network-unavailable");
             _view.RegisterHostRetry(ScheduleRealRetry);
+            _linkedRequestLifetime = CancellationTokenSource
+                .CreateLinkedTokenSource(cancellation, _sceneLifetime.Token);
+            _request.Cancellation = _linkedRequestLifetime.Token;
             _attempt = ExecuteAsync();
             return _attempt;
         }
@@ -190,6 +196,7 @@ namespace Match3.Engine.Demo
             finally
             {
                 _running = false;
+                if (_destroyed) DisposeLocalCancellation();
             }
         }
 
@@ -215,8 +222,24 @@ namespace Match3.Engine.Demo
         private void OnDestroy()
         {
             _destroyed = true;
-            // Caller owns the cancellation token and transport lifetime.
-            // Never dispose or cancel application-owned security state here.
+            // Cancel only our linked scene token, never a caller's token,
+            // signing registry, transport object, or durable installed data.
+            if (_sceneLifetime != null) _sceneLifetime.Cancel();
+            if (!_running) DisposeLocalCancellation();
+        }
+
+        private void DisposeLocalCancellation()
+        {
+            if (_linkedRequestLifetime != null)
+            {
+                _linkedRequestLifetime.Dispose();
+                _linkedRequestLifetime = null;
+            }
+            if (_sceneLifetime != null)
+            {
+                _sceneLifetime.Dispose();
+                _sceneLifetime = null;
+            }
         }
 
         private sealed class SessionRequest
@@ -231,7 +254,7 @@ namespace Match3.Engine.Demo
             public readonly IRemoteActivationHost DurableHost;
             public readonly EngineVersion Engine;
             public readonly long NowUnixSeconds;
-            public readonly CancellationToken Cancellation;
+            public CancellationToken Cancellation;
 
             public SessionRequest(RemoteContentManifest manifest, byte[] signature,
                 IEnumerable<RemotePublicSigningKey> pinnedKeys,
