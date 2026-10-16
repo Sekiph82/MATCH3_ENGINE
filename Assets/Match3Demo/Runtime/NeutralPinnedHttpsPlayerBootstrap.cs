@@ -65,11 +65,16 @@ namespace Match3.Engine.Demo
         private PinnedConfiguration ReadPinnedConfiguration(
             RemotePlatform platform, long nowUnixSeconds)
         {
+            // A caller may be stale, but it may never extend an expired
+            // shipping trust root's lifetime by moving the clock backward.
+            nowUnixSeconds = Math.Max(nowUnixSeconds,
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             if (!GameProfileCatalog.IsKnownId(gameId) ||
                 !Enum.IsDefined(typeof(RemotePlatform), platform) ||
                 !Enum.IsDefined(typeof(RemoteChannel), channel) ||
                 string.IsNullOrWhiteSpace(trustedPublicKeyId) ||
-                string.IsNullOrWhiteSpace(trustedRsaModulusBase64))
+                string.IsNullOrWhiteSpace(trustedRsaModulusBase64) ||
+                trustedRsaModulusBase64.Length > 2048)
                 throw new InvalidOperationException(
                     "First-party signed update trust not configured.");
             // Accept only an importable public key. An arbitrary base64
