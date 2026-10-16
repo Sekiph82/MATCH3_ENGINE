@@ -13,7 +13,7 @@ using UnityEngine.SceneManagement;
 namespace Match3.Engine.Demo.Tests
 {
     // Exercises the EXISTING production IProcessSceneWithReport guard with
-    // a disposable in-memory scene. It never writes a scene asset, builds a
+    // a disposable Unity preview scene. It never writes a scene asset, builds a
     // player, requests HTTPS, or replaces the owner's open Editor scenes.
     public sealed class NeutralPinnedHttpsSceneBuildGateEditModeTests
     {
@@ -95,8 +95,7 @@ namespace Match3.Engine.Demo.Tests
         public void M11_013_RealBuildGateAcceptsConfiguredActiveSignedScene()
         {
             var gate = ResolveShippingGate();
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
-                NewSceneMode.Additive);
+            var scene = EditorSceneManager.NewPreviewScene();
             try
             {
                 using (var key = new RSACryptoServiceProvider(2048))
@@ -111,15 +110,14 @@ namespace Match3.Engine.Demo.Tests
                         "Actual in-memory shipping scene is structurally valid.");
                 }
             }
-            finally { EditorSceneManager.CloseScene(scene, true); }
+            finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
 
         [Test]
         public void M11_013_RealBuildGateRejectsMissingSignedHostSibling()
         {
             var gate = ResolveShippingGate();
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
-                NewSceneMode.Additive);
+            var scene = EditorSceneManager.NewPreviewScene();
             try
             {
                 using (var key = new RSACryptoServiceProvider(2048))
@@ -132,15 +130,14 @@ namespace Match3.Engine.Demo.Tests
                     AssertRejected(gate, scene);
                 }
             }
-            finally { EditorSceneManager.CloseScene(scene, true); }
+            finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
 
         [Test]
         public void M11_013_RealBuildGateRejectsInactiveSignedBootstrap()
         {
             var gate = ResolveShippingGate();
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
-                NewSceneMode.Additive);
+            var scene = EditorSceneManager.NewPreviewScene();
             try
             {
                 using (var key = new RSACryptoServiceProvider(2048))
@@ -154,15 +151,14 @@ namespace Match3.Engine.Demo.Tests
                     AssertRejected(gate, scene);
                 }
             }
-            finally { EditorSceneManager.CloseScene(scene, true); }
+            finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
 
         [Test]
         public void M11_013_RealBuildGateReportsZeroWhenNoOptedInPlayer()
         {
             var gate = ResolveShippingGate();
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,
-                NewSceneMode.Additive);
+            var scene = EditorSceneManager.NewPreviewScene();
             try
             {
                 using (var key = new RSACryptoServiceProvider(2048))
@@ -177,7 +173,7 @@ namespace Match3.Engine.Demo.Tests
                         "No signed player is NOT a production acceptance PASS.");
                 }
             }
-            finally { EditorSceneManager.CloseScene(scene, true); }
+            finally { EditorSceneManager.ClosePreviewScene(scene); }
         }
     }
 }
