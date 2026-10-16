@@ -420,6 +420,35 @@ namespace Match3.Engine.Demo.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator M11_013_ClosingSceneCancelsReadWithoutCancellingAppToken()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            using (var appToken = new CancellationTokenSource())
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var bytes = Payload(1);
+                var manifest = Manifest(bytes, 1, now);
+                var key = PublicKey(signer, now);
+                var durable = new RemoteDurableActivationHost(
+                    NewRetainedTestRoot(), GameId, Platform, Channel);
+                var installed = durable.Restore(new[] { key }, Engine, now);
+                var root = NewHost(out _, out _, out var host);
+                var task = host.BeginPrelaunchAsync(manifest,
+                    Sign(signer, manifest), new[] { key },
+                    new RemoteReadOrigin("https://synthetic.invalid/qa/"),
+                    new AwaitingTransport(), installed, null, durable,
+                    Engine, now, appToken.Token);
+                Assert.That(task.IsCompleted, Is.False);
+                UnityEngine.Object.DestroyImmediate(root);
+                yield return new WaitUntil(() => task.IsCompleted);
+                Assert.That(task.IsFaulted, Is.False);
+                Assert.That(task.Result, Is.Null);
+                Assert.That(appToken.IsCancellationRequested, Is.False,
+                    "The app still owns and controls its cancellation token.");
+            }
+        }
+
         [Test]
         public void M11_013_HostRequiresSameGameAndCannotUseUnknownUnsignedRelease()
         {
