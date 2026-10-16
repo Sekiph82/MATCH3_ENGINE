@@ -163,7 +163,9 @@ namespace Match3.Engine.Demo
                     !_host.HasConfiguredCandidate;
                 _playerStatus = _failedToDiscover
                     ? "Signed notice unavailable. Check connection to retry"
-                    : "Signed content unavailable. Use signed host Retry";
+                    : _view.CanRequestHostRetry
+                        ? "Signed content unavailable. Use signed host Retry"
+                        : "Signed content unavailable. No verified release";
             }
             catch (OperationCanceledException)
             {
@@ -181,9 +183,13 @@ namespace Match3.Engine.Demo
                     // or tokens are written to the user-facing patch panel.
                     _failedToDiscover = _configurationReady &&
                         _host != null && !_host.HasConfiguredCandidate;
-                    _playerStatus = _configurationReady
-                        ? "Signed content unavailable. Connection may be retried"
-                        : "Signed update is not configured";
+                    _playerStatus = !_configurationReady
+                        ? "Signed update is not configured"
+                        : _failedToDiscover
+                            ? "Signed notice unavailable. Check connection to retry"
+                            : _view != null && _view.CanRequestHostRetry
+                                ? "Signed content unavailable. Use signed host Retry"
+                                : "Signed content unavailable. No verified release";
                 }
             }
             finally
