@@ -40,6 +40,7 @@ namespace Match3.Engine.Demo
             // its signature, content type, digest and source partition were
             // authenticated before this opt-in Unity adapter was invoked.
             var bytes = approved.ReadVerifiedBytes(signedBundlePath);
+#if MATCH3_NATIVE_ASSETBUNDLE
             AssetBundle bundle = null;
             try
             {
@@ -70,6 +71,13 @@ namespace Match3.Engine.Demo
             {
                 if (bundle != null) bundle.Unload(true);
             }
+#else
+            // The signed bytes are valid, but the Unity native bundle module
+            // was not included in this build. The only safe outcome is to
+            // refuse load, never reinterpret a fake bundle as usable data.
+            throw new PlatformNotSupportedException(
+                "Native signed AssetBundle consumer requires the Unity AssetBundle module.");
+#endif
         }
 
         private static RemotePlatform CurrentPlatform()
