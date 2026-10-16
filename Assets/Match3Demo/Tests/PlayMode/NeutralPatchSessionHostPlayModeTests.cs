@@ -376,6 +376,39 @@ namespace Match3.Engine.Demo.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator M11_013_StaleHostClockCannotAuthorizeExpiredSignedRelease()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var stale = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 86400;
+                var bytes = Payload(1);
+                var expired = Manifest(bytes, 1, stale);
+                var expiredKey = PublicKey(signer, stale);
+                var root = NewHost(out var game, out var view, out var session);
+                try
+                {
+                    var transport = new ScriptedTransport(bytes, false);
+                    var durable = new RemoteDurableActivationHost(
+                        NewRetainedTestRoot(), GameId, Platform, Channel);
+                    var installed = durable.Restore(
+                        new[] { expiredKey }, Engine, stale);
+                    var task = session.BeginPrelaunchAsync(expired,
+                        Sign(signer, expired), new[] { expiredKey },
+                        new RemoteReadOrigin("https://synthetic.invalid/qa/"),
+                        transport, installed, null, durable, Engine, stale);
+                    yield return new WaitUntil(() => task.IsCompleted);
+                    Assert.That(task.IsFaulted, Is.False);
+                    Assert.That(task.Result, Is.Null);
+                    Assert.That(transport.Calls, Is.Zero);
+                    Assert.That(game.IsBoardInputAllowed, Is.False);
+                    Assert.That(view.CanEnterGame, Is.False);
+                    Assert.That(view.CanRequestHostRetry, Is.False);
+                }
+                finally { UnityEngine.Object.DestroyImmediate(root); }
+            }
+        }
+
         [Test]
         public void M11_013_HostRequiresSameGameAndCannotUseUnknownUnsignedRelease()
         {
