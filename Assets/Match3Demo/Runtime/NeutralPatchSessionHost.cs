@@ -159,15 +159,25 @@ namespace Match3.Engine.Demo
             catch (OperationCanceledException) when
                 (_request.Cancellation.IsCancellationRequested)
             {
-                if (!_destroyed) _view.ShowUnavailable("network-unavailable");
+                if (!_destroyed && _view != null &&
+                    !_view.HasVerifiedSession)
+                {
+                    _view.ShowUnavailable("network-unavailable");
+                    _view.DisableHostRetry();
+                }
                 return null;
             }
             catch (Exception)
             {
-                // Never leak an HTTP URL, private storage path, exception
-                // text, or verified-looking success into the player UI.
-                if (!_destroyed)
+                // Invalid envelope, untrusted key, or invalid activation
+                // setup cannot be retried through a misleading dead button.
+                // Never expose a URL, exception, or storage path to the UI.
+                if (!_destroyed && _view != null &&
+                    !_view.HasVerifiedSession)
+                {
                     _view.ShowUnavailable("content-unavailable");
+                    _view.DisableHostRetry();
+                }
                 return null;
             }
             finally
