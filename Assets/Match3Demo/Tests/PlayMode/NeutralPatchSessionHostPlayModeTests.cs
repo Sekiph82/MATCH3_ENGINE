@@ -258,6 +258,42 @@ namespace Match3.Engine.Demo.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator M11_013_InvalidSignatureDisablesRetryWithoutNetworkOrPlay()
+        {
+            using (var signer = new RSACryptoServiceProvider(2048))
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var bytes = Payload(1);
+                var manifest = Manifest(bytes, 1, now);
+                var key = PublicKey(signer, now);
+                var forged = Sign(signer, manifest);
+                forged[0] ^= 0x80;
+                var root = NewHost(out var game, out var view, out var host);
+                try
+                {
+                    var transport = new ScriptedTransport(bytes, false);
+                    var durable = new RemoteDurableActivationHost(
+                        NewRetainedTestRoot(), GameId, Platform, Channel);
+                    var state = durable.Restore(new[] { key }, Engine, now);
+                    var task = host.BeginPrelaunchAsync(manifest, forged,
+                        new[] { key },
+                        new RemoteReadOrigin("https://synthetic.invalid/qa/"),
+                        transport, state, null, durable, Engine, now);
+                    yield return new WaitUntil(() => task.IsCompleted);
+                    Assert.That(task.IsFaulted, Is.False);
+                    Assert.That(task.Result, Is.Null);
+                    Assert.That(transport.Calls, Is.Zero);
+                    Assert.That(view.CanEnterGame, Is.False);
+                    Assert.That(game.IsBoardInputAllowed, Is.False);
+                    Assert.That(view.CanRequestHostRetry, Is.False);
+                    Assert.That(view.VisibleStatus,
+                        Does.Contain("content-unavailable"));
+                }
+                finally { UnityEngine.Object.DestroyImmediate(root); }
+            }
+        }
+
         [Test]
         public void M11_013_HostRequiresSameGameAndCannotUseUnknownUnsignedRelease()
         {
