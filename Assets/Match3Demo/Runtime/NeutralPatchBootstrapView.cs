@@ -25,7 +25,9 @@ namespace Match3.Engine.Demo
         public bool HasVerifiedSession => _flow != null;
         public bool CanRequestHostRetry =>
             _requestHostRetry != null && !_hostRetryPending &&
-            (_flow == null || _flow.Snapshot().CanRetry);
+            (_flow == null
+                ? (_prelaunchProgress == null || _prelaunchProgress.CanRetry)
+                : _flow.Snapshot().CanRetry);
         public bool HostRetryPending => _hostRetryPending;
         public bool CanEnterGame => _flow != null && _flow.Snapshot().CanPlay;
         public string LastPublicAction => _lastPublicAction;
