@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Match3.Engine.Runtime;
@@ -35,6 +36,74 @@ namespace Match3.Engine.Demo
         // not a network error. Never offer a retry that can only fail.
         private bool _configurationReady;
         private string _playerStatus = "Not configured";
+
+        // A build preprocessor can enforce the same first-party trust
+        // configuration that is used at runtime. No network or disk read.
+        public bool SignedUpdatesEnabled => enableSignedUpdates;
+
+        public void RequireValidPinnedConfiguration(
+            RemotePlatform buildPlatform, long nowUnixSeconds)
+        {
+            if (!enableSignedUpdates)
+                throw new InvalidOperationException(
+                    "Signed HTTPS updates are not enabled for this scene.");
+            ReadPinnedConfiguration(buildPlatform, nowUnixSeconds);
+        }
+
+        private sealed class PinnedConfiguration
+        {
+            public readonly RemoteReadOrigin Origin;
+            public readonly RemotePublicSigningKey Trust;
+            public PinnedConfiguration(RemoteReadOrigin origin,
+                RemotePublicSigningKey trust)
+            {
+                Origin = origin;
+                Trust = trust;
+            }
+        }
+
+        private PinnedConfiguration ReadPinnedConfiguration(
+            RemotePlatform platform, long nowUnixSeconds)
+        {
+            if (!GameProfileCatalog.IsKnownId(gameId) ||
+                !Enum.IsDefined(typeof(RemotePlatform), platform) ||
+                !Enum.IsDefined(typeof(RemoteChannel), channel) ||
+                string.IsNullOrWhiteSpace(trustedPublicKeyId) ||
+                string.IsNullOrWhiteSpace(trustedRsaModulusBase64))
+                throw new InvalidOperationException(
+                    "First-party signed update trust not configured.");
+            // Accept only an importable public key. An arbitrary base64
+            // blob cannot masquerade as a production RSA signing root.
+            byte[] modulus;
+            try
+            {
+                modulus = Convert.FromBase64String(trustedRsaModulusBase64);
+            }
+            catch (FormatException)
+            {
+                throw new InvalidOperationException(
+                    "Invalid first-party RSA public modulus encoding.");
+            }
+            var trust = new RemotePublicSigningKey(trustedPublicKeyId,
+                modulus, new byte[] { 0x01, 0x00, 0x01 },
+                keyValidFromUnixSeconds, keyValidUntilUnixSeconds);
+            if (trust.Revoked || nowUnixSeconds < trust.NotBefore ||
+                nowUnixSeconds >= trust.NotAfter)
+                throw new InvalidOperationException(
+                    "First-party public trust is expired or not yet active.");
+            try
+            {
+                using (var rsa = RSA.Create())
+                    rsa.ImportParameters(trust.Parameters);
+            }
+            catch (CryptographicException)
+            {
+                throw new InvalidOperationException(
+                    "First-party RSA public modulus is not importable.");
+            }
+            return new PinnedConfiguration(
+                new RemoteReadOrigin(approvedHttpsPrefix), trust);
+        }
 
         public bool IsChecking => _checking;
         public bool HasVerifiedPlay => _view != null && _view.CanEnterGame;
@@ -83,24 +152,11 @@ namespace Match3.Engine.Demo
             {
                 // No network is touched until the preinstalled base prefix,
                 // game, OS, trust key and private writable root are validated.
-                if (!GameProfileCatalog.IsKnownId(gameId) ||
-                    string.IsNullOrWhiteSpace(trustedPublicKeyId) ||
-                    string.IsNullOrWhiteSpace(trustedRsaModulusBase64))
-                    throw new InvalidOperationException(
-                        "First-party signed update trust not configured.");
-
                 var platform = CurrentPlatform();
-                var trustKey = new RemotePublicSigningKey(
-                    trustedPublicKeyId,
-                    Convert.FromBase64String(trustedRsaModulusBase64),
-                    new byte[] { 0x01, 0x00, 0x01 },
-                    keyValidFromUnixSeconds, keyValidUntilUnixSeconds);
                 var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                if (trustKey.Revoked || now < trustKey.NotBefore ||
-                    now >= trustKey.NotAfter)
-                    throw new InvalidOperationException(
-                        "First-party public trust is expired or not yet active.");
-                var origin = new RemoteReadOrigin(approvedHttpsPrefix);
+                var pinned = ReadPinnedConfiguration(platform, now);
+                var trustKey = pinned.Trust;
+                var origin = pinned.Origin;
                 // All persistent signed state is confined to Unity's
                 // application-private location, not arbitrary scene strings.
                 var existingRoot = Application.persistentDataPath;
