@@ -235,7 +235,7 @@ namespace Match3.Engine.Demo
                 return false;
             // Mark busy BEFORE any retry transport invocation can complete
             // synchronously or schedule progress onto Unity's UI thread.
-            _view.MarkHostAttemptRunning();
+            _view.MarkHostAttemptRunning(isRetry: true);
             // ExecuteAsync starts a fresh signed transport request, not just
             // a visual state reset or a fabricated authenticated receipt.
             _attempt = ExecuteAsync();
