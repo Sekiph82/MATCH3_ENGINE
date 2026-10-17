@@ -165,6 +165,13 @@ namespace Match3.Engine.Demo
         {
             get
             {
+                // A real host may have started a fresh signed attempt while
+                // its first network progress receipt is still pending. Do
+                // not show the previous Failed/Unavailable state as current.
+                if (_flow == null && _hostRetryPending &&
+                    (_prelaunchProgress == null ||
+                     _prelaunchProgress.Stage == RemotePatchStage.Failed))
+                    return "Checking signed content...";
                 if (_flow == null && _prelaunchProgress == null)
                     return "Content unavailable: " + _unavailableReason;
                 var snapshot = Snapshot();
