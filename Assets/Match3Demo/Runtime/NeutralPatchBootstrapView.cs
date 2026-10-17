@@ -86,6 +86,18 @@ namespace Match3.Engine.Demo
             _prelaunchProgress = snapshot;
         }
 
+        // The host calls this BEFORE starting or resuming a real signed
+        // download. Registering its callback alone is not permission to show
+        // RETRY: an in-flight first request must never advertise a dead CTA.
+        internal void MarkHostAttemptRunning()
+        {
+            if (_flow != null || _requestHostRetry == null)
+                throw new InvalidOperationException(
+                    "Authenticated play or missing host cannot start Retry.");
+            _hostRetryPending = true;
+            _lastPublicAction = "host-attempt-running";
+        }
+
         internal void MarkHostAttemptFailed()
         {
             if (_flow != null) return;
