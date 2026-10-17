@@ -342,6 +342,10 @@ namespace Match3.Engine.Demo.Tests
                         view.Snapshot() != null &&
                         view.Snapshot().VerifiedPercent == 100, "async-gate-6");
                     Assert.That(task.IsCompleted, Is.False);
+                    Assert.That(view.HostRetryPending, Is.True,
+                        "Real signed activation is still running.");
+                    Assert.That(view.TryRequestHostRetry(), Is.False,
+                        "A pre-commit retry button would be a dead CTA.");
                     Assert.That(view.Snapshot(), Is.Not.Null);
                     Assert.That(view.Snapshot().VerifiedPercent,
                         Is.EqualTo(100));
@@ -355,6 +359,8 @@ namespace Match3.Engine.Demo.Tests
                     Assert.That(task.Result.NewReleaseActivated, Is.True);
                     Assert.That(view.CanEnterGame, Is.True);
                     Assert.That(game.IsBoardInputAllowed, Is.True);
+                    Assert.That(view.HostRetryPending, Is.False,
+                        "Signed durable completion clears active host UI.");
                 }
                 finally
                 {
@@ -446,13 +452,17 @@ namespace Match3.Engine.Demo.Tests
                 var durable = new RemoteDurableActivationHost(
                     NewRetainedTestRoot(), GameId, Platform, Channel);
                 var installed = durable.Restore(new[] { key }, Engine, now);
-                var root = NewHost(out _, out _, out var host);
+                var root = NewHost(out _, out var view, out var host);
                 var task = host.BeginPrelaunchAsync(manifest,
                     Sign(signer, manifest), new[] { key },
                     new RemoteReadOrigin("https://synthetic.invalid/qa/"),
                     new AwaitingTransport(), installed, null, durable,
                     Engine, now, appToken.Token);
                 Assert.That(task.IsCompleted, Is.False);
+                Assert.That(view.HostRetryPending, Is.True,
+                    "A pending signed network fetch must not offer Retry.");
+                Assert.That(view.CanRequestHostRetry, Is.False);
+                Assert.That(view.TryRequestHostRetry(), Is.False);
                 UnityEngine.Object.DestroyImmediate(root);
                 yield return WaitFor(() => task.IsCompleted, "async-gate-10");
                 Assert.That(task.IsFaulted, Is.False);
