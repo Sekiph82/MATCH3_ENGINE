@@ -74,6 +74,7 @@ namespace Match3.Engine.Demo
             _request = request;
             _view.ShowUnavailable("network-unavailable");
             _view.RegisterHostRetry(ScheduleRealRetry);
+            _view.MarkHostAttemptRunning();
             _linkedRequestLifetime = CancellationTokenSource
                 .CreateLinkedTokenSource(cancellation, _sceneLifetime.Token);
             _request.Cancellation = _linkedRequestLifetime.Token;
@@ -232,8 +233,11 @@ namespace Match3.Engine.Demo
             if (_request == null || _destroyed || _running ||
                 _view == null || _view.HasVerifiedSession)
                 return false;
-            // ExecuteAsync immediately starts a new transport invocation;
-            // this callback never fabricates a receipt or unlocks gameplay.
+            // Mark busy BEFORE any retry transport invocation can complete
+            // synchronously or schedule progress onto Unity's UI thread.
+            _view.MarkHostAttemptRunning();
+            // ExecuteAsync starts a fresh signed transport request, not just
+            // a visual state reset or a fabricated authenticated receipt.
             _attempt = ExecuteAsync();
             return true;
         }
