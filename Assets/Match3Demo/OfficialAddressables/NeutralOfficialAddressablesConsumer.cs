@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Match3.Engine.Runtime;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.AddressableAssets.ResourceLocators;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
@@ -102,12 +103,12 @@ namespace Match3.Engine.Demo.OfficialAddressables
                         new Uri(catalogFile).AbsoluteUri, false);
                     catalogStarted = true;
                     while (!catalog.IsDone) await Task.Yield();
-                    cancellation.ThrowIfCancellationRequested();
                     if (catalog.Status != AsyncOperationStatus.Succeeded ||
                         catalog.Result == null)
                         throw new InvalidOperationException(
                             "Official Addressables rejected the verified catalog.");
                     addedLocator = catalog.Result;
+                    cancellation.ThrowIfCancellationRequested();
                     if (!addedLocator.Locate(assetAddress, typeof(TextAsset),
                         out IList<IResourceLocation> locations) ||
                         locations == null || locations.Count != 1)
@@ -153,8 +154,9 @@ namespace Match3.Engine.Demo.OfficialAddressables
             Dictionary<string, string> approvedBundles, HashSet<string> used,
             HashSet<IResourceLocation> seen)
         {
-            if (location == null || !seen.Add(location) || seen.Count > 256)
+            if (location == null || seen.Count > 256)
                 throw new InvalidOperationException("Unsafe catalog dependency graph.");
+            if (!seen.Add(location)) return; // Shared dependencies are normal.
             var id = location.InternalId ?? string.Empty;
             if (IsBundleLocation(location))
             {
