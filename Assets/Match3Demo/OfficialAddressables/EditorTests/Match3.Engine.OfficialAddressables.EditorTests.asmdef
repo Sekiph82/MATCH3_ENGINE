@@ -1,0 +1,35 @@
+{
+  "name": "Match3.Engine.OfficialAddressables.EditorTests",
+  "rootNamespace": "Match3.Engine.Demo.OfficialAddressables.Tests",
+  "references": [
+    "Match3.Engine.OfficialAddressables",
+    "Match3.Engine.Runtime",
+    "Unity.Addressables",
+    "Unity.ResourceManager"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "MATCH3_OFFICIAL_ADDRESSABLES",
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.addressables",
+      "expression": "1.21.0",
+      "define": "MATCH3_OFFICIAL_ADDRESSABLES"
+    }
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
