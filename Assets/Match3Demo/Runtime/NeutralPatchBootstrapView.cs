@@ -89,13 +89,14 @@ namespace Match3.Engine.Demo
         // The host calls this BEFORE starting or resuming a real signed
         // download. Registering its callback alone is not permission to show
         // RETRY: an in-flight first request must never advertise a dead CTA.
-        internal void MarkHostAttemptRunning()
+        internal void MarkHostAttemptRunning(bool isRetry = false)
         {
             if (_flow != null || _requestHostRetry == null)
                 throw new InvalidOperationException(
                     "Authenticated play or missing host cannot start Retry.");
             _hostRetryPending = true;
-            _lastPublicAction = "host-attempt-running";
+            _lastPublicAction = isRetry
+                ? "host-retry-scheduled" : "host-attempt-running";
         }
 
         internal void MarkHostAttemptFailed()
@@ -216,7 +217,10 @@ namespace Match3.Engine.Demo
                 panel.width - 28f, 22f), progressText);
             if (_hostRetryPending)
                 GUI.Label(new Rect(panel.x + 14f, panel.y + 86f,
-                    panel.width - 28f, 25f), "Retry requested. Waiting for host...");
+                    panel.width - 28f, 25f),
+                    _lastPublicAction == "host-attempt-running"
+                        ? "Checking signed content..."
+                        : "Retry requested. Waiting for host...");
             else if (CanRequestHostRetry &&
                 GUI.Button(new Rect(panel.x + 14f, panel.y + 86f,
                     130f, 27f), "RETRY"))
