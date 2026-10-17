@@ -108,6 +108,9 @@ namespace Match3.Engine.Demo.Tests
                 Assert.That(view.TryRequestHostRetry(), Is.True);
                 Assert.That(requested, Is.EqualTo(1));
                 Assert.That(view.HostRetryPending, Is.True);
+                Assert.That(view.VisibleStatus,
+                    Is.EqualTo("Checking signed content..."),
+                    "Active real retry must not show stale unavailable status.");
                 Assert.That(view.CanEnterGame, Is.False);
                 Assert.That(view.LastPublicAction,
                     Is.EqualTo("host-retry-scheduled"));
