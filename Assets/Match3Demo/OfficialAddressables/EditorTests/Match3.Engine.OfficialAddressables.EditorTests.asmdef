@@ -4,6 +4,7 @@
   "references": [
     "Match3.Engine.OfficialAddressables",
     "Match3.Engine.Runtime",
+    "Unity.Addressables.Editor",
     "Unity.Addressables",
     "Unity.ResourceManager"
   ],

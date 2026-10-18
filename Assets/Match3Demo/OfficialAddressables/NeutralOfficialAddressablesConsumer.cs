@@ -51,7 +51,8 @@ namespace Match3.Engine.Demo.OfficialAddressables
             await OwnOperations.WaitAsync(cancellation);
             try
             {
-                if (Addressables.InternalIdTransformFunc != null)
+                var previousTransform = Addressables.InternalIdTransformFunc;
+                if (previousTransform != null)
                     throw new InvalidOperationException(
                         "Another Addressables transport policy is already active.");
                 var verifiedBundles = new Dictionary<string, string>(
@@ -93,16 +94,43 @@ namespace Match3.Engine.Demo.OfficialAddressables
                 };
                 Addressables.InternalIdTransformFunc = firewall;
                 AsyncOperationHandle<IResourceLocator> catalog = default;
+                AsyncOperationHandle<IResourceLocator> initialization = default;
                 AsyncOperationHandle<TextAsset> asset = default;
                 var catalogStarted = false;
+                var initializationStarted = false;
                 var assetStarted = false;
                 IResourceLocator addedLocator = null;
+                List<IResourceLocator> locatorsBeforeCatalog = null;
+                var unexpectedTransform = false;
                 try
                 {
+                    // Keep the handle alive while this Task yields back to the
+                    // Unity synchronization context. The default overload
+                    // auto-releases before an async continuation can inspect it.
+                    initialization = Addressables.InitializeAsync(false);
+                    initializationStarted = true;
+                    while (!initialization.IsDone)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        await Task.Yield();
+                    }
+                    if (initialization.Status != AsyncOperationStatus.Succeeded ||
+                        initialization.Result == null)
+                        throw new InvalidOperationException(
+                            "Official Addressables initialization failed.");
+                    // Addressables 2.x also appends a DynamicResourceLocator
+                    // while loading a secondary catalog. Keep a snapshot so
+                    // both it and the returned catalog locator can be removed
+                    // after the authenticated asset load.
+                    locatorsBeforeCatalog = Addressables.ResourceLocators.ToList();
                     catalog = Addressables.LoadContentCatalogAsync(
                         new Uri(catalogFile).AbsoluteUri, false);
                     catalogStarted = true;
-                    while (!catalog.IsDone) await Task.Yield();
+                    while (!catalog.IsDone)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        await Task.Yield();
+                    }
                     if (catalog.Status != AsyncOperationStatus.Succeeded ||
                         catalog.Result == null)
                         throw new InvalidOperationException(
@@ -124,7 +152,11 @@ namespace Match3.Engine.Demo.OfficialAddressables
                             "TextAsset was not backed by a signed native bundle.");
                     asset = Addressables.LoadAssetAsync<TextAsset>(locations[0]);
                     assetStarted = true;
-                    while (!asset.IsDone) await Task.Yield();
+                    while (!asset.IsDone)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        await Task.Yield();
+                    }
                     cancellation.ThrowIfCancellationRequested();
                     if (asset.Status != AsyncOperationStatus.Succeeded ||
                         asset.Result == null || asset.Result.bytes == null ||
@@ -136,15 +168,46 @@ namespace Match3.Engine.Demo.OfficialAddressables
                 }
                 finally
                 {
+                    var unexpectedLocator = false;
                     // Removing this locator prevents later unsupervised loads
                     // against its original embedded catalog CDN locations.
                     if (assetStarted && asset.IsValid()) Addressables.Release(asset);
                     if (addedLocator != null)
                         Addressables.RemoveResourceLocator(addedLocator);
+                    if (locatorsBeforeCatalog != null)
+                    {
+                        foreach (var locator in Addressables.ResourceLocators.ToList())
+                        {
+                            if (locatorsBeforeCatalog.Any(existing =>
+                                ReferenceEquals(existing, locator)) ||
+                                ReferenceEquals(addedLocator, locator))
+                                continue;
+                            // The only additional locator created by the
+                            // Addressables secondary catalog operation is its
+                            // generic dynamic lookup locator. Refuse to leave
+                            // it behind or remove unrelated locators.
+                            if (!string.Equals(locator.GetType().FullName,
+                                "UnityEngine.AddressableAssets.DynamicResourceLocator",
+                                StringComparison.Ordinal))
+                            {
+                                unexpectedLocator = true;
+                                continue;
+                            }
+                            Addressables.RemoveResourceLocator(locator);
+                        }
+                    }
                     if (catalogStarted && catalog.IsValid())
                         Addressables.Release(catalog);
+                    if (initializationStarted && initialization.IsValid())
+                        Addressables.Release(initialization);
                     if (ReferenceEquals(Addressables.InternalIdTransformFunc, firewall))
-                        Addressables.InternalIdTransformFunc = null;
+                        Addressables.InternalIdTransformFunc = previousTransform;
+                    else if (!ReferenceEquals(Addressables.InternalIdTransformFunc,
+                        previousTransform))
+                        unexpectedTransform = true;
+                    if (unexpectedLocator || unexpectedTransform)
+                        throw new InvalidOperationException(
+                            "Addressables global state changed during signed catalog load.");
                 }
             }
             finally { OwnOperations.Release(); }
@@ -202,9 +265,10 @@ namespace Match3.Engine.Demo.OfficialAddressables
                 !Path.IsPathRooted(app) || !Directory.Exists(app))
                 throw new InvalidOperationException(
                     "Application-private persistence is unavailable.");
-            return Path.Combine(app, "match3-signed-addressables",
-                approved.GameId, approved.Platform.ToString(),
-                approved.ReleaseDigest);
+            // Keep the authenticated envelope digest as the collision-resistant
+            // release identity while avoiding Windows MAX_PATH when Addressables
+            // bundle paths are materialized beneath the private cache.
+            return Path.Combine(app, "m3a", approved.ReleaseDigest);
         }
 
         private static string Materialize(
