@@ -74,6 +74,21 @@ namespace Match3.Engine.Tests
         }
 
         [Test]
+        public void HostCanCollectOnlyActualNonemptyContiguousEvents()
+        {
+            var recorder = new NeutralVisualReceiptCollector("Coral_Rescue");
+            Assert.Throws<InvalidOperationException>(() => recorder.Export());
+            recorder.Observe(Event(1));
+            Assert.Throws<InvalidOperationException>(() =>
+                recorder.Observe(Event(3)));
+            recorder.Observe(Event(2, PresentationEventKind.Refill));
+            var recovered = NeutralVisualReceiptCodec.Decode(
+                recorder.Export(), "Coral_Rescue");
+            Assert.That(recovered.Count, Is.EqualTo(2));
+            Assert.That(recovered[1].Kind, Is.EqualTo(PresentationEventKind.Refill));
+        }
+
+        [Test]
         public void CodecContainsNoScoreOrOwnerRewardAuthority()
         {
             var bytes = NeutralVisualReceiptCodec.Encode("Coral_Rescue",
