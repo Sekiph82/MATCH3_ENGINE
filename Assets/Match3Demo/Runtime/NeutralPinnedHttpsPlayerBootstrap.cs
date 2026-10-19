@@ -24,6 +24,7 @@ namespace Match3.Engine.Demo
         [SerializeField] private string trustedRsaModulusBase64 = "";
         [SerializeField] private long keyValidFromUnixSeconds;
         [SerializeField] private long keyValidUntilUnixSeconds;
+        [SerializeField, Min(1)] private int httpsRequestTimeoutSeconds = 15;
 
         private NeutralMatch3Demo _game;
         private NeutralPatchBootstrapView _view;
@@ -35,6 +36,7 @@ namespace Match3.Engine.Demo
         // A missing/invalid trust anchor is a permanent configuration error,
         // not a network error. Never offer a retry that can only fail.
         private bool _configurationReady;
+        private bool _verifiedHttpsActivation;
         private string _playerStatus = "Not configured";
 
         // A build preprocessor can enforce the same first-party trust
@@ -106,12 +108,17 @@ namespace Match3.Engine.Demo
                 throw new InvalidOperationException(
                     "First-party RSA public modulus is not importable.");
             }
+            var platformPath = platform == RemotePlatform.Android ? "android" :
+                platform == RemotePlatform.Ios ? "ios" : "windows";
+            var resolvedPrefix = approvedHttpsPrefix.Replace(
+                "{platform}", platformPath);
             return new PinnedConfiguration(
-                new RemoteReadOrigin(approvedHttpsPrefix), trust);
+                new RemoteReadOrigin(resolvedPrefix), trust);
         }
 
         public bool IsChecking => _checking;
         public bool HasVerifiedPlay => _view != null && _view.CanEnterGame;
+        public bool HasVerifiedHttpsActivation => _verifiedHttpsActivation;
         public string PlayerStatus => _playerStatus;
         public bool CanRetryDiscovery =>
             enableSignedUpdates && !_destroyed && !_checking &&
@@ -185,10 +192,24 @@ namespace Match3.Engine.Demo
                 // are requested only after RSA verifier accepts the notice.
                 var result = await _host.BeginDiscoveredHttpsPrelaunchAsync(
                     origin, new[] { trustKey }, installed, null,
-                    durable, engine, now, _lifetime.Token);
+                    durable, engine, now,
+                    TimeSpan.FromSeconds(httpsRequestTimeoutSeconds),
+                    _lifetime.Token);
                 if (_destroyed) return;
                 if (result != null && result.CanPlay)
                 {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    if (!result.FellBackOffline)
+                    {
+                        _verifiedHttpsActivation = true;
+                        Debug.Log("M11_013_PLAYER_HTTPS_ACTIVATION=PASS " +
+                            "platform=" + platform +
+                            " httpsDiscovery=verified signedSession=" +
+                            _view.HasVerifiedSession +
+                            " boardCells=" + _game.VisibleBoardCellCount +
+                            " newReleaseActivated=" + result.NewReleaseActivated);
+                    }
+#endif
                     _playerStatus = result.FellBackOffline
                         ? "Verified installed release ready offline"
                         : result.NewReleaseActivated

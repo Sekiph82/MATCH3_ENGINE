@@ -1,0 +1,25 @@
+{
+  "cli": {
+    "version": ">= 25.2.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "m11-android-native": {
+      "distribution": "internal",
+      "withoutCredentials": true,
+      "android": {
+        "buildType": "apk",
+        "config": "m11-android.yml",
+        "applicationArchivePath": "android-v12-arm64/launcher/build/outputs/apk/debug/launcher-debug.apk"
+      }
+    },
+    "m11-ios-simulator": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "config": "m11-ios.yml",
+        "applicationArchivePath": "ios-v12-derived/Build/Products/Debug-iphonesimulator/Unity-iPhone.app"
+      }
+    }
+  }
+}

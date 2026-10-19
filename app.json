@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "MATCH3 Engine M11 QA",
+    "slug": "match3-engine-m11-qa",
+    "owner": "sekiphayit",
+    "version": "1.0.0",
+    "platforms": [
+      "android",
+      "ios"
+    ],
+    "android": {
+      "package": "com.match3engine.engm11.qa"
+    },
+    "ios": {
+      "bundleIdentifier": "com.match3engine.engm11.qa"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "76c35ccb-30a4-4c06-86d1-a1e11549ccd2"
+      }
+    }
+  }
+}
