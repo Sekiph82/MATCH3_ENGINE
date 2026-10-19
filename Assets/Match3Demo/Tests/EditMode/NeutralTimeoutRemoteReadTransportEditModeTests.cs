@@ -9,16 +9,24 @@ namespace Match3.Engine.Demo.Tests
     public sealed class NeutralTimeoutRemoteReadTransportEditModeTests
     {
         [Test]
-        public void TimeoutCancelsTheUnderlyingReadAndReturnsInBound()
+        public async Task TimeoutCancelsTheUnderlyingReadAndReturnsInBound()
         {
             var transport = new CancellationAwarePendingTransport();
             var bounded = new NeutralTimeoutRemoteReadTransport(
                 transport, TimeSpan.FromMilliseconds(100));
             var started = DateTime.UtcNow;
 
-            Assert.ThrowsAsync<TimeoutException>(async () =>
+            TimeoutException timeout = null;
+            try
+            {
                 await bounded.FetchAsync(new Uri("https://signed.invalid/test"),
-                    1024, CancellationToken.None));
+                    1024, CancellationToken.None);
+            }
+            catch (TimeoutException exception)
+            {
+                timeout = exception;
+            }
+            Assert.That(timeout, Is.Not.Null);
 
             Assert.That(transport.ObservedCancellation, Is.True);
             Assert.That(DateTime.UtcNow - started,
@@ -26,7 +34,7 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [Test]
-        public void CallerCancellationRemainsCancellationRatherThanTimeout()
+        public async Task CallerCancellationRemainsCancellationRatherThanTimeout()
         {
             var transport = new CancellationAwarePendingTransport();
             var bounded = new NeutralTimeoutRemoteReadTransport(
@@ -34,9 +42,17 @@ namespace Match3.Engine.Demo.Tests
             using (var caller = new CancellationTokenSource())
             {
                 caller.CancelAfter(50);
-                Assert.CatchAsync<OperationCanceledException>(async () =>
+                OperationCanceledException canceled = null;
+                try
+                {
                     await bounded.FetchAsync(new Uri("https://signed.invalid/test"),
-                        1024, caller.Token));
+                        1024, caller.Token);
+                }
+                catch (OperationCanceledException exception)
+                {
+                    canceled = exception;
+                }
+                Assert.That(canceled, Is.Not.Null);
             }
 
             Assert.That(transport.ObservedCancellation, Is.True);
