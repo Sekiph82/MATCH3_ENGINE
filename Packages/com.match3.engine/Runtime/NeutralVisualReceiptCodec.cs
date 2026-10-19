@@ -11,6 +11,42 @@ using System.Text;
 
 namespace Match3.Engine.Runtime
 {
+    // Host should feed actual Engine-produced PresentationEvents at their
+    // original time and order; this collector never fabricates an event.
+    public sealed class NeutralVisualReceiptCollector
+    {
+        private readonly string profile;
+        private readonly List<PresentationEvent> observed =
+            new List<PresentationEvent>();
+        public int ObservedCount => observed.Count;
+
+        public NeutralVisualReceiptCollector(string profileId)
+        {
+            if (!GameProfileCatalog.IsKnownId(profileId))
+                throw new ArgumentException("unknown Engine profile");
+            profile = profileId;
+        }
+
+        public void Observe(PresentationEvent realEvent)
+        {
+            if (realEvent == null)
+                throw new ArgumentNullException(nameof(realEvent));
+            if (observed.Count >= NeutralVisualReceiptCodec.MaxEvents ||
+                realEvent.Sequence != observed.Count + 1L)
+                throw new InvalidOperationException(
+                    "Actual Engine events must be contiguous and bounded");
+            observed.Add(realEvent);
+        }
+
+        public byte[] Export()
+        {
+            if (observed.Count == 0)
+                throw new InvalidOperationException(
+                    "Do not export fabricated/empty actual Engine events");
+            return NeutralVisualReceiptCodec.Encode(profile, observed);
+        }
+    }
+
     public static class NeutralVisualReceiptCodec
     {
         public const string Schema = "M3P1";
