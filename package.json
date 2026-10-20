@@ -1,0 +1,6 @@
+{
+  "name": "match3-engine-m11-qa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native-only EAS QA orchestration metadata for the Unity MATCH3 Engine"
+}

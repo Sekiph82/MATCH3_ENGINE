@@ -3,6 +3,9 @@
     "com.match3.engine": "file:com.match3.engine",
     "com.chebanovdd.match3sdk": "https://github.com/LibraStack/Match3-SDK.git?path=src/Match3.UnityPackage/Assets/Plugins/Match3#771e62908056c2c5fa69937a52ca52ab589f19ea",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2e993ff18f28c931602a07292df0b0804eebef99",
+    "com.unity.addressables": "2.11.2",
+    "com.unity.modules.assetbundle": "1.0.0",
+    "com.unity.modules.androidjni": "1.0.0",
     "com.unity.modules.unitywebrequest": "1.0.0"
   },
   "testables": [

@@ -1,0 +1,32 @@
+name: ENG-M11 Android QA
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build_android:
+    name: Build Unity Android QA APK
+    type: build
+    params:
+      platform: android
+      profile: m11-android-native
+
+  test_android:
+    name: Run ENG-M11 tests on one Android emulator
+    needs: [build_android]
+    runs_on: linux-medium-nested-virtualization
+    steps:
+      - uses: eas/checkout
+      - id: download_build
+        uses: eas/download_build
+        with:
+          build_id: ${{ needs.build_android.outputs.build_id }}
+      - name: Run 006, 008 and 013 native smoke suite
+        run: bash Scripts/eas-m11-android.sh "${{ steps.download_build.outputs.artifact_path }}"
+      - name: Upload Android native evidence
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: eng-m11-android-evidence
+          path: M11Evidence/Android/**

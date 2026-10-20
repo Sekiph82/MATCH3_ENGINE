@@ -6,7 +6,8 @@
     "Match3.Core",
     "Match3.Infrastructure",
     "UniTask",
-    "Match3.Engine.Runtime"
+    "Match3.Engine.Runtime",
+    "Match3.Engine.OfficialAddressables"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

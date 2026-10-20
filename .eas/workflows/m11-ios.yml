@@ -1,0 +1,32 @@
+name: ENG-M11 iOS Simulator QA
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build_ios:
+    name: Build Unity iOS Simulator QA app
+    type: build
+    params:
+      platform: ios
+      profile: m11-ios-simulator
+
+  test_ios:
+    name: Run ENG-M11 tests on one iOS simulator
+    needs: [build_ios]
+    runs_on: macos-medium
+    steps:
+      - uses: eas/checkout
+      - id: download_build
+        uses: eas/download_build
+        with:
+          build_id: ${{ needs.build_ios.outputs.build_id }}
+      - name: Run 006, 008 and 013 native smoke suite
+        run: bash Scripts/eas-m11-ios.sh "${{ steps.download_build.outputs.artifact_path }}"
+      - name: Upload iOS simulator evidence
+        if: ${{ always() }}
+        uses: eas/upload_artifact
+        with:
+          type: other
+          name: eng-m11-ios-evidence
+          path: M11Evidence/iOS/**

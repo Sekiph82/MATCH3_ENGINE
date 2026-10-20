@@ -1,0 +1,22 @@
+build:
+  name: Unity iOS ARM64 simulator QA
+  steps:
+    - eas/checkout
+    - run:
+        name: Verify prepared Unity Xcode export
+        command: |
+          set -euo pipefail
+          test -d ios-v12/Unity-iPhone.xcodeproj
+          grep -Fq 'ARCHS = arm64;' ios-v12/Unity-iPhone.xcodeproj/project.pbxproj
+          grep -Fq 'SUPPORTED_PLATFORMS = iphonesimulator;' ios-v12/Unity-iPhone.xcodeproj/project.pbxproj
+    - run:
+        name: Build Unity iOS Simulator app
+        command: >-
+          xcodebuild -project ios-v12/Unity-iPhone.xcodeproj
+          -scheme Unity-iPhone
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath ios-v12-derived
+          CODE_SIGNING_ALLOWED=NO build
+    - eas/find_and_upload_build_artifacts

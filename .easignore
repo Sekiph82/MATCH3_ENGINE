@@ -1,0 +1,42 @@
+# Unity-generated project data
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Bb]uild/
+[Bb]uilds/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+UserSettings/
+
+# IDE and generated solution/project files
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.tmp
+
+# Crash and package manager logs
+sysinfo.txt
+*.stackdump
+
+# EAS iOS build needs the prepared Xcode export only.
+/android-v12-arm64/
+/ServerData/
+/M11Evidence/
+/ios-v12-derived/
+/.utmp/
+!/.eas/
+!/.eas/build/
+!/.eas/build/m11-ios.yml

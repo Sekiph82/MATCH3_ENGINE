@@ -102,8 +102,25 @@ namespace Match3.Engine.Demo
             EngineVersion engine, long nowUnixSeconds,
             CancellationToken cancellation = default(CancellationToken))
         {
+            return BeginDiscoveredHttpsPrelaunchAsync(trustedOrigin,
+                pinnedPublicKeys, verifiedInstalled, packagedStarter,
+                durableActivationHost, engine, nowUnixSeconds,
+                TimeSpan.FromSeconds(15), cancellation);
+        }
+
+        public Task<RemotePrelaunchResult> BeginDiscoveredHttpsPrelaunchAsync(
+            RemoteReadOrigin trustedOrigin,
+            IEnumerable<RemotePublicSigningKey> pinnedPublicKeys,
+            RemoteReleaseState verifiedInstalled,
+            RemotePackagedStarter packagedStarter,
+            IRemoteActivationHost durableActivationHost,
+            EngineVersion engine, long nowUnixSeconds,
+            TimeSpan requestTimeout,
+            CancellationToken cancellation = default(CancellationToken))
+        {
             return BeginDiscoveredPrelaunchAsync(trustedOrigin,
-                new RemoteHttpsReadTransport(), pinnedPublicKeys,
+                new NeutralTimeoutRemoteReadTransport(
+                    new RemoteHttpsReadTransport(), requestTimeout), pinnedPublicKeys,
                 verifiedInstalled, packagedStarter, durableActivationHost,
                 engine, nowUnixSeconds, cancellation);
         }
