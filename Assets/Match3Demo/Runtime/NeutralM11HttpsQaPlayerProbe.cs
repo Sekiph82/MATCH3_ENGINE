@@ -46,6 +46,8 @@ namespace Match3.Engine.Demo
         private bool _terminal;
         private string _negativeFailure = "probe_not_completed";
         private CancellationTokenSource _negativeLifetime;
+        public bool IsFinished => _terminal;
+        public bool Passed { get; private set; }
 
         private sealed class CancellationAwarePendingTransport : IRemoteReadTransport
         {
@@ -208,6 +210,7 @@ namespace Match3.Engine.Demo
                 "tls=validated rsa=verified player=development");
             Debug.Log("M11_013_PLAYER_HTTPS_QA=PASS " +
                 "positive=verified negative=modified_signature_rejected");
+            Passed = true;
             if (!Application.isMobilePlatform) Application.Quit(0);
             enabled = false;
 #endif

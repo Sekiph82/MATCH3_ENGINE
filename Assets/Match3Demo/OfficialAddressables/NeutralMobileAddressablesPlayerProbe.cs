@@ -28,6 +28,8 @@ namespace Match3.Engine.Demo.OfficialAddressables
         private static readonly byte[] Expected = new UTF8Encoding(false)
             .GetBytes("match3-neutral-addressables-native-v1\n");
         private CancellationTokenSource _lifetime;
+        public bool IsFinished { get; private set; }
+        public bool Passed { get; private set; }
 
         private void Awake()
         {
@@ -54,6 +56,15 @@ namespace Match3.Engine.Demo.OfficialAddressables
                     task.Exception.GetBaseException().GetType().Name;
                 Debug.LogError("M11_008_PLAYER_ADDRESSABLES_NATIVE_LOAD=FAIL cause=" + cause);
             }
+            else if (task.IsCanceled)
+            {
+                Debug.LogError("M11_008_PLAYER_ADDRESSABLES_NATIVE_LOAD=FAIL cause=cancelled");
+            }
+            else
+            {
+                Passed = true;
+            }
+            IsFinished = true;
         }
 
         private static async Task RunAsync(CancellationToken cancellation)

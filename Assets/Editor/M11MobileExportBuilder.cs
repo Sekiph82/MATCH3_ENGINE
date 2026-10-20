@@ -51,6 +51,51 @@ namespace Match3.Engine.M11.Editor
                 "iOS Simulator");
         }
 
+        // Produces the single ARM64 APK consumed by the Firebase Test Lab
+        // Game Loop harness. Reuses the already-built signed Android fixture
+        // and never overwrites an existing artifact.
+        public static void BuildFirebaseArm64PlayerApk()
+        {
+            RequireTarget(BuildTargetGroup.Android, BuildTarget.Android);
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android,
+                ScriptingImplementation.IL2CPP);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
+            EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
+            var fixture = Path.Combine(ProjectRoot, "Assets", "StreamingAssets",
+                "m11-addressables", "Android");
+            var starter = Path.Combine(ProjectRoot, "Assets", "StreamingAssets",
+                "match3", "Coral_Rescue", "1", "0");
+            if (!File.Exists(Path.Combine(fixture, "files.list")) ||
+                !Directory.Exists(starter))
+                throw new InvalidOperationException(
+                    "Signed Android starter or native Addressables fixture is missing.");
+            var output = Path.Combine(ProjectRoot, "M11Evidence",
+                "m11-firebase-arm64-player-themefix.apk");
+            if (File.Exists(output) || Directory.Exists(output))
+                throw new InvalidOperationException(
+                    "Refusing to overwrite the prepared Firebase Player APK: " + output);
+            var scenes = EditorBuildSettings.scenes.Where(scene => scene.enabled)
+                .Select(scene => scene.path).ToArray();
+            if (scenes.Length == 0)
+                throw new InvalidOperationException("No enabled QA build scenes are configured.");
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = scenes,
+                locationPathName = output,
+                target = BuildTarget.Android,
+                options = BuildOptions.Development | BuildOptions.AllowDebugging
+            });
+            var summary = report.summary;
+            Debug.Log("M11_FIREBASE_ARM64_APK_BUILD result=" + summary.result +
+                " errors=" + summary.totalErrors + " warnings=" + summary.totalWarnings +
+                " bytes=" + summary.totalSize + " output=" + output);
+            if (summary.result != BuildResult.Succeeded || summary.totalErrors != 0)
+                throw new InvalidOperationException(
+                    "Firebase ARM64 Player APK build failed: " + summary.result);
+        }
+
         private static void RequireTarget(BuildTargetGroup group, BuildTarget target)
         {
             if (!BuildPipeline.IsBuildTargetSupported(group, target))
