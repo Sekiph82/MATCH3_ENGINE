@@ -95,7 +95,7 @@ namespace Match3.Engine.Demo
                     await durable.PrepareVerifiedAsync(packaged, packagedBytes,
                         _lifetime.Token);
                     var activated = await durable.ExchangeActiveAsync(
-                        "Coral_Rescue/2/0", "", packaged.SignedEnvelopeDigest,
+                        packaged.Manifest.PartitionKey, "", packaged.SignedEnvelopeDigest,
                         packaged.Manifest.Sequence, _lifetime.Token);
                     if (!activated)
                         throw new InvalidOperationException(

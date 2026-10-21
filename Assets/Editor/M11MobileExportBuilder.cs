@@ -19,6 +19,7 @@ namespace Match3.Engine.M11.Editor
         public static void BuildAndroidGradleExport()
         {
             RequireTarget(BuildTargetGroup.Android, BuildTarget.Android);
+            ConfigureSignedAddressablesStartup();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android,
                 ScriptingImplementation.IL2CPP);
             // Unity 6000.6 marks X86_64 obsolete and removes it from the
@@ -42,6 +43,7 @@ namespace Match3.Engine.M11.Editor
         public static void BuildIosSimulatorXcodeExport()
         {
             RequireTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+            ConfigureSignedAddressablesStartup();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS,
                 ScriptingImplementation.IL2CPP);
             PlayerSettings.iOS.sdkVersion = iOSSdkVersion.SimulatorSDK;
@@ -65,6 +67,7 @@ namespace Match3.Engine.M11.Editor
         public static void BuildFirebaseArm64PlayerApk()
         {
             RequireTarget(BuildTargetGroup.Android, BuildTarget.Android);
+            ConfigureSignedAddressablesStartup();
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android,
                 ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -73,7 +76,7 @@ namespace Match3.Engine.M11.Editor
             var fixture = Path.Combine(ProjectRoot, "Assets", "StreamingAssets",
                 "m11-addressables", "Android");
             var starter = Path.Combine(ProjectRoot, "Assets", "StreamingAssets",
-                "match3", "Coral_Rescue", "1", "0");
+                "match3", "Coral_Rescue", "0", "0");
             if (!File.Exists(Path.Combine(fixture, "files.list")) ||
                 !Directory.Exists(starter))
                 throw new InvalidOperationException(
@@ -123,10 +126,7 @@ namespace Match3.Engine.M11.Editor
                 throw new InvalidOperationException("Addressables active profile is missing.");
             settings.EnableJsonCatalog = true;
             settings.BuildRemoteCatalog = true;
-            // The M11 development Player obtains updateable content only via
-            // its signed Engine transport. Addressables startup catalog probes
-            // must not fetch unsigned remote hashes or bundles implicitly.
-            settings.DisableCatalogUpdateOnStartup = true;
+            ConfigureSignedAddressablesStartup();
             var namedTarget = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android
                 ? NamedBuildTarget.Android : NamedBuildTarget.iOS;
             PlayerSettings.GetScriptingDefineSymbols(namedTarget, out var symbols);
@@ -181,6 +181,19 @@ namespace Match3.Engine.M11.Editor
             Debug.Log("M11_ADDRESSABLES_NATIVE_BUILD=PASS target=" + platform +
                 " catalogs=" + catalogs.Length + " bundles=" + bundles.Length +
                 " bytes=" + (catalogs.Sum(FileSize) + bundles.Sum(FileSize)));
+        }
+
+        public static void ConfigureSignedAddressablesStartup()
+        {
+            var settings = AddressableAssetSettingsDefaultObject.Settings;
+            if (settings == null)
+                throw new InvalidOperationException(
+                    "Official Addressables settings are missing.");
+            // The M11 development Player obtains updateable content only via
+            // its signed Engine transport. Addressables startup catalog probes
+            // must not fetch unsigned remote hashes or bundles implicitly.
+            settings.DisableCatalogUpdateOnStartup = true;
+            EditorUtility.SetDirty(settings);
         }
 
         private static void StageMobilePlayerFixture(string platform,

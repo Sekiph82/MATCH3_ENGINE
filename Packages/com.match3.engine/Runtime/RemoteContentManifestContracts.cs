@@ -330,7 +330,7 @@ namespace Match3.Engine.Runtime
             long nowUnixSeconds)
         {
             if (manifest == null) throw new ArgumentNullException(nameof(manifest));
-            if (signature == null || signature.Length < 256)
+            if (signature == null || signature.Length == 0)
                 throw new InvalidOperationException("Signature missing or truncated.");
             if (trustedKeys == null)
                 throw new ArgumentNullException(nameof(trustedKeys));
@@ -344,13 +344,30 @@ namespace Match3.Engine.Runtime
             if (key == null || key.Revoked ||
                 nowUnixSeconds < key.NotBefore || nowUnixSeconds >= key.NotAfter)
                 throw new InvalidOperationException("Signing key missing, expired or revoked.");
+            // RSA signatures are exactly the modulus width. Reject malformed
+            // lengths as an ordinary signature failure before platform crypto
+            // providers can surface an ArgumentException from VerifyData.
+            if (key.Parameters.Modulus == null ||
+                signature.Length != key.Parameters.Modulus.Length)
+                throw new InvalidOperationException(
+                    "Manifest RSA-SHA256 verification failed.");
             try
             {
                 using (var rsa = RSA.Create())
                 {
                     rsa.ImportParameters(key.Parameters);
-                    if (!rsa.VerifyData(manifest.CanonicalBytes(), signature,
-                        HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+                    bool valid;
+                    try
+                    {
+                        valid = rsa.VerifyData(manifest.CanonicalBytes(), signature,
+                            HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        throw new InvalidOperationException(
+                            "Manifest RSA-SHA256 verification failed.", ex);
+                    }
+                    if (!valid)
                         throw new InvalidOperationException(
                             "Manifest RSA-SHA256 verification failed.");
                 }

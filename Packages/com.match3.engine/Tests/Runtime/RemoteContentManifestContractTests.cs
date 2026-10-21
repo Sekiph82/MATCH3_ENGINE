@@ -115,6 +115,12 @@ namespace Match3.Engine.Tests
                     Verify(manifest, signature, Trust(signer, "rotated-2027")));
                 Assert.Throws<InvalidOperationException>(() =>
                     Verify(manifest, new byte[2], Trust(signer, "release-2026")));
+                Assert.That(Assert.Throws<InvalidOperationException>(() =>
+                    Verify(manifest, new byte[255], Trust(signer, "release-2026")))
+                    .Message, Is.EqualTo("Manifest RSA-SHA256 verification failed."));
+                Assert.That(Assert.Throws<InvalidOperationException>(() =>
+                    Verify(manifest, new byte[257], Trust(signer, "release-2026")))
+                    .Message, Is.EqualTo("Manifest RSA-SHA256 verification failed."));
             }
         }
 

@@ -212,6 +212,8 @@ namespace Match3.Engine.Demo.OfficialAddressables.Tests
 
             var settings = AddressableAssetSettingsDefaultObject.GetSettings(true);
             Assert.That(settings, Is.Not.Null);
+            Assert.That(settings.DisableCatalogUpdateOnStartup, Is.True,
+                "The shared M11 Addressables settings must suppress unsigned startup catalog probes.");
             // The Engine remote manifest accepts .json catalogs only. Unity
             // Addressables 2.11 defaults to binary catalogs, so choose its
             // official JSON catalog setting for this signed-content contract.
