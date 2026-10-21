@@ -40,3 +40,9 @@ sysinfo.txt
 !/.eas/
 !/.eas/build/
 !/.eas/build/m11-ios.yml
+
+# Unity's Xcode export must include the macOS IL2CPP/Bee tools copied here.
+# A generic [Bb]uild/ ignore otherwise drops this nested lowercase build tree.
+!/ios-v12/Il2CppOutputProject/IL2CPP/build/
+!/ios-v12/Il2CppOutputProject/IL2CPP/build/deploy_arm64/
+!/ios-v12/Il2CppOutputProject/IL2CPP/build/deploy_arm64/**

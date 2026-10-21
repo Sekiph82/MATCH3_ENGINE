@@ -28,7 +28,11 @@ namespace Match3.Engine.M11.Editor
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevelAuto;
             EditorUserBuildSettings.exportAsGoogleAndroidProject = true;
-            BuildAddressables("Android");
+            if (HasCompleteMobilePlayerFixture("Android"))
+                Debug.Log("M11_ADDRESSABLES_PLAYER_FIXTURE_REUSE=PASS target=Android " +
+                    "the existing native fixture is preserved unchanged.");
+            else
+                BuildAddressables("Android");
             BuildPlayer(BuildTarget.Android,
                 Path.Combine(ProjectRoot, "android-v12-arm64"),
                 BuildOptions.Development | BuildOptions.AcceptExternalModificationsToPlayer,
@@ -44,7 +48,11 @@ namespace Match3.Engine.M11.Editor
             PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneOnly;
             PlayerSettings.iOS.simulatorSdkArchitecture =
                 AppleMobileArchitectureSimulator.ARM64;
-            BuildAddressables("iOS");
+            if (HasCompleteMobilePlayerFixture("iOS"))
+                Debug.Log("M11_ADDRESSABLES_PLAYER_FIXTURE_REUSE=PASS target=iOS " +
+                    "the existing native fixture is preserved unchanged.");
+            else
+                BuildAddressables("iOS");
             BuildPlayer(BuildTarget.iOS,
                 Path.Combine(ProjectRoot, "ios-v12"),
                 BuildOptions.Development,
@@ -115,6 +123,10 @@ namespace Match3.Engine.M11.Editor
                 throw new InvalidOperationException("Addressables active profile is missing.");
             settings.EnableJsonCatalog = true;
             settings.BuildRemoteCatalog = true;
+            // The M11 development Player obtains updateable content only via
+            // its signed Engine transport. Addressables startup catalog probes
+            // must not fetch unsigned remote hashes or bundles implicitly.
+            settings.DisableCatalogUpdateOnStartup = true;
             var namedTarget = EditorUserBuildSettings.activeBuildTarget == BuildTarget.Android
                 ? NamedBuildTarget.Android : NamedBuildTarget.iOS;
             PlayerSettings.GetScriptingDefineSymbols(namedTarget, out var symbols);
@@ -204,6 +216,40 @@ namespace Match3.Engine.M11.Editor
                 (FileSize(Path.Combine(fixture, "catalog.json")) +
                  Directory.GetFiles(Path.Combine(fixture, "bundles"), "*",
                      SearchOption.TopDirectoryOnly).Sum(FileSize)));
+        }
+
+        private static bool HasCompleteMobilePlayerFixture(string platform)
+        {
+            var fixture = Path.Combine(ProjectRoot, "Assets", "StreamingAssets",
+                "m11-addressables", platform);
+            if (!Directory.Exists(fixture)) return false;
+            var list = Path.Combine(fixture, "files.list");
+            if (!File.Exists(list))
+                throw new InvalidOperationException(
+                    "Existing mobile Addressables fixture has no files.list: " + fixture);
+            var paths = File.ReadAllLines(list);
+            if (paths.Length < 2 || paths.Length > 129 || paths[0] != "catalog.json" ||
+                paths.Distinct(StringComparer.Ordinal).Count() != paths.Length)
+                throw new InvalidOperationException(
+                    "Existing mobile Addressables fixture has an invalid file list: " + fixture);
+            var root = Path.GetFullPath(fixture) + Path.DirectorySeparatorChar;
+            foreach (var relative in paths)
+            {
+                if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("/",
+                        StringComparison.Ordinal) || relative.IndexOf('\\') >= 0 ||
+                    relative.Split('/').Any(part => string.IsNullOrWhiteSpace(part) ||
+                        part == "." || part == ".." || part.IndexOf(':') >= 0 ||
+                        part.IndexOf('%') >= 0))
+                    throw new InvalidOperationException(
+                        "Existing mobile Addressables fixture has an unsafe path.");
+                var fullPath = Path.GetFullPath(Path.Combine(fixture,
+                    relative.Replace('/', Path.DirectorySeparatorChar)));
+                if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase) ||
+                    !File.Exists(fullPath) || FileSize(fullPath) < 1)
+                    throw new InvalidOperationException(
+                        "Existing mobile Addressables fixture is incomplete: " + relative);
+            }
+            return true;
         }
 
         private static long FileSize(string path) => new FileInfo(path).Length;
