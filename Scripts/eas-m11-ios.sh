@@ -22,7 +22,13 @@ require_marker() {
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT/unity-simulator-app.zip"
 shasum -a 256 "$OUT/unity-simulator-app.zip" | tee "$OUT/app.sha256"
 command -v xcrun >/dev/null || { fail 'xcrun is unavailable'; exit 2; }
-mapfile -t devices < <(xcrun simctl list devices booted | sed -nE 's/.*\(([0-9A-Fa-f-]{36})\) \(Booted\).*/\1/p')
+# macOS system Bash is 3.2 and does not implement mapfile/readarray.
+# Read simulator identifiers without relying on Bash 4+ builtins.
+devices=()
+while IFS= read -r identifier; do
+  [[ -n "$identifier" ]] && devices+=("$identifier")
+done < <(xcrun simctl list devices booted |
+  sed -nE 's/.*\(([0-9A-Fa-f-]{36})\) \(Booted\).*/\1/p')
 if [[ ${#devices[@]} -ne 1 ]]; then
   fail "expected exactly one booted iOS simulator, found ${#devices[@]}"
   xcrun simctl list devices booted | tee "$OUT/booted-devices.txt"
