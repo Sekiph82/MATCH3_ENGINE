@@ -30,3 +30,8 @@ UserSettings/
 # Crash and package manager logs
 sysinfo.txt
 *.stackdump
+
+# Claude Code machine-local permissions and generated private state
+**/.claude/settings.local.json
+**/.claude/.credentials*
+**/.claude/local-evidence/
