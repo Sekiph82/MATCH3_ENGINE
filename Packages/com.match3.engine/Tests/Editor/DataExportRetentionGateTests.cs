@@ -248,5 +248,45 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanProcessDataAction_DefaultStructPolicy_FailsClosed()
+        {
+            var record = DataRetentionRecord.Create("GameA", DataRetentionAction.DeletionRequest, true, false);
+            var expected = DataExportRetentionGate.CanProcessDataAction("GameA", record, DataRetentionPolicy.Default, out var expectedReason);
+            var result = DataExportRetentionGate.CanProcessDataAction("GameA", record, default(DataRetentionPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("PurgeNotScheduled", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanProcessDataAction_GameIdMismatch_Blocked()
+        {
+            var record = DataRetentionRecord.Create("Wonder_Pop", DataRetentionAction.AuditLog, false, false);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, DataRetentionPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void DataRetentionLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new DataRetentionLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void DataRetentionLog_HasEntry_IsOrdinal()
+        {
+            var log = new DataRetentionLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

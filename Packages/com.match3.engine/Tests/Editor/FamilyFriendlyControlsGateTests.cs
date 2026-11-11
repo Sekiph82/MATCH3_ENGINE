@@ -258,5 +258,44 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => log.Record(null, "ChatFeature"));
         }
 
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanEnableFeature_DefaultStructPolicy_FailsClosed()
+        {
+            var record = FamilyControlRecord.Create("GameA", FamilyControlFeature.ParentalGateExternalLink, false, false);
+            var expected = FamilyFriendlyControlsGate.CanEnableFeature("GameA", record, FamilyFriendlyPolicy.Default, out var expectedReason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("GameA", record, default(FamilyFriendlyPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("ParentalGateRequired", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanEnableFeature_GameIdMismatch_Blocked()
+        {
+            var record = FamilyControlRecord.Create("Wonder_Pop", FamilyControlFeature.ThirdPartyAdSdk, true, false);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, FamilyFriendlyPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void FamilyControlLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new FamilyControlLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void FamilyControlLog_HasEntry_IsOrdinal()
+        {
+            var log = new FamilyControlLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

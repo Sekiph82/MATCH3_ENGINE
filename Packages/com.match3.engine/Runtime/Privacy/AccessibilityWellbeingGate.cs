@@ -70,6 +70,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanEnableWellbeingFeature(string gameId, WellbeingRecord record, WellbeingPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = WellbeingPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             // Guard 1: Wonder Pop pressure loop disable must be optional
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) &&
                 record.Feature == WellbeingFeature.PressureLoopDisable &&
@@ -112,6 +120,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(featureName))
+                throw new ArgumentException("featureName must not be null or empty.", nameof(featureName));
             _entries.Add(gameId + ":" + featureName);
         }
 
@@ -119,6 +129,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

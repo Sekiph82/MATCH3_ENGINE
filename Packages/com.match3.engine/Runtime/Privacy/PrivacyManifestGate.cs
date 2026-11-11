@@ -67,6 +67,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanDeclareDataUsage(string gameId, PrivacyManifestRecord record, PrivacyManifestPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = PrivacyManifestPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
             {
                 reason = "WonderPopManifestProhibited";
@@ -102,6 +110,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(category))
+                throw new ArgumentException("category cannot be null or empty.", nameof(category));
             _entries.Add(gameId + ":" + category);
         }
 
@@ -109,6 +119,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

@@ -240,5 +240,45 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanPassTestMatrix_DefaultStructPolicy_FailsClosed()
+        {
+            var record = MatrixTestRecord.Create("GameA", PrivacyTestProfile.StandardUser, true, true);
+            var expected = PrivacyTestMatrixGate.CanPassTestMatrix("GameA", record, PrivacyTestMatrixPolicy.Default, out var expectedReason);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("GameA", record, default(PrivacyTestMatrixPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnexpectedTransferDetected", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanPassTestMatrix_GameIdMismatch_Blocked()
+        {
+            var record = MatrixTestRecord.Create("Wonder_Pop", PrivacyTestProfile.ChildProfile, true, true);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("Coral_Rescue", record, PrivacyTestMatrixPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void PrivacyTestMatrixLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new PrivacyTestMatrixLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void PrivacyTestMatrixLog_HasEntry_IsOrdinal()
+        {
+            var log = new PrivacyTestMatrixLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

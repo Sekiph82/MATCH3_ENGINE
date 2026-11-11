@@ -98,7 +98,6 @@ namespace Match3.Engine.Tests.Editor
         public void CanServeAds_WonderPop_Blocked()
         {
             var record = VendorDisclosureRecord.Create("Wonder_Pop", CmpDisclosureKind.GdprTcf, true, false);
-            var policy = new CmpAdPolicy(); // AllowAdServing=false by default value
             var allowPolicy = CmpAdPolicy.Safe("allow");
             // Use a permissive policy to prove the Wonder_Pop guard is structurally first
             var result = CmpAdVendorDisclosureGate.CanServeAds("Wonder_Pop", record, allowPolicy, out var reason);
@@ -262,6 +261,46 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new VendorDisclosureLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "GdprTcf"));
+        }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanServeAds_DefaultStructPolicy_FailsClosed()
+        {
+            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, false);
+            var expected = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var expectedReason);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, default(CmpAdPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("AdServingDisabled", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanServeAds_GameIdMismatch_Blocked()
+        {
+            var record = VendorDisclosureRecord.Create("Wonder_Pop", CmpDisclosureKind.GdprTcf, true, false);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void VendorDisclosureLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new VendorDisclosureLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void VendorDisclosureLog_HasEntry_IsOrdinal()
+        {
+            var log = new VendorDisclosureLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
         }
     }
 }

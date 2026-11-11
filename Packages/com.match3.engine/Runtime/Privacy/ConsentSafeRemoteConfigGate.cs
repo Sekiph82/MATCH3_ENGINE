@@ -66,6 +66,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanFetchRemoteConfig(string gameId, RemoteConfigRecord record, ConsentSafeRemoteConfigPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = ConsentSafeRemoteConfigPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && record.ContainsUserIdentifier)
             {
                 reason = "WonderPopUserIdentifierProhibited";
@@ -100,11 +108,13 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(scopeName))
+                throw new ArgumentException("scopeName must not be null or empty.", nameof(scopeName));
             _entries.Add(gameId + ":" + scopeName);
         }
 
         public int Count => _entries.Count;
         public void Clear() => _entries.Clear();
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

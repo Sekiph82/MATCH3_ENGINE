@@ -233,5 +233,45 @@ namespace Match3.Engine.Tests.Editor
             var log = new AgePrivacyLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "Feature"));
         }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanEnableFeature_DefaultStructPolicy_FailsClosed()
+        {
+            var record = TitleAgeRecord.Create("GameA", AgeClassification.AllAges);
+            var expected = AgePrivacyMatrixGate.CanEnableFeature("GameA", record, AgePrivacyPolicy.Default, out var expectedReason);
+            var result = AgePrivacyMatrixGate.CanEnableFeature("GameA", record, default(AgePrivacyPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("BehavioralProfilingDisabled", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanEnableFeature_GameIdMismatch_Blocked()
+        {
+            var record = TitleAgeRecord.Create("Wonder_Pop", AgeClassification.AllAges);
+            var result = AgePrivacyMatrixGate.CanEnableFeature("Coral_Rescue", record, AgePrivacyPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void AgePrivacyLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new AgePrivacyLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void AgePrivacyLog_HasEntry_IsOrdinal()
+        {
+            var log = new AgePrivacyLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

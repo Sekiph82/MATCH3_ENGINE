@@ -45,8 +45,10 @@ namespace Match3.Engine.Runtime.Privacy
         public bool BlockChildProfiles { get; }
         public string PolicyDescription { get; }
 
-        private AttPolicy(bool allowCrossAppTracking, bool blockChildProfiles, string policyDescription)
+        public AttPolicy(bool allowCrossAppTracking, bool blockChildProfiles, string policyDescription)
         {
+            if (string.IsNullOrEmpty(policyDescription))
+                throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
             AllowCrossAppTracking = allowCrossAppTracking;
             BlockChildProfiles = blockChildProfiles;
             PolicyDescription = policyDescription;
@@ -66,6 +68,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanRequestAttPermission(string gameId, AttRecord record, AttPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = AttPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
             {
                 reason = "WonderPopAttProhibited";
@@ -107,6 +117,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(statusEvent))
+                throw new ArgumentException("statusEvent must not be null or empty.", nameof(statusEvent));
             _entries.Add(gameId + ":" + statusEvent);
         }
 
@@ -114,6 +126,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

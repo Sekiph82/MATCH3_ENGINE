@@ -79,6 +79,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanEnableFeature(string gameId, FamilyControlRecord record, FamilyFriendlyPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = FamilyFriendlyPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             // Guard 1: Wonder_Pop blocks third-party ad/analytics SDKs by default
             // Wonder_Pop is GENERAL/FAMILY-FRIENDLY, not children-only
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && record.IsThirdPartySdk)
@@ -126,6 +134,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty", nameof(gameId));
+            if (string.IsNullOrEmpty(featureName))
+                throw new ArgumentException("featureName cannot be null or empty", nameof(featureName));
             _entries.Add(gameId + ":" + featureName);
         }
 
@@ -133,6 +143,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

@@ -71,6 +71,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanEnableFeature(string gameId, ChildRestrictionRecord record, ChildProfilePolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = ChildProfilePolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             // Guard 1: Wonder Pop + RemoteConfigOverride always blocked
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) &&
                 record.Feature == ChildProfileFeature.RemoteConfigOverride)
@@ -120,6 +128,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty", nameof(gameId));
+            if (string.IsNullOrEmpty(featureName))
+                throw new ArgumentException("featureName cannot be null or empty", nameof(featureName));
             _entries.Add(gameId + ":" + featureName);
         }
 
@@ -127,6 +137,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

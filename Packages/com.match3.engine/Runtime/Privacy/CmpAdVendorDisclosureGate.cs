@@ -66,6 +66,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanServeAds(string gameId, VendorDisclosureRecord record, CmpAdPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = CmpAdPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
             {
                 reason = "WonderPopAdsProhibited";
@@ -100,11 +108,13 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(disclosureKind))
+                throw new ArgumentException("disclosureKind cannot be null or empty.", nameof(disclosureKind));
             _entries.Add(gameId + ":" + disclosureKind);
         }
 
         public int Count => _entries.Count;
         public void Clear() => _entries.Clear();
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

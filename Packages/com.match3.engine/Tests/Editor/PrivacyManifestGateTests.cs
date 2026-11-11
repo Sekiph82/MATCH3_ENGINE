@@ -251,5 +251,45 @@ namespace Match3.Engine.Tests.Editor
             var log = new PrivacyManifestLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "UsageData"));
         }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanDeclareDataUsage_DefaultStructPolicy_FailsClosed()
+        {
+            var record = PrivacyManifestRecord.Create("GameA", PrivacyDataCategory.UsageData, false, false);
+            var expected = PrivacyManifestGate.CanDeclareDataUsage("GameA", record, PrivacyManifestPolicy.Default, out var expectedReason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("GameA", record, default(PrivacyManifestPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UndisclosedTrackingBlocked", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanDeclareDataUsage_GameIdMismatch_Blocked()
+        {
+            var record = PrivacyManifestRecord.Create("Wonder_Pop", PrivacyDataCategory.NoDataCollected, false, false);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, PrivacyManifestPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void PrivacyManifestLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new PrivacyManifestLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void PrivacyManifestLog_HasEntry_IsOrdinal()
+        {
+            var log = new PrivacyManifestLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

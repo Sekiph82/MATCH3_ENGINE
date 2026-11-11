@@ -71,6 +71,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanPerformAction(string gameId, ParentalGateRecord record, ParentalControlsPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = ParentalControlsPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) &&
                 record.Action == ParentalGateAction.ExternalLinkOpen && !record.HasParentalApproval)
             {
@@ -107,6 +115,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty", nameof(gameId));
+            if (string.IsNullOrEmpty(actionName))
+                throw new ArgumentException("actionName cannot be null or empty", nameof(actionName));
             _entries.Add(gameId + ":" + actionName);
         }
 
@@ -114,6 +124,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

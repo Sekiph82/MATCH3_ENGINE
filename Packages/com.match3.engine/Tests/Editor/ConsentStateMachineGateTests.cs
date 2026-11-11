@@ -237,5 +237,45 @@ namespace Match3.Engine.Tests.Editor
             var log = new ConsentLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "some-transition"));
         }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanTransitionState_DefaultStructPolicy_FailsClosed()
+        {
+            var record = ConsentRecord.Create("GameA", ConsentState.Pending, true, false);
+            var expected = ConsentStateMachineGate.CanTransitionState("GameA", record, ConsentPolicy.Default, ConsentState.Granted, out var expectedReason);
+            var result = ConsentStateMachineGate.CanTransitionState("GameA", record, default(ConsentPolicy), ConsentState.Granted, out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("MinorRequiresParentalGate", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanTransitionState_GameIdMismatch_Blocked()
+        {
+            var record = ConsentRecord.Create("Wonder_Pop", ConsentState.Pending, false, false);
+            var result = ConsentStateMachineGate.CanTransitionState("Coral_Rescue", record, ConsentPolicy.Default, ConsentState.Granted, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void ConsentLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new ConsentLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void ConsentLog_HasEntry_IsOrdinal()
+        {
+            var log = new ConsentLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

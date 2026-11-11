@@ -71,6 +71,14 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public static bool CanPassTestMatrix(string gameId, MatrixTestRecord record, PrivacyTestMatrixPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = PrivacyTestMatrixPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && record.IsRestrictedProfile && record.HasUnexpectedTransfer)
             {
                 reason = "WonderPopUnexpectedTransferBlocked";
@@ -106,6 +114,8 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty", nameof(gameId));
+            if (string.IsNullOrEmpty(profileName))
+                throw new ArgumentException("profileName cannot be null or empty", nameof(profileName));
             _entries.Add(gameId + ":" + profileName);
         }
 
@@ -113,6 +123,6 @@ namespace Match3.Engine.Runtime.Privacy
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

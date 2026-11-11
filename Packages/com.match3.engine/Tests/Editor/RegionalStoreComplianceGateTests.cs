@@ -242,5 +242,45 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanActivateForRegion_DefaultStructPolicy_FailsClosed()
+        {
+            var record = ComplianceRecord.Create("GameA", StoreRegion.EuropeanUnion, false, false);
+            var expected = RegionalStoreComplianceGate.CanActivateForRegion("GameA", record, RegionalCompliancePolicy.Default, out var expectedReason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("GameA", record, default(RegionalCompliancePolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("PolicyDeclarationMissing", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanActivateForRegion_GameIdMismatch_Blocked()
+        {
+            var record = ComplianceRecord.Create("Wonder_Pop", StoreRegion.China, false, false);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Coral_Rescue", record, RegionalCompliancePolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void ComplianceLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new ComplianceLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void ComplianceLog_HasEntry_IsOrdinal()
+        {
+            var log = new ComplianceLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
     }
 }

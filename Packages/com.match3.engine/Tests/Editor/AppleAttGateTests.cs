@@ -133,16 +133,8 @@ namespace Match3.Engine.Tests.Editor
 
         private static AttPolicy MakeAllowingPolicy(bool blockChild = true)
         {
-            // We need AllowCrossAppTracking=true; AttPolicy has no public constructor.
-            // Use the internal knowledge: build via struct copy trick won't work since it's readonly.
-            // We must use reflection to create a policy with AllowCrossAppTracking=true.
-            // Actually, looking at the struct - it only has Safe() and Default which both set AllowCrossAppTracking=false.
-            // We need to create a test helper. Since we own both files, let's add a test-only factory.
-            // Per spec there's no test factory specified, so we reflect.
-            var type = typeof(AttPolicy);
-            var ctor = type.GetConstructors(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            // private AttPolicy(bool allowCrossAppTracking, bool blockChildProfiles, string policyDescription)
-            return (AttPolicy)ctor[0].Invoke(new object[] { true, blockChild, "Allow policy for tests" });
+            // Validated public constructor; never rely on default(AttPolicy).
+            return new AttPolicy(true, blockChild, "Allow policy for tests");
         }
 
         [Test]
@@ -246,6 +238,53 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new AttLog();
             Assert.Throws<System.ArgumentException>(() => log.Record(null, "event"));
+        }
+
+        // QA remediation: fail-closed default policy, GameId mismatch guard, log argument validation
+        [Test]
+        public void CanRequestAttPermission_DefaultStructPolicy_FailsClosed()
+        {
+            var record = AttRecord.Create("GameA", AttAuthorizationStatus.NotDetermined, false, true);
+            var expected = AppleAttGate.CanRequestAttPermission("GameA", record, AttPolicy.Default, out var expectedReason);
+            var result = AppleAttGate.CanRequestAttPermission("GameA", record, default(AttPolicy), out var reason);
+            Assert.IsFalse(expected);
+            Assert.IsFalse(result);
+            Assert.AreEqual("CrossAppTrackingDisabled", expectedReason);
+            Assert.AreEqual(expectedReason, reason);
+        }
+
+        [Test]
+        public void CanRequestAttPermission_GameIdMismatch_Blocked()
+        {
+            var record = AttRecord.Create("Wonder_Pop", AttAuthorizationStatus.NotDetermined, false, true);
+            var result = AppleAttGate.CanRequestAttPermission("Coral_Rescue", record, AttPolicy.Default, out var reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void AttLog_Record_NullOrEmptySecondArg_Throws()
+        {
+            var log = new AttLog();
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.AreEqual(0, log.Count);
+        }
+
+        [Test]
+        public void AttPolicy_PublicCtor_NullOrEmptyDescription_Throws()
+        {
+            Assert.Throws<System.ArgumentException>(() => new AttPolicy(true, false, null));
+            Assert.Throws<System.ArgumentException>(() => new AttPolicy(true, false, string.Empty));
+        }
+
+        [Test]
+        public void AttLog_HasEntry_IsOrdinal()
+        {
+            var log = new AttLog();
+            log.Record("Wonder_Pop", "evt");
+            Assert.IsTrue(log.HasEntry("Wonder_Pop"));
+            Assert.IsFalse(log.HasEntry("wonder_pop"));
         }
     }
 }
