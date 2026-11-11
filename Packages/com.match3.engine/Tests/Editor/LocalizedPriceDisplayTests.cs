@@ -1,0 +1,215 @@
+// ENG-M15-003: Tests for LocalizedPriceDisplay contracts
+using System;
+using NUnit.Framework;
+using Match3.Engine.Runtime.Commerce;
+
+namespace Match3.Engine.Tests.Editor.Commerce
+{
+    [TestFixture]
+    public class LocalizedPriceDisplayTests
+    {
+        // ---- LocalizedPrice.FromStore ----
+
+        [Test]
+        public void FromStore_ValidArgs_ReturnsAvailablePrice()
+        {
+            var p = LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_001");
+            Assert.IsTrue(p.IsAvailable);
+            Assert.AreEqual("$1.99", p.FormattedPrice);
+            Assert.AreEqual("USD", p.CurrencyCode);
+            Assert.AreEqual("GameA", p.GameId);
+            Assert.AreEqual("sku_001", p.SkuId);
+        }
+
+        [Test]
+        public void FromStore_NullFormattedPrice_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                LocalizedPrice.FromStore(null, "USD", "GameA", "sku_001"));
+        }
+
+        [Test]
+        public void FromStore_EmptyFormattedPrice_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                LocalizedPrice.FromStore(string.Empty, "USD", "GameA", "sku_001"));
+        }
+
+        [Test]
+        public void FromStore_NullCurrencyCode_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                LocalizedPrice.FromStore("$1.99", null, "GameA", "sku_001"));
+        }
+
+        [Test]
+        public void FromStore_NullGameId_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                LocalizedPrice.FromStore("$1.99", "USD", null, "sku_001"));
+        }
+
+        [Test]
+        public void FromStore_NullSkuId_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                LocalizedPrice.FromStore("$1.99", "USD", "GameA", null));
+        }
+
+        // ---- LocalizedPrice.Unavailable ----
+
+        [Test]
+        public void Unavailable_IsNotAvailable()
+        {
+            var p = LocalizedPrice.Unavailable("GameA", "sku_001");
+            Assert.IsFalse(p.IsAvailable);
+            Assert.AreEqual(string.Empty, p.FormattedPrice);
+            Assert.AreEqual(string.Empty, p.CurrencyCode);
+        }
+
+        [Test]
+        public void Unavailable_PreservesGameIdAndSkuId()
+        {
+            var p = LocalizedPrice.Unavailable("GameB", "sku_xyz");
+            Assert.AreEqual("GameB", p.GameId);
+            Assert.AreEqual("sku_xyz", p.SkuId);
+        }
+
+        // ---- PriceDisplayPolicy ----
+
+        [Test]
+        public void StoreOwned_AllowFabricatedPricesIsFalse()
+        {
+            var pol = PriceDisplayPolicy.StoreOwned("No fabrication");
+            Assert.IsFalse(pol.AllowFabricatedPrices);
+        }
+
+        [Test]
+        public void StoreOwned_NullDescription_Throws()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                PriceDisplayPolicy.StoreOwned(null));
+        }
+
+        [Test]
+        public void DefaultPolicy_AllowFabricatedPricesIsFalse()
+        {
+            Assert.IsFalse(PriceDisplayPolicy.Default.AllowFabricatedPrices);
+            Assert.IsFalse(string.IsNullOrEmpty(PriceDisplayPolicy.Default.PolicyDescription));
+        }
+
+        // ---- LocalizedPriceDisplayGate.CanDisplayPrice ----
+
+        [Test]
+        public void CanDisplayPrice_WonderPop_AlwaysIneligible_EvenWhenPriceIsAvailable()
+        {
+            var price = LocalizedPrice.FromStore("$1.99", "USD", "Wonder_Pop", "sku_001");
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice(
+                "Wonder_Pop", price, PriceDisplayPolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("WonderPopPriceDisplayProhibited", result.Reason);
+        }
+
+        [Test]
+        public void CanDisplayPrice_WonderPop_CaseSensitive_OtherCaseIsNotBlocked()
+        {
+            // "wonder_pop" (lowercase) must NOT hit the Wonder_Pop guard
+            var price = LocalizedPrice.FromStore("$1.99", "USD", "wonder_pop", "sku_001");
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice(
+                "wonder_pop", price, PriceDisplayPolicy.Default);
+            // Should pass all guards and be eligible
+            Assert.IsTrue(result.IsEligible);
+        }
+
+        [Test]
+        public void CanDisplayPrice_UnavailablePrice_Ineligible()
+        {
+            var price = LocalizedPrice.Unavailable("GameA", "sku_001");
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice(
+                "GameA", price, PriceDisplayPolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("PriceUnavailableFromStore", result.Reason);
+        }
+
+        [Test]
+        public void CanDisplayPrice_ValidGame_ValidPrice_IsEligible()
+        {
+            var price = LocalizedPrice.FromStore("£1.49", "GBP", "GameA", "sku_uk");
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice(
+                "GameA", price, PriceDisplayPolicy.Default);
+            Assert.IsTrue(result.IsEligible);
+        }
+
+        // ---- LocalizedPriceDisplayGate.IsStoreOwnedDisplay ----
+
+        [Test]
+        public void IsStoreOwnedDisplay_DefaultPolicy_ReturnsTrue()
+        {
+            Assert.IsTrue(LocalizedPriceDisplayGate.IsStoreOwnedDisplay(PriceDisplayPolicy.Default));
+        }
+
+        // ---- LocalizedPriceDisplayGate.AssertNoFabricatedPrice ----
+
+        [Test]
+        public void AssertNoFabricatedPrice_StoreOwnedPolicy_DoesNotThrow()
+        {
+            Assert.DoesNotThrow(() =>
+                LocalizedPriceDisplayGate.AssertNoFabricatedPrice(PriceDisplayPolicy.Default));
+        }
+
+        // ---- PriceCache ----
+
+        [Test]
+        public void PriceCache_StoreAndRetrieve()
+        {
+            var cache = new PriceCache();
+            var price = LocalizedPrice.FromStore("€2.99", "EUR", "GameA", "sku_eu");
+            cache.Store(price);
+            Assert.AreEqual(1, cache.Count);
+            Assert.IsTrue(cache.TryGet("sku_eu", out var retrieved));
+            Assert.AreEqual("€2.99", retrieved.FormattedPrice);
+        }
+
+        [Test]
+        public void PriceCache_MissingKey_ReturnsFalse()
+        {
+            var cache = new PriceCache();
+            Assert.IsFalse(cache.TryGet("nonexistent_sku", out _));
+        }
+
+        [Test]
+        public void PriceCache_Store_OverwritesExistingKey()
+        {
+            var cache = new PriceCache();
+            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_001"));
+            cache.Store(LocalizedPrice.FromStore("$2.99", "USD", "GameA", "sku_001"));
+            Assert.AreEqual(1, cache.Count);
+            cache.TryGet("sku_001", out var p);
+            Assert.AreEqual("$2.99", p.FormattedPrice);
+        }
+
+        [Test]
+        public void PriceCache_Clear_ResetsCount()
+        {
+            var cache = new PriceCache();
+            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_001"));
+            cache.Store(LocalizedPrice.FromStore("$2.99", "USD", "GameA", "sku_002"));
+            cache.Clear();
+            Assert.AreEqual(0, cache.Count);
+            Assert.IsFalse(cache.TryGet("sku_001", out _));
+        }
+
+        [Test]
+        public void PriceCache_MultipleEntries_AllRetrievable()
+        {
+            var cache = new PriceCache();
+            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_a"));
+            cache.Store(LocalizedPrice.FromStore("£1.49", "GBP", "GameA", "sku_b"));
+            cache.Store(LocalizedPrice.FromStore("€1.79", "EUR", "GameA", "sku_c"));
+            Assert.AreEqual(3, cache.Count);
+            Assert.IsTrue(cache.TryGet("sku_a", out _));
+            Assert.IsTrue(cache.TryGet("sku_b", out _));
+            Assert.IsTrue(cache.TryGet("sku_c", out _));
+        }
+    }
+}
