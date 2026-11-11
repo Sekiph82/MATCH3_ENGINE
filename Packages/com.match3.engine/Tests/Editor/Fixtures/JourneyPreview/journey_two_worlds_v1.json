@@ -1,0 +1,313 @@
+{
+  "schemaVersion": "1.0",
+  "producerId": "fixture-producer/py",
+  "gameId": "Coral_Rescue",
+  "items": [
+    {
+      "contentKind": "World",
+      "contentId": "jx.world.kelp",
+      "contentVersion": 1,
+      "payload": {
+        "order": 2
+      },
+      "payloadSha256": "cfffdf09bccf4a6136b4232ccf442edd05372b454ff140d206a460124c9d4fe2"
+    },
+    {
+      "contentKind": "World",
+      "contentId": "jx.world.reef",
+      "contentVersion": 1,
+      "payload": {
+        "order": 1
+      },
+      "payloadSha256": "a781679e01308cfef90983a4c1350319a7e3993c3a3f5a8c8439781a326d7c8d"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0001",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 1,
+        "moves": 20,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.red",
+            "count": 10
+          }
+        ],
+        "obstacleIds": []
+      },
+      "payloadSha256": "98ba89762f3e7b7809e8325f0b1647b9bfa3f8ae77e6c32853e80c0890ba32db"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0002",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 2,
+        "moves": 22,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.blue",
+            "count": 14
+          }
+        ],
+        "obstacleIds": []
+      },
+      "payloadSha256": "de85c43f7d375c82b7ab40f9b3d3f7160eb1c4bc7e1e0ab1870ce62789229aa2"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0003",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 3,
+        "moves": 24,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.red",
+            "count": 12
+          },
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.green",
+            "count": 12
+          }
+        ],
+        "obstacleIds": []
+      },
+      "payloadSha256": "19028f8793974fcceb28c2ce6e4bdb3a5cfab2411e14aefc9894d77156886123"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0004",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 4,
+        "moves": 25,
+        "objectives": [
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.ice",
+            "count": 8
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.ice"
+        ]
+      },
+      "payloadSha256": "ddb360e0ad663818a479c0d05faa697651e3b9ad7bbffd26b4f8dd11700176ad"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0005",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 5,
+        "moves": 25,
+        "objectives": [
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.ice",
+            "count": 14
+          },
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.blue",
+            "count": 10
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.ice"
+        ]
+      },
+      "payloadSha256": "a27cb85b121ee6ecfbde06a275d313e6b2da32e671f74a64d71c36a2706da9dc"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0006",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 6,
+        "moves": 28,
+        "objectives": [
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.crate",
+            "count": 6
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.ice",
+          "obstacle.crate"
+        ]
+      },
+      "payloadSha256": "0b3ee348a0bc22d65ab8ac3b7384159444584dc6993b7af3ea7cb61b6bbe027f"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0007",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.reef",
+        "order": 7,
+        "moves": 30,
+        "objectives": [
+          {
+            "kind": "RescueDrop",
+            "targetId": "drop.pearl",
+            "count": 3
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.crate"
+        ]
+      },
+      "payloadSha256": "a20582098959d94dbb227bcbe08c9d30717973d7d0e8ff65a8ed64654e50eaf5"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0008",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.kelp",
+        "order": 1,
+        "moves": 26,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.yellow",
+            "count": 20
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.ice"
+        ]
+      },
+      "payloadSha256": "0afc1d79313ac1a81e85732dda60aa6f1d0f8310b8a8eec312867672f3c8bcd7"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0009",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.kelp",
+        "order": 2,
+        "moves": 27,
+        "objectives": [
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.chain",
+            "count": 10
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.chain",
+          "obstacle.ice"
+        ]
+      },
+      "payloadSha256": "581961ddfa0f982f5f88c1365c75f64d2e86564fef4366690e0c81a1cf96d0a1"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0010",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.kelp",
+        "order": 3,
+        "moves": 28,
+        "objectives": [
+          {
+            "kind": "RescueDrop",
+            "targetId": "drop.pearl",
+            "count": 4
+          },
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.chain",
+            "count": 6
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.chain"
+        ]
+      },
+      "payloadSha256": "1eeceeb1be6b39d0f7a533cd2373ac51c3b63bbe1c2609249e6471fcd408a271"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0011",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.kelp",
+        "order": 4,
+        "moves": 30,
+        "objectives": [
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.vine",
+            "count": 12
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.vine",
+          "obstacle.crate"
+        ]
+      },
+      "payloadSha256": "f15c97ee799a11a5c1dcca05560856bcd0664d6af2d5fa5ed2d78bfd97a687e8"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0012",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.kelp",
+        "order": 5,
+        "moves": 30,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.red",
+            "count": 30
+          }
+        ],
+        "obstacleIds": []
+      },
+      "payloadSha256": "898a12846a5134701ad714129d8d14df8fea92b7b201dd24144c9da0e9dcd73c"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "jx.level.0013",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "jx.world.kelp",
+        "order": 6,
+        "moves": 32,
+        "objectives": [
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.vine",
+            "count": 16
+          },
+          {
+            "kind": "RescueDrop",
+            "targetId": "drop.pearl",
+            "count": 5
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.vine"
+        ]
+      },
+      "payloadSha256": "da5cf827f7867ce7301f3e862dfbd62174d6ef839aebdf7ee038bae70d1566e0"
+    }
+  ]
+}
