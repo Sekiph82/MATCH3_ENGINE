@@ -52,8 +52,10 @@ namespace Match3.Engine.Runtime.LiveOps
         public bool RequireUtcAnchor { get; }
         public string PolicyDescription { get; }
 
-        private CalendarEventPolicy(bool preventDuplicateClaims, bool requireUtcAnchor, string policyDescription)
+        public CalendarEventPolicy(bool preventDuplicateClaims, bool requireUtcAnchor, string policyDescription)
         {
+            if (string.IsNullOrEmpty(policyDescription))
+                throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
             PreventDuplicateClaims = preventDuplicateClaims;
             RequireUtcAnchor = requireUtcAnchor;
             PolicyDescription = policyDescription;
@@ -74,6 +76,14 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public static bool CanClaimReward(string gameId, CalendarEventRecord record, CalendarEventPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = CalendarEventPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             // Guard 1: Wonder Pop explicitly prohibits duplicate claims (Ordinal match)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && record.IsAlreadyClaimed)
             {
@@ -112,6 +122,8 @@ namespace Match3.Engine.Runtime.LiveOps
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(eventType))
+                throw new ArgumentException("eventType must not be null or empty.", nameof(eventType));
             _entries.Add(gameId + ":" + eventType);
         }
 
@@ -119,6 +131,6 @@ namespace Match3.Engine.Runtime.LiveOps
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

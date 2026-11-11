@@ -265,5 +265,37 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => log.Record(null, "ScheduledGoal"));
             Assert.Throws<ArgumentException>(() => log.Record("", "ScheduledGoal"));
         }
+
+        [Test]
+        public void ChallengeEventLog_Record_NullOrEmptyEventType_Throws()
+        {
+            var log = new ChallengeEventLog();
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+        }
+
+        [Test]
+        public void ChallengeEventLog_HasEntry_IsOrdinal()
+        {
+            var log = new ChallengeEventLog();
+            log.Record("GameA", "ScheduledGoal");
+            Assert.IsFalse(log.HasEntry("gamea"));
+            Assert.IsFalse(log.HasEntry("Game"));
+        }
+
+        [Test]
+        public void CanActivateEvent_DefaultStructPolicy_FailsClosed()
+        {
+            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, true, true);
+            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, "PermanentProgressModificationBlocked");
+            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), "PermanentProgressModificationBlocked");
+        }
+
+        [Test]
+        public void CanActivateEvent_GameIdMismatch_Blocked()
+        {
+            var r = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.ThemeCollection, true, false, false);
+            AssertBlocked("Coral_Rescue", r, ChallengeEventPolicy.Default, "GameIdMismatch");
+        }
     }
 }

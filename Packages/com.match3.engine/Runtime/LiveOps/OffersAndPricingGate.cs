@@ -66,6 +66,14 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public static bool CanPresentOffer(string gameId, OfferRecord record, OfferPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = OfferPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             // Guard 1: Wonder_Pop real-money without store auth (Ordinal, structurally first)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && record.IsRealMoneyOffer && !record.HasStoreAuthorization)
             {
@@ -104,6 +112,8 @@ namespace Match3.Engine.Runtime.LiveOps
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(offerType))
+                throw new ArgumentException("offerType must not be null or empty.", nameof(offerType));
             _entries.Add(gameId + ":" + offerType);
         }
 

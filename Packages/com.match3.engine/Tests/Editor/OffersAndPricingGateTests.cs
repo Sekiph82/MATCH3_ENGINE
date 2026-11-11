@@ -276,5 +276,31 @@ namespace Match3.Engine.Tests.Editor
             var log = new OfferLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "StarterBundle"));
         }
+
+        [Test]
+        public void OfferLog_Record_NullOrEmptyOfferType_Throws()
+        {
+            var log = new OfferLog();
+            Assert.Throws<ArgumentException>(() => log.Record("game1", null));
+            Assert.Throws<ArgumentException>(() => log.Record("game1", ""));
+        }
+
+        [Test]
+        public void CanPresentOffer_DefaultStructPolicy_FailsClosed()
+        {
+            var record = OfferRecord.Create("Coral_Rescue", OfferType.LimitedTimeBundle, true, true, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, OfferPolicy.Default, out string expected));
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, default(OfferPolicy), out string reason));
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("RealMoneyOfferRequiresStoreAuth", reason);
+        }
+
+        [Test]
+        public void CanPresentOffer_GameIdMismatch_Blocked()
+        {
+            var record = OfferRecord.Create("Wonder_Pop", OfferType.ContentAvailability, true, false, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, OfferPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

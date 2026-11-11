@@ -276,5 +276,47 @@ namespace Match3.Engine.Tests.Editor
             var log = new RemoteConfigVersionLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "key1"));
         }
+
+        [Test]
+        public void RemoteConfigVersionLog_Record_NullOrEmptyConfigKey_Throws()
+        {
+            var log = new RemoteConfigVersionLog();
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+        }
+
+        [Test]
+        public void RemoteConfigVersionLog_HasEntry_IsOrdinal()
+        {
+            var log = new RemoteConfigVersionLog();
+            log.Record("GameA", "key1");
+            Assert.IsFalse(log.HasEntry("gamea"));
+            Assert.IsFalse(log.HasEntry("Game"));
+        }
+
+        [Test]
+        public void RemoteConfigRecord_Create_NegativeSchemaVersion_Throws()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                RemoteConfigRecord.Create("GameA", RemoteConfigKey.GameplayDifficulty, "v", -1, true, true));
+        }
+
+        [Test]
+        public void CanApplyConfig_DefaultStructPolicy_FailsClosed()
+        {
+            var record = RemoteConfigRecord.Create("GameB", RemoteConfigKey.GameplayDifficulty, "v", 1, false, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameB", record, RemoteConfigPolicy.Default, out string expected));
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameB", record, default(RemoteConfigPolicy), out string reason));
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("UnsignedConfigRejected", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_GameIdMismatch_Blocked()
+        {
+            var record = RemoteConfigRecord.Create("Wonder_Pop", RemoteConfigKey.GameplayDifficulty, "v", 1, true, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("Coral_Rescue", record, RemoteConfigPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

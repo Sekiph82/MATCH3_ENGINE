@@ -238,5 +238,40 @@ namespace Match3.Engine.Tests.Editor
             var log = new ExperienceEventLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "HintShown"));
         }
+
+        [Test]
+        public void ExperienceEventLog_Record_NullOrEmptyEventName_Throws()
+        {
+            var log = new ExperienceEventLog();
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+        }
+
+        [Test]
+        public void ExperienceEventLog_HasEntry_IsOrdinal()
+        {
+            var log = new ExperienceEventLog();
+            log.Record("GameA", "HintShown");
+            Assert.IsFalse(log.HasEntry("gamea"));
+            Assert.IsFalse(log.HasEntry("Game"));
+        }
+
+        [Test]
+        public void CanRecordEvent_DefaultStructPolicy_FailsClosed()
+        {
+            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, ExperienceFairnessPolicy.Default, out string expected));
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, default(ExperienceFairnessPolicy), out string reason));
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("TestBotExcluded", reason);
+        }
+
+        [Test]
+        public void CanRecordEvent_GameIdMismatch_Blocked()
+        {
+            var record = ExperienceRecord.Create("Wonder_Pop", ExperienceEventKind.HintShown, false, false);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, ExperienceFairnessPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

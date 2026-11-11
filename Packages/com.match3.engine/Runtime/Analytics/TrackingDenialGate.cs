@@ -41,8 +41,10 @@ namespace Match3.Engine.Runtime.Analytics
         public bool RequireExplicitUnblock { get; }
         public string PolicyDescription { get; }
 
-        private DenialPolicy(bool blockOnAnyDenial, bool requireExplicitUnblock, string policyDescription)
+        public DenialPolicy(bool blockOnAnyDenial, bool requireExplicitUnblock, string policyDescription)
         {
+            if (string.IsNullOrEmpty(policyDescription))
+                throw new ArgumentException("PolicyDescription cannot be null or empty.", nameof(policyDescription));
             BlockOnAnyDenial = blockOnAnyDenial;
             RequireExplicitUnblock = requireExplicitUnblock;
             PolicyDescription = policyDescription;
@@ -62,6 +64,14 @@ namespace Match3.Engine.Runtime.Analytics
     {
         public static bool CanTrack(string gameId, DenialRecord record, DenialPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = DenialPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
             {
                 reason = "WonderPopTrackingProhibited";
@@ -96,6 +106,8 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(denialReason))
+                throw new ArgumentException("denialReason cannot be null or empty.", nameof(denialReason));
             _entries.Add(gameId + ":" + denialReason);
         }
 
@@ -103,6 +115,6 @@ namespace Match3.Engine.Runtime.Analytics
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

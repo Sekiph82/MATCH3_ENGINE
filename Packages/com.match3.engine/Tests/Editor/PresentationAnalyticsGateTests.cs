@@ -235,5 +235,40 @@ namespace Match3.Engine.Tests.Editor
             var log = new PresentationEventLog();
             Assert.Throws<ArgumentException>(() => log.Record(null, "BannerDisplayed"));
         }
+
+        [Test]
+        public void PresentationEventLog_Record_NullOrEmptyEventName_Throws()
+        {
+            var log = new PresentationEventLog();
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+        }
+
+        [Test]
+        public void PresentationEventLog_HasEntry_IsOrdinal()
+        {
+            var log = new PresentationEventLog();
+            log.Record("GameA", "BannerDisplayed");
+            Assert.IsFalse(log.HasEntry("gamea"));
+            Assert.IsFalse(log.HasEntry("Game"));
+        }
+
+        [Test]
+        public void CanRecordEvent_DefaultStructPolicy_FailsClosed()
+        {
+            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, false);
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, PresentationAnalyticsPolicy.Default, out string expected));
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, default(PresentationAnalyticsPolicy), out string reason));
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("TestSessionExcluded", reason);
+        }
+
+        [Test]
+        public void CanRecordEvent_GameIdMismatch_Blocked()
+        {
+            var record = PresentationRecord.Create("Wonder_Pop", PresentationEventKind.PopupShown, false, false);
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, PresentationAnalyticsPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

@@ -38,6 +38,8 @@ namespace Match3.Engine.Runtime.LiveOps
                 throw new ArgumentException("gameId cannot be null or empty", nameof(gameId));
             if (value == null)
                 throw new ArgumentException("value cannot be null", nameof(value));
+            if (schemaVersion < 0)
+                throw new ArgumentOutOfRangeException(nameof(schemaVersion), "schemaVersion cannot be negative");
             return new RemoteConfigRecord(gameId, key, value, schemaVersion, isSigned, hasFallback);
         }
 
@@ -78,6 +80,14 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public static bool CanApplyConfig(string gameId, RemoteConfigRecord record, RemoteConfigPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = RemoteConfigPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && !record.IsSigned)
             {
                 reason = "WonderPopUnsignedConfigProhibited";
@@ -113,6 +123,8 @@ namespace Match3.Engine.Runtime.LiveOps
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId cannot be null or empty", nameof(gameId));
+            if (string.IsNullOrEmpty(configKey))
+                throw new ArgumentException("configKey cannot be null or empty", nameof(configKey));
             _entries.Add(gameId + ":" + configKey);
         }
 
@@ -120,6 +132,6 @@ namespace Match3.Engine.Runtime.LiveOps
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }

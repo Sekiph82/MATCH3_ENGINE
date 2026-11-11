@@ -75,6 +75,14 @@ namespace Match3.Engine.Runtime.Analytics
     {
         public static bool CanRecordEvent(string gameId, ExperienceRecord record, ExperienceFairnessPolicy policy, out string reason)
         {
+            if (policy.PolicyDescription == null) policy = ExperienceFairnessPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                reason = "GameIdMismatch";
+                return false;
+            }
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
             {
                 reason = "WonderPopExperienceProhibited";
@@ -112,11 +120,13 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(eventName))
+                throw new ArgumentException("eventName must not be null or empty.", nameof(eventName));
             _entries.Add(gameId + ":" + eventName);
         }
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
     }
 }
