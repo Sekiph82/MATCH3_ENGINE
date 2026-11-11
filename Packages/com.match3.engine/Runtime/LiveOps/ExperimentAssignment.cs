@@ -63,6 +63,7 @@ namespace Match3.Engine.Runtime.LiveOps
             return hash;
         }
 
+        // Length = UTF-16 code units (string.Length), not UTF-8 bytes or code points; backend bucketing must match exactly.
         private static string Prefixed(string s) => s.Length.ToString(CultureInfo.InvariantCulture) + ":" + s;
     }
 
@@ -164,7 +165,8 @@ namespace Match3.Engine.Runtime.LiveOps
         public string VariantName { get; }
         public string Reason { get; }
 
-        public ExperimentAssignment(ExperimentAssignmentKind kind, string variantName, string reason)
+        // Internal: only ExperimentAssigner can mint assignments, so NotEligible cannot be forged as eligible.
+        internal ExperimentAssignment(ExperimentAssignmentKind kind, string variantName, string reason)
         {
             Kind = kind;
             VariantName = variantName;
@@ -213,35 +215,80 @@ namespace Match3.Engine.Runtime.LiveOps
         }
     }
 
-    /// <summary>In-memory, idempotent exposure record. One exposure per (experimentId, version, playerId).</summary>
+    /// <summary>What was actually served at first exposure. Holdout serves the control but is not counted as control.</summary>
+    public readonly struct ExposureRecord
+    {
+        public ExperimentAssignmentKind Kind { get; }
+        public string VariantName { get; }
+
+        internal ExposureRecord(ExperimentAssignmentKind kind, string variantName)
+        {
+            Kind = kind;
+            VariantName = variantName;
+        }
+    }
+
+    /// <summary>
+    /// In-memory, idempotent exposure record. One exposure per (experimentId, version, playerId).
+    /// The only way in is RecordExposure(def, ctx), which assigns internally and refuses NotEligible players
+    /// (Wonder_Pop, child, no consent, not running), so an ineligible exposure cannot be logged.
+    /// </summary>
     public sealed class ExposureLog
     {
-        private readonly HashSet<string> _seen = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, ExposureRecord> _records = new Dictionary<string, ExposureRecord>(StringComparer.Ordinal);
+        private readonly Dictionary<string, long> _tallies = new Dictionary<string, long>(StringComparer.Ordinal);
 
-        public int Count => _seen.Count;
+        public int Count => _records.Count;
 
-        public bool RecordExposure(string experimentId, int version, string playerId, string variant)
+        public bool RecordExposure(ExperimentDefinition def, PlayerExperimentContext ctx)
         {
-            if (string.IsNullOrEmpty(experimentId)) throw new ArgumentException("experimentId cannot be null or empty", nameof(experimentId));
-            if (version < 1) throw new ArgumentOutOfRangeException(nameof(version), "version must be at least 1");
-            if (string.IsNullOrEmpty(playerId)) throw new ArgumentException("playerId cannot be null or empty", nameof(playerId));
-            if (string.IsNullOrEmpty(variant)) throw new ArgumentException("variant cannot be null or empty", nameof(variant));
+            var a = ExperimentAssigner.Assign(def, ctx); // throws on null def/ctx
+            if (a.Kind == ExperimentAssignmentKind.NotEligible) return false;
 
-            string key = experimentId.Length.ToString(CultureInfo.InvariantCulture) + ":" + experimentId + "|" +
-                         version.ToString(CultureInfo.InvariantCulture) + "|" + playerId;
-            return _seen.Add(key);
+            string exp = ExperimentKey(def);
+            if (_records.ContainsKey(exp + ctx.PlayerId)) return false;
+            _records.Add(exp + ctx.PlayerId, new ExposureRecord(a.Kind, a.VariantName));
+            string tally = a.Kind == ExperimentAssignmentKind.Holdout ? HoldoutKey(exp) : VariantKey(exp, a.VariantName);
+            _tallies.TryGetValue(tally, out long n);
+            _tallies[tally] = n + 1;
+            return true;
+        }
+
+        public bool TryGetExposure(ExperimentDefinition def, string playerId, out ExposureRecord record)
+        {
+            if (def == null) throw new ArgumentNullException(nameof(def));
+            if (string.IsNullOrEmpty(playerId)) throw new ArgumentException("playerId cannot be null or empty", nameof(playerId));
+            return _records.TryGetValue(ExperimentKey(def) + playerId, out record);
         }
 
         /// <summary>
-        /// Records the exposure implied by an assignment. NotEligible players (Wonder_Pop, child, no consent,
-        /// not running) are never logged and return false.
+        /// Exposures served as a real variant, in def.Variants order (holdout excluded), for this experiment id + version.
+        /// Pair with def.Variants weights for SampleRatioGuardrail.Check.
         /// </summary>
-        public bool RecordExposure(ExperimentDefinition def, string playerId, ExperimentAssignment assignment)
+        public IReadOnlyList<long> VariantCounts(ExperimentDefinition def)
         {
             if (def == null) throw new ArgumentNullException(nameof(def));
-            if (assignment.Kind == ExperimentAssignmentKind.NotEligible) return false;
-            return RecordExposure(def.Id, def.Version, playerId, assignment.VariantName);
+            string exp = ExperimentKey(def);
+            var counts = new long[def.Variants.Count];
+            for (int i = 0; i < counts.Length; i++)
+                _tallies.TryGetValue(VariantKey(exp, def.Variants[i].Name), out counts[i]);
+            return Array.AsReadOnly(counts);
         }
+
+        public long HoldoutCount(ExperimentDefinition def)
+        {
+            if (def == null) throw new ArgumentNullException(nameof(def));
+            _tallies.TryGetValue(HoldoutKey(ExperimentKey(def)), out long n);
+            return n;
+        }
+
+        // Length-prefixed id and a digits-only version make the prefix unambiguous; what follows the final '|' is free text.
+        private static string ExperimentKey(ExperimentDefinition def) =>
+            def.Id.Length.ToString(CultureInfo.InvariantCulture) + ":" + def.Id + "|" +
+            def.Version.ToString(CultureInfo.InvariantCulture) + "|";
+
+        private static string HoldoutKey(string exp) => exp + "H";
+        private static string VariantKey(string exp, string variant) => exp + "V" + variant;
     }
 
     public readonly struct SampleRatioResult

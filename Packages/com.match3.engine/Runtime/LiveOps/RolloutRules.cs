@@ -122,6 +122,8 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public string Id { get; }
         public int Version { get; }
+        /// <summary>Titles this rule applies to (ordinal, exact ids). Required and non-empty: no implicit all-titles rule.</summary>
+        public IReadOnlyCollection<string> GameIds { get; }
         public SemVer? MinAppVersion { get; }
         public SemVer? MaxAppVersion { get; }
         public IReadOnlyCollection<Platform> Platforms { get; }
@@ -132,14 +134,17 @@ namespace Match3.Engine.Runtime.LiveOps
         /// <summary>Not configurable: child profiles are never part of a rollout cohort.</summary>
         public bool ExcludeChildProfiles => true;
 
+        private readonly HashSet<string> _gameIds;
         private readonly HashSet<Platform> _platforms;
         private readonly HashSet<string> _regions;
 
-        private RolloutRule(string id, int version, SemVer? min, SemVer? max, HashSet<Platform> platforms,
+        private RolloutRule(string id, int version, HashSet<string> gameIds, SemVer? min, SemVer? max, HashSet<Platform> platforms,
             HashSet<string> regions, int rolloutPercent, string salt)
         {
             Id = id;
             Version = version;
+            _gameIds = gameIds;
+            GameIds = new ReadOnlyCollection<string>(new List<string>(gameIds));
             MinAppVersion = min;
             MaxAppVersion = max;
             _platforms = platforms;
@@ -150,7 +155,7 @@ namespace Match3.Engine.Runtime.LiveOps
             Salt = salt;
         }
 
-        public static RolloutRule Create(string id, int version, string minAppVersion, string maxAppVersion,
+        public static RolloutRule Create(string id, int version, IEnumerable<string> gameIds, string minAppVersion, string maxAppVersion,
             IEnumerable<Platform> platforms, IEnumerable<string> regions, int rolloutPercent, string salt)
         {
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("id cannot be null or empty", nameof(id));
@@ -158,6 +163,15 @@ namespace Match3.Engine.Runtime.LiveOps
             if (string.IsNullOrEmpty(salt)) throw new ArgumentException("salt cannot be null or empty", nameof(salt));
             if (rolloutPercent < 0 || rolloutPercent > 100)
                 throw new ArgumentOutOfRangeException(nameof(rolloutPercent), "rolloutPercent must be 0..100");
+
+            if (gameIds == null) throw new ArgumentException("gameIds cannot be null", nameof(gameIds));
+            var gameSet = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var g in gameIds)
+            {
+                if (string.IsNullOrEmpty(g)) throw new ArgumentException("game id cannot be null or empty", nameof(gameIds));
+                gameSet.Add(g);
+            }
+            if (gameSet.Count == 0) throw new ArgumentException("at least one game id is required", nameof(gameIds));
 
             SemVer? min = null, max = null;
             if (minAppVersion != null)
@@ -191,9 +205,10 @@ namespace Match3.Engine.Runtime.LiveOps
                 regionSet.Add(r);
             }
 
-            return new RolloutRule(id, version, min, max, platformSet, regionSet, rolloutPercent, salt);
+            return new RolloutRule(id, version, gameSet, min, max, platformSet, regionSet, rolloutPercent, salt);
         }
 
+        internal bool HasGame(string gameId) => _gameIds.Contains(gameId);
         internal bool HasPlatform(Platform p) => _platforms.Contains(p);
         internal bool AllowsRegion(string code) => _regions.Count == 0 || (code != null && _regions.Contains(code));
 
@@ -245,6 +260,7 @@ namespace Match3.Engine.Runtime.LiveOps
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
 
             if (ctx.IsChildProfile) return new RolloutDecision(false, "ChildProfileExcluded");
+            if (!rule.HasGame(ctx.GameId)) return new RolloutDecision(false, "GameNotInRule");
             if (!SemVer.TryParse(ctx.AppVersion, out var app)) return new RolloutDecision(false, "InvalidAppVersion");
             if ((rule.MinAppVersion.HasValue && app.CompareTo(rule.MinAppVersion.Value) < 0) ||
                 (rule.MaxAppVersion.HasValue && app.CompareTo(rule.MaxAppVersion.Value) > 0))

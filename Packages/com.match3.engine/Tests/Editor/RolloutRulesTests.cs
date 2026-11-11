@@ -8,17 +8,18 @@ namespace Match3.Engine.Tests.Editor
     public class RolloutRulesTests
     {
         private static readonly Platform[] Mobile = { Platform.iOS, Platform.Android };
+        private static readonly string[] Games = { "Coral_Rescue" };
 
         private static RolloutRule Rule(int percent = 100, string min = null, string max = null,
             Platform[] platforms = null, string[] regions = null, string id = "rule-1", string salt = "salt-r")
         {
-            return RolloutRule.Create(id, 1, min, max, platforms ?? Mobile, regions ?? new string[0], percent, salt);
+            return RolloutRule.Create(id, 1, Games, min, max, platforms ?? Mobile, regions ?? new string[0], percent, salt);
         }
 
         private static RolloutContext Ctx(string playerId = "p1", string app = "1.2.3", Platform platform = Platform.iOS,
-            string region = "US", bool child = false)
+            string region = "US", bool child = false, string game = "Coral_Rescue")
         {
-            return new RolloutContext("Coral_Rescue", playerId, app, platform, region, child);
+            return new RolloutContext(game, playerId, app, platform, region, child);
         }
 
         // ---- SemVer ----
@@ -85,30 +86,38 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Rule_InvalidInputs_Throw()
         {
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("", 1, null, null, Mobile, new string[0], 50, "s"));
-            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 0, null, null, Mobile, new string[0], 50, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, null, Mobile, new string[0], 50, ""));
-            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 1, null, null, Mobile, new string[0], -1, "s"));
-            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 1, null, null, Mobile, new string[0], 101, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, "1.x", null, Mobile, new string[0], 50, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, "nope", Mobile, new string[0], 50, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, "2.0.0", "1.0.0", Mobile, new string[0], 50, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, null, new Platform[0], new string[0], 50, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, null, null, new string[0], 50, "s"));
-            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 1, null, null, new[] { (Platform)42 }, new string[0], 50, "s"));
-            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, null, Mobile, null, 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("", 1, Games, null, null, Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 0, Games, null, null, Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, null, null, Mobile, new string[0], 50, ""));
+            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 1, Games, null, null, Mobile, new string[0], -1, "s"));
+            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 1, Games, null, null, Mobile, new string[0], 101, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, "1.x", null, Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, null, "nope", Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, "2.0.0", "1.0.0", Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, null, null, new Platform[0], new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, null, null, null, new string[0], 50, "s"));
+            Assert.Throws<ArgumentOutOfRangeException>(() => RolloutRule.Create("r", 1, Games, null, null, new[] { (Platform)42 }, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, null, null, Mobile, null, 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, null, null, Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, new string[0], null, null, Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, new string[] { null }, null, null, Mobile, new string[0], 50, "s"));
+            Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, new[] { "Coral_Rescue", "" }, null, null, Mobile, new string[0], 50, "s"));
             foreach (var bad in new[] { "us", "USA", "U", "", null, "U1", "\u00DCS" })
-                Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, null, null, Mobile, new[] { bad }, 50, "s"), "region " + bad);
+                Assert.Throws<ArgumentException>(() => RolloutRule.Create("r", 1, Games, null, null, Mobile, new[] { bad }, 50, "s"), "region " + bad);
         }
 
         [Test]
         public void Rule_CollectionsAreCopies()
         {
+            var games = new List<string> { "Coral_Rescue" };
             var plats = new List<Platform> { Platform.iOS };
             var regs = new List<string> { "US" };
-            var r = RolloutRule.Create("r", 1, null, null, plats, regs, 100, "s");
+            var r = RolloutRule.Create("r", 1, games, null, null, plats, regs, 100, "s");
+            games.Add("Dino_Islands");
             plats.Add(Platform.Android);
             regs.Add("DE");
+            Assert.AreEqual(1, r.GameIds.Count);
+            Assert.AreEqual("GameNotInRule", RolloutEvaluator.Evaluate(r, Ctx(game: "Dino_Islands")).Reason);
             Assert.AreEqual(1, r.Platforms.Count);
             Assert.AreEqual(1, r.Regions.Count);
             Assert.AreEqual("PlatformExcluded", RolloutEvaluator.Evaluate(r, Ctx(platform: Platform.Android)).Reason);
@@ -129,6 +138,25 @@ namespace Match3.Engine.Tests.Editor
             }
             // Child check precedes all others (e.g. invalid version).
             Assert.AreEqual("ChildProfileExcluded", RolloutEvaluator.Evaluate(r, Ctx(app: "garbage", child: true)).Reason);
+        }
+
+        [Test]
+        public void Evaluate_GameScoping_OrdinalAndAfterChildExclusion()
+        {
+            var r = RolloutRule.Create("rule-g", 1, new[] { "Coral_Rescue", "Dino_Islands" }, null, null, Mobile, new string[0], 100, "s");
+            Assert.IsTrue(RolloutEvaluator.Evaluate(r, Ctx(game: "Coral_Rescue")).Included);
+            Assert.IsTrue(RolloutEvaluator.Evaluate(r, Ctx(game: "Dino_Islands")).Included);
+            foreach (var g in new[] { "Wonder_Pop", "Garage_Legends", "coral_rescue", "Coral_Rescue ", "Coral" })
+            {
+                var d = RolloutEvaluator.Evaluate(r, Ctx(game: g));
+                Assert.IsFalse(d.Included, g);
+                Assert.AreEqual("GameNotInRule", d.Reason, g);
+            }
+            // Order: child exclusion first, then game, before any version/platform/region/percent check.
+            Assert.AreEqual("ChildProfileExcluded", RolloutEvaluator.Evaluate(r, Ctx(game: "Wonder_Pop", child: true)).Reason);
+            Assert.AreEqual("GameNotInRule", RolloutEvaluator.Evaluate(Rule(0, "9.0.0", null, new[] { Platform.Android }, new[] { "CA" }),
+                Ctx(game: "Wonder_Pop", app: "garbage", platform: Platform.iOS, region: "US")).Reason);
+            CollectionAssert.AreEquivalent(new[] { "Coral_Rescue", "Dino_Islands" }, r.GameIds);
         }
 
         [TestCase(null)]
@@ -246,9 +274,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Evaluate_IsDeterministic_AndRuleVersionDoesNotReshuffle()
         {
-            var v1 = RolloutRule.Create("rule-x", 1, null, null, Mobile, new string[0], 40, "s");
-            var v2 = RolloutRule.Create("rule-x", 7, null, null, Mobile, new string[0], 40, "s");
-            var otherSalt = RolloutRule.Create("rule-x", 1, null, null, Mobile, new string[0], 40, "t");
+            var v1 = RolloutRule.Create("rule-x", 1, Games, null, null, Mobile, new string[0], 40, "s");
+            var v2 = RolloutRule.Create("rule-x", 7, Games, null, null, Mobile, new string[0], 40, "s");
+            var otherSalt = RolloutRule.Create("rule-x", 1, Games, null, null, Mobile, new string[0], 40, "t");
             int differsBySalt = 0;
             for (int i = 0; i < 2000; i++)
             {

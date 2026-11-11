@@ -68,8 +68,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Bucket_LengthPrefixPreventsConcatenationCollision()
         {
-            // Without length prefixes "ab"+"c" and "a"+"bc" would hash identical material.
-            Assert.AreNotEqual(StableBucketing.Bucket("ab", "c", "p", int.MaxValue), StableBucketing.Bucket("a", "bc", "p", int.MaxValue));
+            // Ids may contain the '|' separator. Without length prefixes both sides of each pair would hash the
+            // identical material "a|b|c|p" (resp. "e|a|b|c"); with them it is "3:a|b|1:c|1:p" vs "1:a|3:b|c|1:p".
+            Assert.AreNotEqual(StableBucketing.Bucket("a|b", "c", "p", int.MaxValue), StableBucketing.Bucket("a", "b|c", "p", int.MaxValue));
+            Assert.AreNotEqual(StableBucketing.Bucket("e", "a|b", "c", int.MaxValue), StableBucketing.Bucket("e", "a", "b|c", int.MaxValue));
         }
 
         [Test]
@@ -262,13 +264,16 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Exposure_IsIdempotentPerExperimentVersionPlayer()
         {
+            var v = new[] { new ExperimentVariant("control", 1), new ExperimentVariant("treatment", 1) };
+            var v1 = ExperimentDefinition.Create("exp", 1, "s", v, 0, ExperimentState.Running);
+            var v2 = ExperimentDefinition.Create("exp", 2, "s", v, 0, ExperimentState.Running);
+            var upper = ExperimentDefinition.Create("EXP", 1, "s", v, 0, ExperimentState.Running);
             var log = new ExposureLog();
-            Assert.IsTrue(log.RecordExposure("exp", 1, "p1", "control"));
-            Assert.IsFalse(log.RecordExposure("exp", 1, "p1", "control"));
-            Assert.IsFalse(log.RecordExposure("exp", 1, "p1", "treatment"), "re-exposure with a different variant is still a repeat");
-            Assert.IsTrue(log.RecordExposure("exp", 2, "p1", "control"));
-            Assert.IsTrue(log.RecordExposure("exp", 1, "p2", "control"));
-            Assert.IsTrue(log.RecordExposure("EXP", 1, "p1", "control"), "ordinal comparison");
+            Assert.IsTrue(log.RecordExposure(v1, Adult("p1")));
+            Assert.IsFalse(log.RecordExposure(v1, Adult("p1")));
+            Assert.IsTrue(log.RecordExposure(v2, Adult("p1")));
+            Assert.IsTrue(log.RecordExposure(v1, Adult("p2")));
+            Assert.IsTrue(log.RecordExposure(upper, Adult("p1")), "ordinal comparison");
             Assert.AreEqual(4, log.Count);
         }
 
@@ -276,30 +281,88 @@ namespace Match3.Engine.Tests.Editor
         public void Exposure_InvalidArgs_Throw()
         {
             var log = new ExposureLog();
-            Assert.Throws<ArgumentException>(() => log.RecordExposure("", 1, "p", "v"));
-            Assert.Throws<ArgumentOutOfRangeException>(() => log.RecordExposure("e", 0, "p", "v"));
-            Assert.Throws<ArgumentException>(() => log.RecordExposure("e", 1, "", "v"));
-            Assert.Throws<ArgumentException>(() => log.RecordExposure("e", 1, "p", null));
+            Assert.Throws<ArgumentNullException>(() => log.RecordExposure(null, Adult("p")));
+            Assert.Throws<ArgumentNullException>(() => log.RecordExposure(Def(), null));
+            Assert.Throws<ArgumentNullException>(() => log.VariantCounts(null));
+            Assert.Throws<ArgumentException>(() => log.TryGetExposure(Def(), "", out _));
             Assert.AreEqual(0, log.Count);
         }
 
         [Test]
-        public void Exposure_FromAssignment_NeverLogsIneligiblePlayers()
+        public void Exposure_NeverLogsIneligiblePlayers()
         {
-            var d = Def();
+            var d = Def(ExperimentState.Running, 10);
             var log = new ExposureLog();
-            var child = new PlayerExperimentContext("Coral_Rescue", "kid", true, true);
-            var noConsent = new PlayerExperimentContext("Coral_Rescue", "nc", false, false);
-            var wp = new PlayerExperimentContext("Wonder_Pop", "wp", false, true);
-            Assert.IsFalse(log.RecordExposure(d, child.PlayerId, ExperimentAssigner.Assign(d, child)));
-            Assert.IsFalse(log.RecordExposure(d, noConsent.PlayerId, ExperimentAssigner.Assign(d, noConsent)));
-            Assert.IsFalse(log.RecordExposure(d, wp.PlayerId, ExperimentAssigner.Assign(d, wp)));
+            for (int i = 0; i < 200; i++)
+            {
+                Assert.IsFalse(log.RecordExposure(d, new PlayerExperimentContext("Wonder_Pop", "wp" + i, false, true)));
+                Assert.IsFalse(log.RecordExposure(d, new PlayerExperimentContext("Coral_Rescue", "kid" + i, true, true)));
+                Assert.IsFalse(log.RecordExposure(d, new PlayerExperimentContext("Coral_Rescue", "nc" + i, false, false)));
+                Assert.IsFalse(log.RecordExposure(Def(ExperimentState.RolledBack), Adult("rb" + i)));
+            }
             Assert.AreEqual(0, log.Count);
+            Assert.IsFalse(log.TryGetExposure(d, "kid0", out _));
+            CollectionAssert.AreEqual(new long[] { 0, 0 }, log.VariantCounts(d));
+            Assert.AreEqual(0, log.HoldoutCount(d));
 
             var adult = Adult("adult");
-            Assert.IsTrue(log.RecordExposure(d, adult.PlayerId, ExperimentAssigner.Assign(d, adult)));
-            Assert.IsFalse(log.RecordExposure(d, adult.PlayerId, ExperimentAssigner.Assign(d, adult)));
+            Assert.IsTrue(log.RecordExposure(d, adult));
+            Assert.IsFalse(log.RecordExposure(d, adult));
             Assert.AreEqual(1, log.Count);
+        }
+
+        [Test]
+        public void Exposure_PublicApi_HasNoUncheckedEntryPoint()
+        {
+            var overloads = new List<string>();
+            foreach (var m in typeof(ExposureLog).GetMethods())
+                if (m.Name == "RecordExposure")
+                {
+                    var ps = m.GetParameters();
+                    overloads.Add(ps.Length == 2 ? ps[0].ParameterType.Name + "," + ps[1].ParameterType.Name : ps.Length.ToString());
+                }
+            CollectionAssert.AreEqual(new[] { "ExperimentDefinition,PlayerExperimentContext" }, overloads);
+            Assert.IsEmpty(typeof(ExperimentAssignment).GetConstructors(), "assignments can only come from ExperimentAssigner");
+            Assert.IsEmpty(typeof(ExposureRecord).GetConstructors());
+        }
+
+        [Test]
+        public void Exposure_StoresServedVariant_HoldoutDistinctFromControl_CountsFeedSrm()
+        {
+            var d = Def(ExperimentState.Running, 10);
+            var log = new ExposureLog();
+            const int n = 20000;
+            string holdoutPlayer = null, controlPlayer = null;
+            for (int i = 0; i < n; i++)
+            {
+                var ctx = Adult("synthetic-" + i);
+                Assert.IsTrue(log.RecordExposure(d, ctx));
+                Assert.IsTrue(log.TryGetExposure(d, ctx.PlayerId, out var rec));
+                var a = ExperimentAssigner.Assign(d, ctx);
+                Assert.AreEqual(a.Kind, rec.Kind);
+                Assert.AreEqual(a.VariantName, rec.VariantName);
+                if (rec.Kind == ExperimentAssignmentKind.Holdout) holdoutPlayer = ctx.PlayerId;
+                else if (rec.VariantName == "control") controlPlayer = ctx.PlayerId;
+            }
+            Assert.IsNotNull(holdoutPlayer);
+            Assert.IsNotNull(controlPlayer);
+            log.TryGetExposure(d, holdoutPlayer, out var h);
+            Assert.AreEqual(ExperimentAssignmentKind.Holdout, h.Kind);
+            Assert.AreEqual("control", h.VariantName, "holdout is served control but recorded as Holdout");
+
+            var counts = log.VariantCounts(d);
+            long holdout = log.HoldoutCount(d);
+            Assert.AreEqual(2, counts.Count);
+            Assert.AreEqual(n, counts[0] + counts[1] + holdout, "holdout is not folded into control");
+            Assert.AreEqual(0.10, holdout / (double)n, 0.02);
+
+            var srm = SampleRatioGuardrail.Check(counts, new[] { d.Variants[0].Weight, d.Variants[1].Weight });
+            Assert.IsFalse(srm.IsMismatch, "balanced exposures pass SRM, chi2=" + srm.ChiSquare);
+            // Folding holdout into control would skew 50/50 by ~10 points and must trip the guardrail.
+            var folded = SampleRatioGuardrail.Check(new[] { counts[0] + holdout, counts[1] }, new[] { 50, 50 });
+            Assert.IsTrue(folded.IsMismatch, "chi2=" + folded.ChiSquare);
+
+            Assert.Throws<NotSupportedException>(() => ((IList<long>)counts)[0] = 0);
         }
 
         // ---- SRM guardrail ----
