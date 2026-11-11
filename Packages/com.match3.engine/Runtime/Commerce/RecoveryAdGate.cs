@@ -33,7 +33,7 @@ namespace Match3.Engine.Runtime.Commerce
             string gameId,
             AdConsentStatus consent,
             RecoveryOfferPolicy policy,
-            KidProfilePolicy kidPolicy)
+            bool isKidProfile)
         {
             if (!policy.IsEnabled)
                 return AdEligibilityResult.Ineligible("RecoveryOfferDisabled");
@@ -41,11 +41,20 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("WonderPopRecoveryProhibited");
 
-            if (kidPolicy.AdsProhibited)
+            // Unconditional: kid profiles are never shown ads
+            if (isKidProfile)
                 return AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
 
             return AdEligibilityGate.Check(gameId, consent);
         }
+
+        [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]
+        public static AdEligibilityResult CheckRecoveryEligibility(
+            string gameId,
+            AdConsentStatus consent,
+            RecoveryOfferPolicy policy,
+            KidProfilePolicy kidPolicy) =>
+            CheckRecoveryEligibility(gameId, consent, policy, isKidProfile: true);
 
         public static bool CanGrantRecoveryReward(RewardGrantStatus grantStatus) =>
             grantStatus == RewardGrantStatus.Granted;

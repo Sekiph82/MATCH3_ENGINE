@@ -2,26 +2,37 @@ using System;
 
 namespace Match3.Engine.Runtime.Commerce
 {
+    /// <summary>
+    /// Kid profiles are ALWAYS ads- and IAP-prohibited for every game. No policy value can relax this;
+    /// the flags below are retained for API compatibility only and always report "prohibited".
+    /// </summary>
     public readonly struct KidProfilePolicy
     {
-        public bool AdsProhibited { get; }
-        public bool IapProhibited { get; }
+        [Obsolete("Ignored: kid profiles are always ads-prohibited, under every policy.")]
+        public bool AdsProhibited => true;
+        [Obsolete("Ignored: kid profiles are always IAP-prohibited, under every policy.")]
+        public bool IapProhibited => true;
         public string PolicyJustification { get; }
 
-        public KidProfilePolicy(bool adsProhibited, bool iapProhibited, string policyJustification)
+        private KidProfilePolicy(string policyJustification)
         {
             if (string.IsNullOrEmpty(policyJustification))
                 throw new ArgumentException("PolicyJustification must not be null or empty.", nameof(policyJustification));
-            AdsProhibited = adsProhibited;
-            IapProhibited = iapProhibited;
             PolicyJustification = policyJustification;
         }
 
-        public static KidProfilePolicy Restricted(string justification) =>
-            new KidProfilePolicy(true, true, justification);
+        [Obsolete("Ignored flags: kid profiles are always ads- and IAP-prohibited. Use KidProfilePolicy.Restricted.")]
+        public KidProfilePolicy(bool adsProhibited, bool iapProhibited, string policyJustification)
+            : this(policyJustification)
+        {
+        }
 
+        public static KidProfilePolicy Restricted(string justification) =>
+            new KidProfilePolicy(justification);
+
+        [Obsolete("Ignored: kid profiles are always ads- and IAP-prohibited; this returns a restricted policy. For non-kid profiles pass isKidProfile: false to the commerce gates.")]
         public static KidProfilePolicy Unrestricted(string justification) =>
-            new KidProfilePolicy(false, false, justification);
+            new KidProfilePolicy(justification);
 
         public static KidProfilePolicy Default =>
             Restricted("No expert review completed; fail-closed by default");
@@ -29,28 +40,11 @@ namespace Match3.Engine.Runtime.Commerce
 
     public static class KidProfileGate
     {
-        private const string WonderPopId = "Wonder_Pop";
+        // Unconditional: a kid profile is never ad-eligible, for any game, under any policy.
+        public static AdEligibilityResult CheckAdEligibility(string gameId, KidProfilePolicy policy) =>
+            AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
 
-        public static AdEligibilityResult CheckAdEligibility(string gameId, KidProfilePolicy policy)
-        {
-            if (policy.AdsProhibited)
-                return AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
-
-            if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
-                return AdEligibilityResult.Ineligible("WonderPopKidProfile");
-
-            return AdEligibilityResult.Eligible();
-        }
-
-        public static bool IsSdkLinkingAllowed(string gameId, KidProfilePolicy policy)
-        {
-            if (policy.AdsProhibited)
-                return false;
-
-            if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
-                return false;
-
-            return true;
-        }
+        // Unconditional: ad SDKs are never linked for a kid profile, for any game, under any policy.
+        public static bool IsSdkLinkingAllowed(string gameId, KidProfilePolicy policy) => false;
     }
 }

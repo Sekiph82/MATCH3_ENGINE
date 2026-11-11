@@ -45,13 +45,13 @@ namespace Match3.Engine.Runtime.Analytics
     public readonly struct ConsentPolicy
     {
         public bool RequireExplicitConsent { get; }
-        public bool AllowChildSafeAnalytics { get; }
+        [Obsolete("Ignored: ChildSafe-basis analytics are always blocked, under every policy.")]
+        public bool AllowChildSafeAnalytics => false;
         public string PolicyDescription { get; }
 
-        private ConsentPolicy(bool requireExplicitConsent, bool allowChildSafeAnalytics, string policyDescription)
+        private ConsentPolicy(bool requireExplicitConsent, string policyDescription)
         {
             RequireExplicitConsent = requireExplicitConsent;
-            AllowChildSafeAnalytics = allowChildSafeAnalytics;
             PolicyDescription = policyDescription;
         }
 
@@ -59,7 +59,7 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (string.IsNullOrEmpty(desc))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(desc));
-            return new ConsentPolicy(true, false, desc);
+            return new ConsentPolicy(true, desc);
         }
 
         public static readonly ConsentPolicy Default =
@@ -71,31 +71,41 @@ namespace Match3.Engine.Runtime.Analytics
         public static bool CanCollectAnalytics(string gameId, ConsentRecord record, ConsentPolicy policy,
             out string ineligibilityReason)
         {
-            // Guard 1 (FIRST): Wonder_Pop is structurally prohibited (Ordinal)
+            if (policy.PolicyDescription == null) policy = ConsentPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+            {
+                ineligibilityReason = "GameIdMismatch";
+                return false;
+            }
+
+            // Wonder_Pop is structurally prohibited (Ordinal)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
             {
                 ineligibilityReason = "WonderPopAnalyticsProhibited";
                 return false;
             }
 
-            // Guard 2: revoked consent
+            // Unconditional: revoked consent
             if (record.IsRevoked)
             {
                 ineligibilityReason = "ConsentRevoked";
                 return false;
             }
 
-            // Guard 3: policy requires explicit consent but basis is not ExplicitConsent
-            if (policy.RequireExplicitConsent && record.Basis != ConsentBasis.ExplicitConsent)
+            // Unconditional: child-safe basis is never an analytics basis, under any policy
+            if (record.Basis == ConsentBasis.ChildSafe)
             {
-                ineligibilityReason = "ExplicitConsentRequired";
+                ineligibilityReason = "ChildSafeAnalyticsDisabled";
                 return false;
             }
 
-            // Guard 4: policy disallows ChildSafe analytics and basis is ChildSafe
-            if (!policy.AllowChildSafeAnalytics && record.Basis == ConsentBasis.ChildSafe)
+            // Unconditional: NoneRequired carries no lawful basis (!IsAnalyticsAllowed).
+            // Policy may only add restriction: RequireExplicitConsent also blocks LegitimateInterest.
+            if (!record.IsAnalyticsAllowed ||
+                (policy.RequireExplicitConsent && record.Basis != ConsentBasis.ExplicitConsent))
             {
-                ineligibilityReason = "ChildSafeAnalyticsDisabled";
+                ineligibilityReason = "ExplicitConsentRequired";
                 return false;
             }
 
@@ -104,7 +114,7 @@ namespace Match3.Engine.Runtime.Analytics
         }
 
         public static bool RequiresExplicitConsent(ConsentPolicy policy)
-            => policy.RequireExplicitConsent;
+            => (policy.PolicyDescription == null ? ConsentPolicy.Default : policy).RequireExplicitConsent;
 
         public static bool IsConsentActive(ConsentRecord record)
             => record.IsAnalyticsAllowed;

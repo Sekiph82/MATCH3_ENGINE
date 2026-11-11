@@ -38,14 +38,14 @@ namespace Match3.Engine.Runtime.Analytics
 
     public readonly struct ReconciliationPolicy
     {
-        public bool AllowMediationReconciliation { get; }
-        public bool RequireStoreAuthority { get; }
+        [Obsolete("Ignored: store receipt authority is always required, so mediation reports are never reconciled.")]
+        public bool AllowMediationReconciliation => false;
+        [Obsolete("Ignored: store receipt authority is always required for revenue entries, under every policy.")]
+        public bool RequireStoreAuthority => true;
         public string PolicyDescription { get; }
 
-        private ReconciliationPolicy(bool allowMediation, bool requireStore, string desc)
+        private ReconciliationPolicy(string desc)
         {
-            AllowMediationReconciliation = allowMediation;
-            RequireStoreAuthority = requireStore;
             PolicyDescription = desc;
         }
 
@@ -53,7 +53,7 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (string.IsNullOrEmpty(desc))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(desc));
-            return new ReconciliationPolicy(false, true, desc);
+            return new ReconciliationPolicy(desc);
         }
 
         public static ReconciliationPolicy Default =>
@@ -69,16 +69,21 @@ namespace Match3.Engine.Runtime.Analytics
             ReconciliationEntry entry,
             ReconciliationPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop ordinal block
+            if (policy.PolicyDescription == null) policy = ReconciliationPolicy.Default;
+
+            if (!string.Equals(gameId, entry.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Wonder_Pop ordinal block
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return (false, "WonderPopReconciliationProhibited");
 
-            // Guard 2: mediation disabled
-            if (entry.Source == ReconciliationSource.MediationReport && !policy.AllowMediationReconciliation)
+            // Unconditional: mediation reports are never revenue authority
+            if (entry.Source == ReconciliationSource.MediationReport)
                 return (false, "MediationReconciliationDisabled");
 
-            // Guard 3: store authority required
-            if (policy.RequireStoreAuthority && !entry.IsStoreAuthoritative)
+            // Unconditional: store receipt authority is required for every revenue entry
+            if (!entry.IsStoreAuthoritative)
                 return (false, "StoreAuthorityRequired");
 
             return (true, string.Empty);

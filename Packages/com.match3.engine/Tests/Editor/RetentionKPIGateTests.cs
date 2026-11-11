@@ -8,6 +8,12 @@ namespace Match3.Engine.Tests.Editor
     [TestFixture]
     public class RetentionKPIGateTests
     {
+        private static ConsentRecord Consent(string gameId) =>
+            ConsentRecord.Create(gameId, ConsentBasis.ExplicitConsent);
+
+        private static readonly RetentionPolicy[] AllConstructiblePolicies =
+            { RetentionPolicy.Safe("desc"), RetentionPolicy.Default, default(RetentionPolicy) };
+
         // ---- RetentionRecord argument guards ----
 
         [Test]
@@ -82,7 +88,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = RetentionPolicy.Safe("desc");
             Assert.IsTrue(p.ExcludeTestDevices);
-            Assert.IsTrue(p.RequireLawfulBasis);
             Assert.AreEqual("desc", p.PolicyDescription);
         }
 
@@ -91,7 +96,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = RetentionPolicy.Default;
             Assert.IsTrue(p.ExcludeTestDevices);
-            Assert.IsTrue(p.RequireLawfulBasis);
             Assert.IsFalse(string.IsNullOrEmpty(p.PolicyDescription));
         }
 
@@ -101,7 +105,7 @@ namespace Match3.Engine.Tests.Editor
         public void WonderPop_ExactCase_Blocked()
         {
             var r = RetentionRecord.Create("Wonder_Pop", RetentionWindow.Day1);
-            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("Wonder_Pop", r, RetentionPolicy.Default);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("Wonder_Pop", r, Consent("Wonder_Pop"), RetentionPolicy.Default);
             Assert.IsFalse(eligible);
             Assert.AreEqual("WonderPopRetentionProhibited", reason);
         }
@@ -110,9 +114,8 @@ namespace Match3.Engine.Tests.Editor
         public void WonderPop_LowercaseNotBlocked()
         {
             var r = RetentionRecord.Create("wonder_pop", RetentionWindow.Day1);
-            var (eligible, _) = RetentionKPIGate.CanRecordRetention("wonder_pop", r, RetentionPolicy.Default);
-            // "wonder_pop" != "Wonder_Pop" (Ordinal) — Guard 1 must NOT fire; result depends on later guards
-            // With Default policy: ExcludeTestDevices=true but IsTestDevice=false → eligible
+            var (eligible, _) = RetentionKPIGate.CanRecordRetention("wonder_pop", r, Consent("wonder_pop"), RetentionPolicy.Default);
+            // Ordinal: "wonder_pop" is not the Wonder_Pop guard; consented, non-test device → eligible
             Assert.IsTrue(eligible);
         }
 
@@ -122,29 +125,92 @@ namespace Match3.Engine.Tests.Editor
         public void TestDevice_WithExcludePolicy_Blocked()
         {
             var r = RetentionRecord.CreateTestDevice("GameB", RetentionWindow.Day7);
-            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameB", r, RetentionPolicy.Default);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameB", r, Consent("GameB"), RetentionPolicy.Default);
             Assert.IsFalse(eligible);
             Assert.AreEqual("TestDeviceExcluded", reason);
         }
 
-        // ---- Guard 3: NoLawfulBasis (ExcludeTestDevices=false, RequireLawfulBasis=true, IsTestDevice=true) ----
+        [Test]
+        public void TestDevice_ExcludedByDefaultStructPolicy()
+        {
+            var r = RetentionRecord.CreateTestDevice("GameB", RetentionWindow.Day7);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameB", r, Consent("GameB"), default(RetentionPolicy));
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("TestDeviceExcluded", reason);
+        }
+
+        // ---- Unconditional analytics consent ----
 
         [Test]
-        public void NoLawfulBasis_Guard_Fires_WhenExcludeOffRequireOn()
+        public void NoAnalyticsConsent_BlockedUnderEveryConstructiblePolicy()
         {
-            var policy = RetentionPolicy.Safe("custom"); // has RequireLawfulBasis=true
-            // Build a policy with ExcludeTestDevices=false but RequireLawfulBasis=true via reflection workaround:
-            // We can't set fields directly (readonly struct), so we test via CanRecordRetention behavior.
-            // Use a non-test device record → should be eligible (IsEligible=true) → no NoLawfulBasis
-            var r = RetentionRecord.CreateTestDevice("GameC", RetentionWindow.Day30);
-            // With Default (ExcludeTestDevices=true), Guard 2 fires first. We need ExcludeTestDevices=false.
-            // RetentionPolicy Safe always has ExcludeTestDevices=true; use a fresh policy via constructor via Safe with tweaked values.
-            // Since we can't set ExcludeTestDevices=false via public API (Safe always sets it true),
-            // validate via IsEligibleDevice helper instead, and confirm the guard path documented in spec:
-            Assert.IsFalse(RetentionKPIGate.IsEligibleDevice(r)); // IsTestDevice=true → !IsEligible
-            Assert.IsTrue(policy.RequireLawfulBasis);
-            // Guard 3 fires when: ExcludeTestDevices=false AND RequireLawfulBasis=true AND IsTestDevice=true
-            // This is the defensive guard path; tested through IsEligibleDevice semantics above.
+            var r = RetentionRecord.Create("GameC", RetentionWindow.Day30);
+            var noConsent = new[]
+            {
+                ConsentRecord.Create("GameC", ConsentBasis.NoneRequired),
+                ConsentRecord.Create("GameC", ConsentBasis.ChildSafe),
+                ConsentRecord.Create("GameC", ConsentBasis.LegitimateInterest),
+                ConsentRecord.Revoke(ConsentRecord.Create("GameC", ConsentBasis.ExplicitConsent)),
+            };
+            foreach (var policy in AllConstructiblePolicies)
+                foreach (var consent in noConsent)
+                {
+                    var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameC", r, consent, policy);
+                    Assert.IsFalse(eligible);
+                    Assert.AreEqual("AnalyticsConsentRequired", reason);
+                }
+        }
+
+        [Test]
+        public void ObsoleteOverload_ConsentUnknown_FailsClosed()
+        {
+            var r = RetentionRecord.Create("GameC", RetentionWindow.Day1);
+#pragma warning disable 0618
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameC", r, policy);
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("AnalyticsConsentRequired", reason);
+            }
+#pragma warning restore 0618
+        }
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var r = RetentionRecord.CreateTestDevice("GameC", RetentionWindow.Day1);
+            var (e1, expected) = RetentionKPIGate.CanRecordRetention("GameC", r, Consent("GameC"), RetentionPolicy.Default);
+            var (e2, reason) = RetentionKPIGate.CanRecordRetention("GameC", r, Consent("GameC"), default(RetentionPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var r = RetentionRecord.Create("Wonder_Pop", RetentionWindow.Day1);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("Coral_Rescue", r, Consent("Coral_Rescue"), RetentionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var r = RetentionRecord.Create("Coral_Rescue", RetentionWindow.Day1);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("Wonder_Pop", r, Consent("Wonder_Pop"), RetentionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void ConsentForOtherGame_GameIdMismatch()
+        {
+            var r = RetentionRecord.Create("Coral_Rescue", RetentionWindow.Day1);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("Coral_Rescue", r, Consent("Wonder_Pop"), RetentionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         // ---- Helpers ----
@@ -164,9 +230,10 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void RequiresLawfulBasis_ReturnsPolicy()
+        public void RequiresLawfulBasis_AlwaysTrue()
         {
-            Assert.IsTrue(RetentionKPIGate.RequiresLawfulBasis(RetentionPolicy.Default));
+            foreach (var policy in AllConstructiblePolicies)
+                Assert.IsTrue(RetentionKPIGate.RequiresLawfulBasis(policy));
         }
 
         // ---- RetentionLog ----
@@ -223,7 +290,7 @@ namespace Match3.Engine.Tests.Editor
         public void EligibleRecord_PassesAllGuards()
         {
             var r = RetentionRecord.Create("GameZ", RetentionWindow.Day30);
-            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameZ", r, RetentionPolicy.Default);
+            var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameZ", r, Consent("GameZ"), RetentionPolicy.Default);
             Assert.IsTrue(eligible);
             Assert.AreEqual(string.Empty, reason);
         }

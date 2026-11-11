@@ -32,7 +32,7 @@ namespace Match3.Engine.Runtime.Commerce
         private const string WonderPopId = "Wonder_Pop";
 
         public static AdEligibilityResult CheckEntitlementEligibility(
-            string gameId, EntitlementPolicy policy, KidProfilePolicy kidPolicy)
+            string gameId, EntitlementPolicy policy, bool isKidProfile)
         {
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("WonderPopEntitlementProhibited");
@@ -40,11 +40,17 @@ namespace Match3.Engine.Runtime.Commerce
             if (!policy.PurchasesAllowed)
                 return AdEligibilityResult.Ineligible("EntitlementPurchasesRestricted");
 
-            if (kidPolicy.IapProhibited)
+            // Unconditional: kid profiles are never IAP-eligible
+            if (isKidProfile)
                 return AdEligibilityResult.Ineligible("KidProfileEntitlementProhibited");
 
             return AdEligibilityResult.Eligible();
         }
+
+        [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]
+        public static AdEligibilityResult CheckEntitlementEligibility(
+            string gameId, EntitlementPolicy policy, KidProfilePolicy kidPolicy) =>
+            CheckEntitlementEligibility(gameId, policy, isKidProfile: true);
 
         // Non-consumables always need server verification regardless of policy hint.
         public static bool IsServerVerificationRequired(EntitlementPolicy policy) => true;

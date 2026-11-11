@@ -34,48 +34,71 @@ namespace Match3.Engine.Runtime.Analytics
     public readonly struct RetentionPolicy
     {
         public bool ExcludeTestDevices { get; }
-        public bool RequireLawfulBasis { get; }
+        [Obsolete("Ignored: analytics consent (lawful basis) is always required for retention KPIs, under every policy.")]
+        public bool RequireLawfulBasis => true;
         public string PolicyDescription { get; }
 
-        private RetentionPolicy(bool excludeTestDevices, bool requireLawfulBasis, string policyDescription)
+        private RetentionPolicy(bool excludeTestDevices, string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
             ExcludeTestDevices = excludeTestDevices;
-            RequireLawfulBasis = requireLawfulBasis;
             PolicyDescription = policyDescription;
         }
 
-        public static RetentionPolicy Safe(string desc) => new RetentionPolicy(true, true, desc);
+        public static RetentionPolicy Safe(string desc) => new RetentionPolicy(true, desc);
 
         public static RetentionPolicy Default =>
-            Safe("Test devices excluded; lawful basis required for retention KPIs");
+            Safe("Test devices excluded; explicit analytics consent required for retention KPIs");
     }
 
     public static class RetentionKPIGate
     {
+        /// <summary>
+        /// Consent-aware retention gate. Analytics consent is evaluated by
+        /// <see cref="ConsentAnalyticsGate"/> under <see cref="ConsentPolicy.Default"/> (explicit consent,
+        /// never ChildSafe/NoneRequired/revoked) and is required unconditionally.
+        /// </summary>
         public static (bool eligible, string reason) CanRecordRetention(
-            string gameId, RetentionRecord record, RetentionPolicy policy)
+            string gameId, RetentionRecord record, ConsentRecord consent, RetentionPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop is structurally first
+            if (policy.PolicyDescription == null) policy = RetentionPolicy.Default;
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal) ||
+                !string.Equals(gameId, consent.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopRetentionProhibited");
 
-            // Guard 2: test device exclusion
+            // Unconditional: explicit analytics consent is required under every policy
+            if (!ConsentAnalyticsGate.CanCollectAnalytics(gameId, consent, ConsentPolicy.Default, out _))
+                return (false, "AnalyticsConsentRequired");
+
             if (policy.ExcludeTestDevices && record.IsTestDevice)
                 return (false, "TestDeviceExcluded");
-
-            // Guard 3: lawful basis required but device is not eligible
-            // ponytail: fires only when ExcludeTestDevices=false, RequireLawfulBasis=true, IsTestDevice=true
-            if (policy.RequireLawfulBasis && !record.IsEligible)
-                return (false, "NoLawfulBasis");
 
             return (true, string.Empty);
         }
 
+        /// <summary>Consent unknown: fails closed with "AnalyticsConsentRequired".</summary>
+        [Obsolete("Consent unknown: always ineligible (AnalyticsConsentRequired). Use the overload taking a ConsentRecord.")]
+        public static (bool eligible, string reason) CanRecordRetention(
+            string gameId, RetentionRecord record, RetentionPolicy policy)
+        {
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
+                return (false, "WonderPopRetentionProhibited");
+
+            return (false, "AnalyticsConsentRequired");
+        }
+
         public static bool IsEligibleDevice(RetentionRecord record) => record.IsEligible;
 
-        public static bool RequiresLawfulBasis(RetentionPolicy policy) => policy.RequireLawfulBasis;
+        // Analytics consent (lawful basis) is unconditional; the policy cannot waive it.
+        public static bool RequiresLawfulBasis(RetentionPolicy policy) => true;
     }
 
     public sealed class RetentionLog
@@ -96,7 +119,7 @@ namespace Match3.Engine.Runtime.Analytics
         public bool HasEntry(string gameId)
         {
             foreach (var e in _entries)
-                if (e.gameId == gameId) return true;
+                if (string.Equals(e.gameId, gameId, StringComparison.Ordinal)) return true;
             return false;
         }
     }

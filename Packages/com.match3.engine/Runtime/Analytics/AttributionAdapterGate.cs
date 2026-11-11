@@ -40,13 +40,13 @@ namespace Match3.Engine.Runtime.Analytics
     public readonly struct AttributionPolicy
     {
         public bool AllowCrossAppTracking { get; }
-        public bool RequireExplicitConsent { get; }
+        [Obsolete("Ignored: explicit tracking consent (AttributionToken.TrackingAllowed) is always required, under every policy.")]
+        public bool RequireExplicitConsent => true;
         public string PolicyDescription { get; }
 
-        private AttributionPolicy(bool allowCrossApp, bool requireConsent, string description)
+        private AttributionPolicy(bool allowCrossApp, string description)
         {
             AllowCrossAppTracking = allowCrossApp;
-            RequireExplicitConsent = requireConsent;
             PolicyDescription = description;
         }
 
@@ -54,7 +54,7 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (string.IsNullOrEmpty(desc))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(desc));
-            return new AttributionPolicy(false, true, desc);
+            return new AttributionPolicy(false, desc);
         }
 
         public static readonly AttributionPolicy Default =
@@ -66,11 +66,16 @@ namespace Match3.Engine.Runtime.Analytics
         public static (bool eligible, string reason) CanRecordAttribution(
             string gameId, AttributionToken token, AttributionPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop is always ineligible (Ordinal)
+            if (policy.PolicyDescription == null) policy = AttributionPolicy.Default;
+
+            if (!string.Equals(gameId, token.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Wonder_Pop is always ineligible (Ordinal)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopAttributionProhibited");
 
-            // Guard 2: tracking not allowed on the token
+            // Unconditional: explicit tracking consent (token.TrackingAllowed) is required under every policy
             if (!token.TrackingAllowed)
                 return (false, "TrackingNotAllowed");
 
@@ -83,7 +88,8 @@ namespace Match3.Engine.Runtime.Analytics
 
         public static bool IsOrganicInstall(AttributionToken token) => token.IsOrganic;
 
-        public static bool RequiresConsent(AttributionPolicy policy) => policy.RequireExplicitConsent;
+        // Explicit consent is unconditional; the policy cannot waive it.
+        public static bool RequiresConsent(AttributionPolicy policy) => true;
     }
 
     public sealed class AttributionLog

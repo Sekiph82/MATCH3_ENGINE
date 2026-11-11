@@ -67,18 +67,26 @@ namespace Match3.Engine.Runtime.Identity
         private static (bool eligible, string reason) Eligible() =>
             (true, string.Empty);
 
+        private static ChildAccountPolicy Normalize(ChildAccountPolicy policy) =>
+            policy.PolicyDescription == null ? ChildAccountPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanUseSocialFeatures(
             string gameId, ChildProfile profile, ChildAccountPolicy policy)
         {
-            // Guard 1: Wonder_Pop is always blocked (Ordinal)
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, profile.GameId, StringComparison.Ordinal))
+                return Ineligible("GameIdMismatch");
+
+            // Wonder_Pop is always blocked (Ordinal)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return Ineligible("WonderPopSocialProhibited");
 
-            // Guard 2: restricted profile
+            // Unconditional: child, unverified-minor and local-only profiles never get social features
             if (profile.IsRestricted)
                 return Ineligible("RestrictedProfileProhibited");
 
-            // Guard 3: policy disallows social
+            // Policy may only add restriction
             if (!policy.AllowSocialFeatures)
                 return Ineligible("SocialFeaturesDisabled");
 
@@ -86,17 +94,37 @@ namespace Match3.Engine.Runtime.Identity
         }
 
         public static (bool eligible, string reason) CanUsePublicHandle(
-            string gameId, ChildAccountPolicy policy)
+            string gameId, ChildProfile profile, ChildAccountPolicy policy)
         {
-            // Guard 1: Wonder_Pop is always blocked (Ordinal)
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, profile.GameId, StringComparison.Ordinal))
+                return Ineligible("GameIdMismatch");
+
+            // Wonder_Pop is always blocked (Ordinal)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return Ineligible("WonderPopHandleProhibited");
 
-            // Guard 2: policy disallows public handle
+            // Unconditional: child (MinorWithParent), MinorUnverified and local-only profiles never get a public handle
+            if (profile.IsRestricted)
+                return Ineligible("RestrictedProfileProhibited");
+
+            // Policy may only add restriction
             if (!policy.AllowPublicHandle)
                 return Ineligible("PublicHandleDisabled");
 
             return Eligible();
+        }
+
+        /// <summary>Profile unknown: fails closed with "RestrictedProfileProhibited".</summary>
+        [Obsolete("Profile unknown: always ineligible (RestrictedProfileProhibited). Use the overload taking a ChildProfile.")]
+        public static (bool eligible, string reason) CanUsePublicHandle(
+            string gameId, ChildAccountPolicy policy)
+        {
+            if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
+                return Ineligible("WonderPopHandleProhibited");
+
+            return Ineligible("RestrictedProfileProhibited");
         }
 
         public static bool IsChildRestricted(ChildProfile profile) => profile.IsRestricted;
@@ -111,6 +139,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public void Record(ChildProfile profile, bool allowed, string reason)
         {
+            if (string.IsNullOrEmpty(profile.GameId))
+                throw new ArgumentException("Profile GameId must not be null or empty.", nameof(profile));
             if (string.IsNullOrEmpty(reason))
                 throw new ArgumentException("Reason must not be null or empty.", nameof(reason));
             _entries.Add((profile, allowed, reason));
@@ -121,7 +151,7 @@ namespace Match3.Engine.Runtime.Identity
         public bool HasEntry(string gameId)
         {
             foreach (var e in _entries)
-                if (e.profile.GameId == gameId) return true;
+                if (string.Equals(e.profile.GameId, gameId, StringComparison.Ordinal)) return true;
             return false;
         }
     }

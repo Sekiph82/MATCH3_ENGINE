@@ -57,7 +57,7 @@ namespace Match3.Engine.Runtime.Commerce
     public static class ConsumableGoodsGate
     {
         public static AdEligibilityResult CheckPurchaseEligibility(
-            string gameId, ConsumablePolicy policy, KidProfilePolicy kidPolicy)
+            string gameId, ConsumablePolicy policy, bool isKidProfile)
         {
             // Guard 1: Wonder_Pop is independently blocked first, always
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
@@ -68,11 +68,17 @@ namespace Match3.Engine.Runtime.Commerce
                 return AdEligibilityResult.Ineligible("ConsumablesDisabled");
 
             // Guard 3: kid profile may prohibit IAP
-            if (kidPolicy.IapProhibited)
+            // Unconditional: kid profiles are never IAP-eligible
+            if (isKidProfile)
                 return AdEligibilityResult.Ineligible("KidProfileConsumablesProhibited");
 
             return AdEligibilityResult.Eligible();
         }
+
+        [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]
+        public static AdEligibilityResult CheckPurchaseEligibility(
+            string gameId, ConsumablePolicy policy, KidProfilePolicy kidPolicy) =>
+            CheckPurchaseEligibility(gameId, policy, isKidProfile: true);
 
         public static bool IsServerLedgerRequired(ConsumablePolicy policy) => true;
 

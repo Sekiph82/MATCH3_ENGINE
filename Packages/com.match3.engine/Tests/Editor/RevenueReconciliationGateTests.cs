@@ -71,11 +71,9 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void Policy_Safe_DisablesMediationRequiresStore()
+        public void Policy_Safe_SetsDescription()
         {
             var p = ReconciliationPolicy.Safe("desc");
-            Assert.IsFalse(p.AllowMediationReconciliation);
-            Assert.IsTrue(p.RequireStoreAuthority);
             Assert.AreEqual("desc", p.PolicyDescription);
         }
 
@@ -83,8 +81,6 @@ namespace Match3.Engine.Tests.Editor
         public void Policy_Default_IsCorrect()
         {
             var p = ReconciliationPolicy.Default;
-            Assert.IsFalse(p.AllowMediationReconciliation);
-            Assert.IsTrue(p.RequireStoreAuthority);
             Assert.IsFalse(string.IsNullOrEmpty(p.PolicyDescription));
         }
 
@@ -94,7 +90,7 @@ namespace Match3.Engine.Tests.Editor
         public void CanReconcile_WonderPop_Exact_Blocked_Guard1()
         {
             var entry = ReconciliationEntry.Create("Wonder_Pop", ReconciliationSource.StoreReceipt, false);
-            var policy = new ReconciliationPolicy(); // default struct: allow mediation=false, requireStore=false
+            var policy = new ReconciliationPolicy(); // default struct: normalized to Default
             var (eligible, reason) = RevenueReconciliationGate.CanReconcile("Wonder_Pop", entry, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("WonderPopReconciliationProhibited", reason);
@@ -114,7 +110,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanReconcile_MediationDisabled_Blocked_Guard2()
         {
-            var policy = ReconciliationPolicy.Safe("desc"); // AllowMediation=false
+            var policy = ReconciliationPolicy.Safe("desc");
             var entry = ReconciliationEntry.Create("GameB", ReconciliationSource.MediationReport, false);
             var (eligible, reason) = RevenueReconciliationGate.CanReconcile("GameB", entry, policy);
             Assert.IsFalse(eligible);
@@ -124,7 +120,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanReconcile_StoreAuthorityRequired_InternalEvent_Blocked_Guard3()
         {
-            var policy = ReconciliationPolicy.Safe("desc"); // RequireStore=true
+            var policy = ReconciliationPolicy.Safe("desc");
             var entry = ReconciliationEntry.Create("GameC", ReconciliationSource.InternalEvent, false);
             var (eligible, reason) = RevenueReconciliationGate.CanReconcile("GameC", entry, policy);
             Assert.IsFalse(eligible);
@@ -140,19 +136,64 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(eligible);
         }
 
+        private static readonly ReconciliationPolicy[] AllConstructiblePolicies =
+            { ReconciliationPolicy.Safe("desc"), ReconciliationPolicy.Default, default(ReconciliationPolicy) };
+
         [Test]
-        public void CanReconcile_MediationAllowed_Eligible()
+        public void CanReconcile_NonStoreSources_BlockedUnderEveryConstructiblePolicy()
         {
-            // Custom policy with mediation allowed and no store requirement
-            // We need a custom policy — use struct with AllowMediationReconciliation=true via a workaround
-            // The only public factory is Safe() (disallows) and Default (disallows).
-            // So we test with InternalEvent + policy that allows it:
-            // Since no factory exists for allow=true, we create StoreReceipt which bypasses guard3 too.
-            var policy = ReconciliationPolicy.Safe("desc");
+            var mediation = ReconciliationEntry.Create("GameE", ReconciliationSource.MediationReport, false);
+            var internalEvent = ReconciliationEntry.Create("GameE", ReconciliationSource.InternalEvent, false);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (e1, r1) = RevenueReconciliationGate.CanReconcile("GameE", mediation, policy);
+                Assert.IsFalse(e1);
+                Assert.AreEqual("MediationReconciliationDisabled", r1);
+                var (e2, r2) = RevenueReconciliationGate.CanReconcile("GameE", internalEvent, policy);
+                Assert.IsFalse(e2);
+                Assert.AreEqual("StoreAuthorityRequired", r2);
+            }
+        }
+
+        [Test]
+        public void CanReconcile_StoreReceipt_EligibleUnderEveryConstructiblePolicy()
+        {
             var entry = ReconciliationEntry.Create("GameE", ReconciliationSource.StoreReceipt, false);
-            var (eligible, reason) = RevenueReconciliationGate.CanReconcile("GameE", entry, policy);
-            Assert.IsTrue(eligible);
-            Assert.AreEqual(string.Empty, reason);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (eligible, reason) = RevenueReconciliationGate.CanReconcile("GameE", entry, policy);
+                Assert.IsTrue(eligible);
+                Assert.AreEqual(string.Empty, reason);
+            }
+        }
+
+        [Test]
+        public void CanReconcile_DefaultStructPolicy_FailsClosed()
+        {
+            var entry = ReconciliationEntry.Create("GameE", ReconciliationSource.InternalEvent, false);
+            var (e1, expected) = RevenueReconciliationGate.CanReconcile("GameE", entry, ReconciliationPolicy.Default);
+            var (e2, reason) = RevenueReconciliationGate.CanReconcile("GameE", entry, default(ReconciliationPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+        }
+
+        [Test]
+        public void CanReconcile_GameIdMismatch_Blocked()
+        {
+            var entry = ReconciliationEntry.Create("Wonder_Pop", ReconciliationSource.StoreReceipt, false);
+            var (eligible, reason) = RevenueReconciliationGate.CanReconcile("Coral_Rescue", entry, ReconciliationPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void CanReconcile_WonderPopParam_EntryDiffers_GameIdMismatch()
+        {
+            var entry = ReconciliationEntry.Create("Coral_Rescue", ReconciliationSource.StoreReceipt, false);
+            var (eligible, reason) = RevenueReconciliationGate.CanReconcile("Wonder_Pop", entry, ReconciliationPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         // --- Helpers ---

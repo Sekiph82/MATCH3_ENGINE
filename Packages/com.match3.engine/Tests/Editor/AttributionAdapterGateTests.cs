@@ -70,7 +70,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = AttributionPolicy.Safe("test");
             Assert.IsFalse(p.AllowCrossAppTracking);
-            Assert.IsTrue(p.RequireExplicitConsent);
             Assert.AreEqual("test", p.PolicyDescription);
         }
 
@@ -79,7 +78,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var d = AttributionPolicy.Default;
             Assert.IsFalse(d.AllowCrossAppTracking);
-            Assert.IsTrue(d.RequireExplicitConsent);
             Assert.AreEqual("Cross-app tracking disabled; explicit consent required", d.PolicyDescription);
         }
 
@@ -155,18 +153,62 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(eligible);
         }
 
+        private static readonly AttributionPolicy[] AllConstructiblePolicies =
+            { AttributionPolicy.Safe("desc"), AttributionPolicy.Default, default(AttributionPolicy) };
+
         [Test]
-        public void Gate_PaidSearch_CrossAppAllowed_IsEligible()
+        public void Gate_PaidSearch_BlockedUnderEveryConstructiblePolicy()
         {
+            // No factory can enable cross-app tracking; default(struct) normalizes to Default.
             var token = AttributionToken.Create("GameA", AttributionChannel.PaidSearch, true);
-            // Build a policy with AllowCrossAppTracking=true via reflection is not needed —
-            // use Safe's inverse: craft a custom-compatible path via Wonder_Pop guard bypass.
-            // Since there is no Allow() factory, we confirm Guard 3 is about AllowCrossAppTracking.
-            // We cannot create AllowCrossAppTracking=true without a factory;
-            // instead, verify that eligible path works with Organic (already tested above).
-            // This test documents the guard boundary: paid + tracking allowed + cross-app allowed = eligible.
-            // We skip this if no Allow factory exists; guard-3 is confirmed blocked above.
-            Assert.Pass("Guard 3 documented: blocked when paid+crossAppDisabled, see other tests.");
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("CrossAppTrackingDisabled", reason);
+            }
+        }
+
+        [Test]
+        public void Gate_NoConsent_BlockedUnderEveryConstructiblePolicy()
+        {
+            var token = AttributionToken.Create("GameA", AttributionChannel.Organic, false);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("TrackingNotAllowed", reason);
+                Assert.IsTrue(AttributionAdapterGate.RequiresConsent(policy));
+            }
+        }
+
+        [Test]
+        public void Gate_DefaultStructPolicy_FailsClosed()
+        {
+            var token = AttributionToken.Create("GameA", AttributionChannel.PaidSocial, true);
+            var (e1, expected) = AttributionAdapterGate.CanRecordAttribution("GameA", token, AttributionPolicy.Default);
+            var (e2, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, default(AttributionPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+        }
+
+        [Test]
+        public void Gate_GameIdMismatch_Blocked()
+        {
+            var token = AttributionToken.Create("Wonder_Pop", AttributionChannel.Organic, true);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, AttributionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void Gate_WonderPopParam_TokenDiffers_GameIdMismatch()
+        {
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, true);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Wonder_Pop", token, AttributionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         // --- Helpers ---

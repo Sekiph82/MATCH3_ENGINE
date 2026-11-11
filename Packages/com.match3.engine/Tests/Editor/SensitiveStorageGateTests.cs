@@ -75,20 +75,32 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void SensitiveStoragePolicy_Safe_SetsFlags()
+        public void SensitiveStoragePolicy_Safe_SetsDescription()
         {
             var p = SensitiveStoragePolicy.Safe("desc");
-            Assert.IsTrue(p.RequireEncryption);
-            Assert.IsFalse(p.AllowPlaintextSensitive);
             Assert.AreEqual("desc", p.PolicyDescription);
         }
 
         [Test]
-        public void SensitiveStoragePolicy_Default_IsEncryptionRequired()
+        public void SensitiveStoragePolicy_ObsoleteFlags_AlwaysEncryptionRequired()
         {
-            var p = SensitiveStoragePolicy.Default;
-            Assert.IsTrue(p.RequireEncryption);
-            Assert.IsFalse(p.AllowPlaintextSensitive);
+#pragma warning disable 0618
+            foreach (var p in AllConstructiblePolicies)
+            {
+                Assert.IsTrue(p.RequireEncryption);
+                Assert.IsFalse(p.AllowPlaintextSensitive);
+            }
+#pragma warning restore 0618
+        }
+
+        private static readonly SensitiveStoragePolicy[] AllConstructiblePolicies =
+            { SensitiveStoragePolicy.Safe("desc"), SensitiveStoragePolicy.Default, default(SensitiveStoragePolicy) };
+
+        [Test]
+        public void StorageEntry_Create_DefaultsToUnencrypted()
+        {
+            Assert.IsFalse(StorageEntry.Create("GameA", StorageClassification.Sensitive, "k").IsEncrypted);
+            Assert.IsTrue(StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", true).IsEncrypted);
         }
 
         // ---- Guard 1: Wonder_Pop blocked (Ordinal) ----
@@ -125,23 +137,64 @@ namespace Match3.Engine.Tests.Editor
         // ---- Guard 2: PlaintextSensitiveProhibited ----
 
         [Test]
-        public void CanStoreSensitive_SensitiveAllowPlaintext_IsIneligible()
+        public void CanStoreSensitive_UnencryptedSensitive_RejectedUnderEveryPolicy()
         {
             var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
-            // Build a policy that allows plaintext
-            var policy = new SensitiveStoragePolicy_TestHelper(true, true, "permissive");
-            var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy.Build());
-            Assert.IsFalse(eligible);
-            Assert.AreEqual("PlaintextSensitiveProhibited", reason);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy);
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("PlaintextSensitiveProhibited", reason);
+            }
         }
 
         [Test]
-        public void CanStoreSensitive_SensitiveSafePolicy_IsEligible()
+        public void CanStoreSensitive_ExplicitlyUnencryptedSensitive_RejectedUnderEveryPolicy()
+        {
+            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", isEncrypted: false);
+            foreach (var policy in AllConstructiblePolicies)
+                Assert.IsFalse(SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy).eligible);
+        }
+
+        [Test]
+        public void CanStoreSensitive_EncryptedSensitive_EligibleUnderEveryPolicy()
+        {
+            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", isEncrypted: true);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy);
+                Assert.IsTrue(eligible);
+                Assert.AreEqual("Eligible", reason);
+            }
+        }
+
+        [Test]
+        public void CanStoreSensitive_DefaultStructPolicy_FailsClosed()
         {
             var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
-            var policy = SensitiveStoragePolicy.Default;
-            var (eligible, _) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy);
-            Assert.IsTrue(eligible);
+            var (e1, expected) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, SensitiveStoragePolicy.Default);
+            var (e2, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, default(SensitiveStoragePolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+        }
+
+        [Test]
+        public void CanStoreSensitive_GameIdMismatch_Blocked()
+        {
+            var entry = StorageEntry.Create("Wonder_Pop", StorageClassification.Public, "k");
+            var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, SensitiveStoragePolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void CanStoreSensitive_WonderPopParam_EntryDiffers_GameIdMismatch()
+        {
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
+            var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("Wonder_Pop", entry, SensitiveStoragePolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         [Test]
@@ -156,9 +209,10 @@ namespace Match3.Engine.Tests.Editor
         // ---- RequiresEncryption ----
 
         [Test]
-        public void RequiresEncryption_SafePolicy_ReturnsTrue()
+        public void RequiresEncryption_EveryPolicy_ReturnsTrue()
         {
-            Assert.IsTrue(SensitiveStorageGate.RequiresEncryption(SensitiveStoragePolicy.Default));
+            foreach (var policy in AllConstructiblePolicies)
+                Assert.IsTrue(SensitiveStorageGate.RequiresEncryption(policy));
         }
 
         // ---- IsSecureEntry ----
@@ -174,18 +228,24 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSecureEntry_SensitiveWithEncryption_IsTrue()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
-            var policy = SensitiveStoragePolicy.Safe("desc"); // RequireEncryption=true
-            Assert.IsTrue(SensitiveStorageGate.IsSecureEntry(entry, policy));
+            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", isEncrypted: true);
+            foreach (var policy in AllConstructiblePolicies)
+                Assert.IsTrue(SensitiveStorageGate.IsSecureEntry(entry, policy));
         }
 
         [Test]
-        public void IsSecureEntry_SensitiveWithoutEncryption_IsFalse()
+        public void IsSecureEntry_SensitiveWithoutEncryption_IsFalseUnderEveryPolicy()
         {
             var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
-            // Build policy with RequireEncryption=false, AllowPlaintextSensitive=true
-            var policy = new SensitiveStoragePolicy_TestHelper(false, true, "open").Build();
-            Assert.IsFalse(SensitiveStorageGate.IsSecureEntry(entry, policy));
+            foreach (var policy in AllConstructiblePolicies)
+                Assert.IsFalse(SensitiveStorageGate.IsSecureEntry(entry, policy));
+        }
+
+        [Test]
+        public void StorageAccessLog_Record_DefaultEntry_Throws()
+        {
+            var log = new StorageAccessLog();
+            Assert.Throws<ArgumentException>(() => log.Record(default(StorageEntry), false, "denied"));
         }
 
         // ---- StorageAccessLog ----
@@ -252,24 +312,6 @@ namespace Match3.Engine.Tests.Editor
             log.Record(entry, true, "ok");
             log.Clear();
             Assert.IsFalse(log.HasEntry("GameA"));
-        }
-
-        // Helper: build a SensitiveStoragePolicy via reflection to bypass the Safe-only factory
-        private struct SensitiveStoragePolicy_TestHelper
-        {
-            private readonly bool _req;
-            private readonly bool _allow;
-            private readonly string _desc;
-            public SensitiveStoragePolicy_TestHelper(bool req, bool allow, string desc)
-            { _req = req; _allow = allow; _desc = desc; }
-
-            public SensitiveStoragePolicy Build()
-            {
-                // Use reflection to call the private constructor
-                var ctor = typeof(SensitiveStoragePolicy).GetConstructors(
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                return (SensitiveStoragePolicy)ctor[0].Invoke(new object[] { _req, _allow, _desc });
-            }
         }
     }
 }

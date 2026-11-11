@@ -48,7 +48,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckEligibility_WonderPop_AlwaysIneligible_EvenWithEnabledPolicy()
         {
             var policy = SubscriptionPolicy.Enabled("All enabled");
-            var kid = KidProfilePolicy.Unrestricted("Not a kid");
+            var kid = false; // non-kid profile
             var result = SubscriptionGate.CheckSubscriptionEligibility("Wonder_Pop", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("WonderPopSubscriptionProhibited", result.Reason);
@@ -58,7 +58,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckEligibility_WonderPop_AlwaysIneligible_WithKidPolicy()
         {
             var policy = SubscriptionPolicy.Enabled("All enabled");
-            var kid = KidProfilePolicy.Restricted("Kid");
+            var kid = true; // kid profile
             var result = SubscriptionGate.CheckSubscriptionEligibility("Wonder_Pop", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("WonderPopSubscriptionProhibited", result.Reason);
@@ -68,7 +68,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckEligibility_DisabledPolicy_Ineligible()
         {
             var policy = SubscriptionPolicy.Default;
-            var kid = KidProfilePolicy.Unrestricted("Not a kid");
+            var kid = false; // non-kid profile
             var result = SubscriptionGate.CheckSubscriptionEligibility("SomeGame", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("SubscriptionsDisabled", result.Reason);
@@ -78,7 +78,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckEligibility_KidProfile_Ineligible()
         {
             var policy = SubscriptionPolicy.Enabled("Enabled");
-            var kid = KidProfilePolicy.Restricted("Child user");
+            var kid = true; // kid profile
             var result = SubscriptionGate.CheckSubscriptionEligibility("SomeGame", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileSubscriptionProhibited", result.Reason);
@@ -88,9 +88,32 @@ namespace Match3.Engine.Tests.Editor
         public void CheckEligibility_AllPass_Eligible()
         {
             var policy = SubscriptionPolicy.Enabled("Enabled");
-            var kid = KidProfilePolicy.Unrestricted("Adult");
+            var kid = false; // non-kid profile
             var result = SubscriptionGate.CheckSubscriptionEligibility("SomeGame", policy, kid);
             Assert.IsTrue(result.IsEligible);
+        }
+
+        [Test]
+        public void CheckEligibility_KidProfile_IneligibleForEveryGame()
+        {
+            var policy = SubscriptionPolicy.Enabled("Enabled");
+            foreach (var gameId in new[] { "Coral_Rescue", "Dino_Islands", "Garage_Legends", "The_Fractured_Realms" })
+            {
+                var result = SubscriptionGate.CheckSubscriptionEligibility(gameId, policy, true);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("KidProfileSubscriptionProhibited", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CheckEligibility_ObsoleteKidPolicyOverload_FailsClosed_EvenWithUnrestricted()
+        {
+#pragma warning disable 0618
+            var result = SubscriptionGate.CheckSubscriptionEligibility(
+                "SomeGame", SubscriptionPolicy.Enabled("Enabled"), KidProfilePolicy.Unrestricted("Adult"));
+#pragma warning restore 0618
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("KidProfileSubscriptionProhibited", result.Reason);
         }
 
         [Test]

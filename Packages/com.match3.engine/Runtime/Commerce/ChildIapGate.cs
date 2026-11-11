@@ -31,24 +31,39 @@ namespace Match3.Engine.Runtime.Commerce
     {
         private const string WonderPopId = "Wonder_Pop";
 
+        private static IapRestrictionPolicy Normalize(IapRestrictionPolicy policy) =>
+            policy.PolicyDescription == null ? IapRestrictionPolicy.Default : policy;
+
         public static AdEligibilityResult CheckIapEligibility(
-            string gameId, IapRestrictionPolicy policy, KidProfilePolicy kidPolicy)
+            string gameId, IapRestrictionPolicy policy, bool isChildProfile)
         {
+            policy = Normalize(policy);
+
             if (!policy.PurchasesAllowed)
                 return AdEligibilityResult.Ineligible("IapPurchasesRestricted");
 
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("WonderPopIapProhibited");
 
-            if (kidPolicy.IapProhibited)
+            // Unconditional: child/kid profiles are never IAP-eligible
+            if (isChildProfile)
                 return AdEligibilityResult.Ineligible("KidProfileIapProhibited");
 
             return AdEligibilityResult.Eligible();
         }
 
-        public static bool IsParentalGateRequired(string gameId, IapRestrictionPolicy policy)
+        [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]
+        public static AdEligibilityResult CheckIapEligibility(
+            string gameId, IapRestrictionPolicy policy, KidProfilePolicy kidPolicy) =>
+            CheckIapEligibility(gameId, policy, isChildProfile: true);
+
+        public static bool IsParentalGateRequired(string gameId, IapRestrictionPolicy policy, bool isChildProfile)
         {
-            if (policy.ParentalGateRequired)
+            // Unconditional: every child/kid purchase path requires a parental gate
+            if (isChildProfile)
+                return true;
+
+            if (Normalize(policy).ParentalGateRequired)
                 return true;
 
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
@@ -57,19 +72,17 @@ namespace Match3.Engine.Runtime.Commerce
             return false;
         }
 
+        [Obsolete("Child status unknown: always returns true (fail-closed). Use the overload taking isChildProfile.")]
+        public static bool IsParentalGateRequired(string gameId, IapRestrictionPolicy policy) =>
+            IsParentalGateRequired(gameId, policy, isChildProfile: true);
+
         public static bool CanShowPurchaseUi(
-            string gameId, IapRestrictionPolicy policy, KidProfilePolicy kidPolicy)
-        {
-            if (!policy.PurchasesAllowed)
-                return false;
+            string gameId, IapRestrictionPolicy policy, bool isChildProfile) =>
+            CheckIapEligibility(gameId, policy, isChildProfile).IsEligible;
 
-            if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
-                return false;
-
-            if (kidPolicy.IapProhibited)
-                return false;
-
-            return true;
-        }
+        [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]
+        public static bool CanShowPurchaseUi(
+            string gameId, IapRestrictionPolicy policy, KidProfilePolicy kidPolicy) =>
+            CanShowPurchaseUi(gameId, policy, isChildProfile: true);
     }
 }

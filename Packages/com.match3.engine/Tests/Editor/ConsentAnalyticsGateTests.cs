@@ -117,18 +117,10 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void ConsentPolicy_Safe_SetsAllowChildSafeAnalyticsFalse()
-        {
-            var p = ConsentPolicy.Safe("desc");
-            Assert.IsFalse(p.AllowChildSafeAnalytics);
-        }
-
-        [Test]
         public void ConsentPolicy_Default_IsCorrect()
         {
             var d = ConsentPolicy.Default;
             Assert.IsTrue(d.RequireExplicitConsent);
-            Assert.IsFalse(d.AllowChildSafeAnalytics);
             Assert.IsFalse(string.IsNullOrEmpty(d.PolicyDescription));
         }
 
@@ -149,12 +141,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var record = ConsentRecord.Create("wonder_pop", ConsentBasis.ExplicitConsent);
             var policy = ConsentPolicy.Safe("desc");
-            // lowercase "wonder_pop" must NOT trigger Guard 1 (Ordinal comparison)
-            // it will fail on Guard 3 (RequireExplicitConsent + ExplicitConsent == ExplicitConsent => passes)
-            // actually ExplicitConsent satisfies RequireExplicitConsent → eligible
-            var permissivePolicy = new ConsentPolicy(); // default struct: RequireExplicitConsent=false
-            // Use a policy that doesn't block on other guards to verify Guard 1 doesn't fire
-            // ConsentPolicy.Safe requires explicit consent; "wonder_pop" with ExplicitConsent → eligible
+            // Ordinal: lowercase "wonder_pop" is not the Wonder_Pop guard; ExplicitConsent → eligible
             var result = ConsentAnalyticsGate.CanCollectAnalytics("wonder_pop", record, policy, out var reason);
             Assert.IsTrue(result);
         }
@@ -194,30 +181,65 @@ namespace Match3.Engine.Tests.Editor
 
         // ---- Guard 4: ChildSafeAnalyticsDisabled ----
 
+        private static readonly ConsentPolicy[] AllConstructiblePolicies =
+            { ConsentPolicy.Safe("desc"), ConsentPolicy.Default, default(ConsentPolicy) };
+
         [Test]
-        public void CanCollect_ChildSafe_PolicyDisallows_IsBlocked()
+        public void CanCollect_ChildSafe_BlockedUnderEveryConstructiblePolicy()
         {
-            // Need a policy that passes Guard 3 but blocks Guard 4
-            // RequireExplicitConsent=false, AllowChildSafeAnalytics=false
-            // ConsentPolicy Safe sets RequireExplicitConsent=true, so ChildSafe would fail Guard 3 first.
-            // We need to construct a scenario: use a game-agnostic record with ChildSafe basis
-            // and a policy that does NOT require explicit consent but disallows ChildSafe.
-            // ConsentPolicy.Safe always sets RequireExplicitConsent=true which blocks Guard 3 for non-ExplicitConsent.
-            // So for Guard 4 to fire, we need RequireExplicitConsent=false.
-            // ConsentPolicy struct has defaults: RequireExplicitConsent=false, AllowChildSafeAnalytics=false
-            // But ConsentPolicy is a readonly struct; use default(ConsentPolicy) for RequireExplicit=false.
-            // However PolicyDescription would be null — the struct doesn't validate in constructor for default.
-            // This is acceptable because only Safe() validates. Use Safe with allowChildSafe manually.
-            // Actually there's no public factory that creates RequireExplicit=false, AllowChildSafe=false.
-            // Per spec we only have Safe() which is RequireExplicit=true, AllowChildSafe=false.
-            // With Safe() + ChildSafe basis: Guard 3 fires first (ExplicitConsentRequired), not Guard 4.
-            // Guard 4 is only reachable when RequireExplicitConsent=false.
-            // We'll use default(ConsentPolicy) which gives RequireExplicit=false, AllowChildSafe=false.
             var record = ConsentRecord.Create("GameA", ConsentBasis.ChildSafe);
-            var policy = default(ConsentPolicy); // RequireExplicitConsent=false, AllowChildSafeAnalytics=false
-            var result = ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason);
-            Assert.IsFalse(result);
-            Assert.AreEqual("ChildSafeAnalyticsDisabled", reason);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason));
+                Assert.AreEqual("ChildSafeAnalyticsDisabled", reason);
+            }
+        }
+
+        [Test]
+        public void CanCollect_NoneRequired_BlockedUnderEveryConstructiblePolicy()
+        {
+            var record = ConsentRecord.Create("GameA", ConsentBasis.NoneRequired);
+            foreach (var policy in AllConstructiblePolicies)
+            {
+                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason));
+                Assert.AreEqual("ExplicitConsentRequired", reason);
+            }
+        }
+
+        [Test]
+        public void CanCollect_NoneRequired_UnderDefault_IsBlocked()
+        {
+            var record = ConsentRecord.Create("GameA", ConsentBasis.NoneRequired);
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, ConsentPolicy.Default, out var reason));
+            Assert.AreEqual("ExplicitConsentRequired", reason);
+        }
+
+        [Test]
+        public void CanCollect_DefaultStructPolicy_FailsClosed()
+        {
+            // default(ConsentPolicy) is normalized to ConsentPolicy.Default: explicit consent still required.
+            var record = ConsentRecord.Create("GameA", ConsentBasis.LegitimateInterest);
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, ConsentPolicy.Default, out var expected));
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, default(ConsentPolicy), out var reason));
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("ExplicitConsentRequired", reason);
+            Assert.IsTrue(ConsentAnalyticsGate.RequiresExplicitConsent(default(ConsentPolicy)));
+        }
+
+        [Test]
+        public void CanCollect_GameIdMismatch_Blocked()
+        {
+            var record = ConsentRecord.Create("Wonder_Pop", ConsentBasis.ExplicitConsent);
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, ConsentPolicy.Default, out var reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void CanCollect_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent);
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Wonder_Pop", record, ConsentPolicy.Default, out var reason));
+            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         // ---- RequiresExplicitConsent and IsConsentActive helpers ----

@@ -132,21 +132,90 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanAutoResolve_LocalWins_NoConfirmation_IsEligible()
+        public void CanAutoResolve_LocalWins_NoConfirmation_Divergent_NoSilentOverwrite()
         {
             var conflict = ConflictRecord.Create("GameA", 1, 2);
             var policy = new MergePolicy(MergeStrategy.LocalWins, false, "auto ok");
             var result = MergeConflictGate.CanAutoResolve("GameA", conflict, policy);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UserConfirmationRequired", result.Reason);
         }
 
         [Test]
-        public void CanAutoResolve_RemoteWins_NoConfirmation_IsEligible()
+        public void CanAutoResolve_RemoteWins_NoConfirmation_Divergent_NoSilentOverwrite()
         {
             var conflict = ConflictRecord.Create("GameB", 2, 3);
             var policy = new MergePolicy(MergeStrategy.RemoteWins, false, "auto remote");
             var result = MergeConflictGate.CanAutoResolve("GameB", conflict, policy);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UserConfirmationRequired", result.Reason);
+        }
+
+        [Test]
+        public void CanAutoResolve_RelaxedPolicy_NonDivergent_LosslessMergeEligible()
+        {
+            var conflict = ConflictRecord.Create("GameB", 3, 3);
+            var policy = new MergePolicy(MergeStrategy.RemoteWins, false, "auto remote");
+            var result = MergeConflictGate.CanAutoResolve("GameB", conflict, policy);
             Assert.IsTrue(result.IsEligible);
+        }
+
+        private static readonly MergePolicy[] AllConstructiblePolicies =
+        {
+            MergePolicy.Default,
+            MergePolicy.Safe("safe"),
+            new MergePolicy(MergeStrategy.LocalWins, false, "relaxed local"),
+            new MergePolicy(MergeStrategy.RemoteWins, false, "relaxed remote"),
+            new MergePolicy(MergeStrategy.ManualRequired, false, "manual"),
+            new MergePolicy(MergeStrategy.LocalWins, true, "confirm"),
+            default(MergePolicy),
+        };
+
+        [Test]
+        public void CanAutoResolve_Divergent_NeverAutoResolvedUnderAnyPolicy()
+        {
+            var conflict = ConflictRecord.Create("GameA", 4, 7);
+            foreach (var policy in AllConstructiblePolicies)
+                Assert.IsFalse(MergeConflictGate.CanAutoResolve("GameA", conflict, policy).IsEligible);
+        }
+
+        [Test]
+        public void CanAutoResolve_DefaultStructPolicy_FailsClosed()
+        {
+            var conflict = ConflictRecord.Create("GameA", 0, 0);
+            var expected = MergeConflictGate.CanAutoResolve("GameA", conflict, MergePolicy.Default);
+            var result = MergeConflictGate.CanAutoResolve("GameA", conflict, default(MergePolicy));
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual(expected.Reason, result.Reason);
+            Assert.AreEqual("UserConfirmationRequired", result.Reason);
+            Assert.IsTrue(MergeConflictGate.RequiresConfirmation(default(MergePolicy)));
+        }
+
+        [Test]
+        public void CanAutoResolve_GameIdMismatch_Blocked()
+        {
+            var conflict = ConflictRecord.Create("Wonder_Pop", 1, 1);
+            var policy = new MergePolicy(MergeStrategy.LocalWins, false, "allow all");
+            var result = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, policy);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
+
+        [Test]
+        public void CanAutoResolve_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var conflict = ConflictRecord.Create("Coral_Rescue", 1, 1);
+            var policy = new MergePolicy(MergeStrategy.LocalWins, false, "allow all");
+            var result = MergeConflictGate.CanAutoResolve("Wonder_Pop", conflict, policy);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
+
+        [Test]
+        public void AuditLog_Record_DefaultRecord_Throws()
+        {
+            var log = new MergeAuditLog();
+            Assert.Throws<ArgumentException>(() => log.Record(default(ConflictRecord), MergeStrategy.ManualRequired, "r"));
         }
 
         [Test]

@@ -56,7 +56,7 @@ namespace Match3.Engine.Runtime.Identity
             new MergePolicy(MergeStrategy.ManualRequired, true, desc);
 
         public static MergePolicy Default =>
-            Safe("Manual merge required; no silent data overwrite");
+            Safe("Manual merge with user confirmation required; divergent saves are never auto-resolved (no silent overwrite)");
     }
 
     public readonly struct MergeEligibilityResult
@@ -78,7 +78,12 @@ namespace Match3.Engine.Runtime.Identity
             ConflictRecord conflict,
             MergePolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop is ineligible — Ordinal, exact case
+            if (policy.PolicyDescription == null) policy = MergePolicy.Default;
+
+            if (!string.Equals(gameId, conflict.GameId, StringComparison.Ordinal))
+                return new MergeEligibilityResult(false, "GameIdMismatch");
+
+            // Wonder_Pop is ineligible — Ordinal, exact case
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new MergeEligibilityResult(false, "WonderPopMergeProhibited");
 
@@ -90,11 +95,18 @@ namespace Match3.Engine.Runtime.Identity
             if (policy.DefaultStrategy == MergeStrategy.ManualRequired)
                 return new MergeEligibilityResult(false, "ManualStrategyRequired");
 
+            // Unconditional (no silent overwrite): a divergent save is never auto-resolved under any
+            // policy. Only a provably lossless merge (no divergence: nothing would be overwritten) may proceed.
+            if (conflict.HasDivergence)
+                return new MergeEligibilityResult(false, "UserConfirmationRequired");
+
             return new MergeEligibilityResult(true, "Eligible");
         }
 
+        // Whether the policy adds confirmation even for lossless merges.
+        // Divergent conflicts always require confirmation (see CanAutoResolve).
         public static bool RequiresConfirmation(MergePolicy policy) =>
-            policy.RequireUserConfirmation;
+            (policy.PolicyDescription == null ? MergePolicy.Default : policy).RequireUserConfirmation;
 
         public static bool IsDivergent(ConflictRecord conflict) =>
             conflict.HasDivergence;
@@ -107,6 +119,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public void Record(ConflictRecord record, MergeStrategy applied, string reason)
         {
+            if (string.IsNullOrEmpty(record.GameId))
+                throw new ArgumentException("Record GameId must not be null or empty.", nameof(record));
             if (string.IsNullOrEmpty(reason))
                 throw new ArgumentException("Reason must not be null or empty.", nameof(reason));
             _entries.Add((record, applied, reason));

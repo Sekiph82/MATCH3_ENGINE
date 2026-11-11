@@ -45,7 +45,7 @@ namespace Match3.Engine.Runtime.Commerce
         private static readonly StringComparer Ordinal = StringComparer.Ordinal;
 
         public static AdEligibilityResult CheckSubscriptionEligibility(
-            string gameId, SubscriptionPolicy policy, KidProfilePolicy kidPolicy)
+            string gameId, SubscriptionPolicy policy, bool isKidProfile)
         {
             // Guard 1: Wonder_Pop always prohibited, checked first
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
@@ -55,12 +55,17 @@ namespace Match3.Engine.Runtime.Commerce
             if (!policy.SubscriptionsEnabled)
                 return AdEligibilityResult.Ineligible("SubscriptionsDisabled");
 
-            // Guard 3: kid profile prohibits IAP/subscriptions
-            if (kidPolicy.IapProhibited)
+            // Guard 3 (unconditional): kid profiles are never IAP/subscription-eligible
+            if (isKidProfile)
                 return AdEligibilityResult.Ineligible("KidProfileSubscriptionProhibited");
 
             return AdEligibilityResult.Eligible();
         }
+
+        [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]
+        public static AdEligibilityResult CheckSubscriptionEligibility(
+            string gameId, SubscriptionPolicy policy, KidProfilePolicy kidPolicy) =>
+            CheckSubscriptionEligibility(gameId, policy, isKidProfile: true);
 
         public static bool IsAccessGranted(SubscriptionStatus status)
         {

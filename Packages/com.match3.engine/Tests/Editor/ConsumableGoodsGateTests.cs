@@ -81,7 +81,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckPurchaseEligibility_WonderPop_AlwaysIneligible_EvenWithEnabledPolicy()
         {
             var policy = ConsumablePolicy.Enabled("enabled");
-            var kid = KidProfilePolicy.Unrestricted("ok");
+            var kid = false; // non-kid profile
             var result = ConsumableGoodsGate.CheckPurchaseEligibility("Wonder_Pop", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("WonderPopConsumablesProhibited", result.Reason);
@@ -91,7 +91,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckPurchaseEligibility_DisabledPolicy_Ineligible()
         {
             var policy = ConsumablePolicy.Default;
-            var kid = KidProfilePolicy.Unrestricted("ok");
+            var kid = false; // non-kid profile
             var result = ConsumableGoodsGate.CheckPurchaseEligibility("Garage_Legends", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("ConsumablesDisabled", result.Reason);
@@ -101,7 +101,7 @@ namespace Match3.Engine.Tests.Editor
         public void CheckPurchaseEligibility_KidProfileProhibited_Ineligible()
         {
             var policy = ConsumablePolicy.Enabled("enabled");
-            var kid = KidProfilePolicy.Restricted("under review");
+            var kid = true; // kid profile
             var result = ConsumableGoodsGate.CheckPurchaseEligibility("Garage_Legends", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileConsumablesProhibited", result.Reason);
@@ -111,9 +111,32 @@ namespace Match3.Engine.Tests.Editor
         public void CheckPurchaseEligibility_AllPass_Eligible()
         {
             var policy = ConsumablePolicy.Enabled("enabled");
-            var kid = KidProfilePolicy.Unrestricted("ok");
+            var kid = false; // non-kid profile
             var result = ConsumableGoodsGate.CheckPurchaseEligibility("Garage_Legends", policy, kid);
             Assert.IsTrue(result.IsEligible);
+        }
+
+        [Test]
+        public void CheckPurchaseEligibility_KidProfile_IneligibleForEveryGame()
+        {
+            var policy = ConsumablePolicy.Enabled("enabled");
+            foreach (var gameId in new[] { "Coral_Rescue", "Dino_Islands", "Garage_Legends", "The_Fractured_Realms" })
+            {
+                var result = ConsumableGoodsGate.CheckPurchaseEligibility(gameId, policy, true);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("KidProfileConsumablesProhibited", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CheckPurchaseEligibility_ObsoleteKidPolicyOverload_FailsClosed_EvenWithUnrestricted()
+        {
+#pragma warning disable 0618
+            var result = ConsumableGoodsGate.CheckPurchaseEligibility(
+                "Garage_Legends", ConsumablePolicy.Enabled("enabled"), KidProfilePolicy.Unrestricted("relaxed"));
+#pragma warning restore 0618
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("KidProfileConsumablesProhibited", result.Reason);
         }
 
         [Test]

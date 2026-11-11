@@ -6,11 +6,8 @@ namespace Match3.Engine.Tests.Editor
     [TestFixture]
     public class RecoveryAdGateTests
     {
-        private static KidProfilePolicy UnrestrictedPolicy =>
-            KidProfilePolicy.Unrestricted("test-unrestricted");
-
-        private static KidProfilePolicy RestrictedPolicy =>
-            KidProfilePolicy.Restricted("test-restricted");
+        private const bool NonKidProfile = false;
+        private const bool KidProfile = true;
 
         [Test]
         public void Policy_NullDescription_Throws()
@@ -40,7 +37,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = RecoveryOfferPolicy.Default;
             var result = RecoveryAdGate.CheckRecoveryEligibility(
-                "Some_Game", AdConsentStatus.Granted, policy, UnrestrictedPolicy);
+                "Some_Game", AdConsentStatus.Granted, policy, NonKidProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("RecoveryOfferDisabled", result.Reason);
         }
@@ -50,7 +47,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraHeart, "enabled");
             var result = RecoveryAdGate.CheckRecoveryEligibility(
-                "Wonder_Pop", AdConsentStatus.Granted, policy, UnrestrictedPolicy);
+                "Wonder_Pop", AdConsentStatus.Granted, policy, NonKidProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("WonderPopRecoveryProhibited", result.Reason);
         }
@@ -60,7 +57,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraHeart, "enabled");
             var result = RecoveryAdGate.CheckRecoveryEligibility(
-                "Coral_Rescue", AdConsentStatus.Granted, policy, RestrictedPolicy);
+                "Coral_Rescue", AdConsentStatus.Granted, policy, KidProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileAdsProhibited", result.Reason);
         }
@@ -70,7 +67,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraHeart, "enabled");
             var result = RecoveryAdGate.CheckRecoveryEligibility(
-                "Coral_Rescue", AdConsentStatus.Denied, policy, UnrestrictedPolicy);
+                "Coral_Rescue", AdConsentStatus.Denied, policy, NonKidProfile);
             Assert.IsFalse(result.IsEligible);
         }
 
@@ -79,8 +76,34 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraHeart, "enabled");
             var result = RecoveryAdGate.CheckRecoveryEligibility(
-                "Coral_Rescue", AdConsentStatus.Granted, policy, UnrestrictedPolicy);
+                "Coral_Rescue", AdConsentStatus.Granted, policy, NonKidProfile);
             Assert.IsTrue(result.IsEligible);
+        }
+
+        [Test]
+        public void RecoveryGate_KidProfile_IneligibleForEveryGame()
+        {
+            var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraMoves, "enabled");
+            foreach (var gameId in new[] { "Coral_Rescue", "Dino_Islands", "Garage_Legends", "The_Fractured_Realms" })
+            {
+                var result = RecoveryAdGate.CheckRecoveryEligibility(gameId, AdConsentStatus.Granted, policy, KidProfile);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("KidProfileAdsProhibited", result.Reason);
+            }
+        }
+
+        [Test]
+        public void RecoveryGate_ObsoleteKidPolicyOverload_FailsClosed_EvenWithUnrestricted()
+        {
+            var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraMoves, "enabled");
+#pragma warning disable 0618
+            foreach (var kidPolicy in new[] { KidProfilePolicy.Unrestricted("relaxed"), KidProfilePolicy.Default, default(KidProfilePolicy) })
+            {
+                var result = RecoveryAdGate.CheckRecoveryEligibility("Coral_Rescue", AdConsentStatus.Granted, policy, kidPolicy);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("KidProfileAdsProhibited", result.Reason);
+            }
+#pragma warning restore 0618
         }
 
         [Test]

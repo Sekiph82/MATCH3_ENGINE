@@ -53,7 +53,7 @@ namespace Match3.Engine.Tests.Editor
         public void RestrictedPolicy_ReturnsIneligible()
         {
             var policy = EntitlementPolicy.Restricted("test");
-            var kid = KidProfilePolicy.Unrestricted("ok");
+            var kid = false; // non-kid profile
             var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("SomeGame", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("EntitlementPurchasesRestricted", result.Reason);
@@ -63,7 +63,7 @@ namespace Match3.Engine.Tests.Editor
         public void WonderPop_AlwaysIneligible_EvenWithUnrestrictedPolicy()
         {
             var policy = EntitlementPolicy.Unrestricted("ok");
-            var kid = KidProfilePolicy.Unrestricted("ok");
+            var kid = false; // non-kid profile
             var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Wonder_Pop", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("WonderPopEntitlementProhibited", result.Reason);
@@ -74,7 +74,7 @@ namespace Match3.Engine.Tests.Editor
         {
             // Even if kid policy would also block, Wonder_Pop guard fires independently
             var policy = EntitlementPolicy.Unrestricted("ok");
-            var kid = KidProfilePolicy.Restricted("children");
+            var kid = true; // kid profile
             var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Wonder_Pop", policy, kid);
             Assert.AreEqual("WonderPopEntitlementProhibited", result.Reason);
         }
@@ -83,7 +83,7 @@ namespace Match3.Engine.Tests.Editor
         public void KidProfileIapProhibited_ReturnsIneligible()
         {
             var policy = EntitlementPolicy.Unrestricted("ok");
-            var kid = KidProfilePolicy.Restricted("children");
+            var kid = true; // kid profile
             var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("OtherGame", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileEntitlementProhibited", result.Reason);
@@ -93,7 +93,7 @@ namespace Match3.Engine.Tests.Editor
         public void AllGuardsPass_ReturnsEligible()
         {
             var policy = EntitlementPolicy.Unrestricted("ok");
-            var kid = KidProfilePolicy.Unrestricted("ok");
+            var kid = false; // non-kid profile
             var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("SomeGame", policy, kid);
             Assert.IsTrue(result.IsEligible);
         }
@@ -102,10 +102,33 @@ namespace Match3.Engine.Tests.Editor
         public void WonderPop_WithRestrictedPolicy_ReturnsWonderPopReason()
         {
             var policy = EntitlementPolicy.Restricted("test");
-            var kid = KidProfilePolicy.Unrestricted("test");
+            var kid = false; // non-kid profile
             var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Wonder_Pop", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("WonderPopEntitlementProhibited", result.Reason);
+        }
+
+        [Test]
+        public void KidProfile_IneligibleForEveryGame()
+        {
+            var policy = EntitlementPolicy.Unrestricted("ok");
+            foreach (var gameId in new[] { "Coral_Rescue", "Dino_Islands", "Garage_Legends", "The_Fractured_Realms" })
+            {
+                var result = NonConsumableEntitlementGate.CheckEntitlementEligibility(gameId, policy, true);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("KidProfileEntitlementProhibited", result.Reason);
+            }
+        }
+
+        [Test]
+        public void ObsoleteKidPolicyOverload_FailsClosed_EvenWithUnrestricted()
+        {
+#pragma warning disable 0618
+            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility(
+                "Coral_Rescue", EntitlementPolicy.Unrestricted("ok"), KidProfilePolicy.Unrestricted("relaxed"));
+#pragma warning restore 0618
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("KidProfileEntitlementProhibited", result.Reason);
         }
 
         // ---- IsServerVerificationRequired ----
