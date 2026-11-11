@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "producerId": "fixture-producer/py",
+  "gameId": "Coral_Rescue",
+  "items": [
+    {
+      "contentKind": "World",
+      "contentId": "cr.world.reef",
+      "contentVersion": 1,
+      "payload": {
+        "order": 1
+      },
+      "payloadSha256": "a781679e01308cfef90983a4c1350319a7e3993c3a3f5a8c8439781a326d7c8d"
+    },
+    {
+      "contentKind": "World",
+      "contentId": "cr.world.kelp",
+      "contentVersion": 1,
+      "payload": {
+        "order": 2
+      }
+    }
+  ]
+}

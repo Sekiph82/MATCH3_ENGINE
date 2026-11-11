@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0",
+  "producerId": "fixture-producer/py",
+  "gameId": "Coral_Rescue",
+  "items": [
+    {
+      "contentKind": "Level",
+      "contentId": "cr.level.0001",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "cr.world.reef",
+        "order": 1,
+        "moves": 25,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.red",
+            "count": 30
+          },
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.ice",
+            "count": 12
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.ice"
+        ],
+        "difficulty": 3
+      },
+      "payloadSha256": "dfc6a94131642243058b5d823ab01452eaeea1c54fc072eb926d7ba53f54ed52"
+    }
+  ]
+}

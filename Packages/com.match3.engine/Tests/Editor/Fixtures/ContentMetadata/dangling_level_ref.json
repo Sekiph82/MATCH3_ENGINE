@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0",
+  "producerId": "fixture-producer/py",
+  "gameId": "Coral_Rescue",
+  "items": [
+    {
+      "contentKind": "World",
+      "contentId": "cr.world.reef",
+      "contentVersion": 1,
+      "payload": {
+        "order": 1
+      },
+      "payloadSha256": "a781679e01308cfef90983a4c1350319a7e3993c3a3f5a8c8439781a326d7c8d"
+    },
+    {
+      "contentKind": "Level",
+      "contentId": "cr.level.0001",
+      "contentVersion": 1,
+      "payload": {
+        "worldId": "cr.world.reef",
+        "order": 1,
+        "moves": 25,
+        "objectives": [
+          {
+            "kind": "CollectPiece",
+            "targetId": "piece.red",
+            "count": 30
+          },
+          {
+            "kind": "ClearObstacle",
+            "targetId": "obstacle.ice",
+            "count": 12
+          }
+        ],
+        "obstacleIds": [
+          "obstacle.ice"
+        ]
+      },
+      "payloadSha256": "324e98a3f91bd117f44d1d3101034ef0c2fd2558ca0c945ab2fa2f7344579cbd"
+    },
+    {
+      "contentKind": "Event",
+      "contentId": "cr.event.winter",
+      "contentVersion": 1,
+      "payload": {
+        "startUtc": "2026-12-01T00:00:00Z",
+        "endUtc": "2026-12-08T00:00:00Z",
+        "levelIds": [
+          "cr.level.0001",
+          "cr.level.9999"
+        ]
+      },
+      "payloadSha256": "b7b831b906bd46d18d8c23b7cda7956287607a8ea3736d0d5345c06ddaf8b2a9"
+    }
+  ]
+}
