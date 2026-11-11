@@ -35,9 +35,10 @@ namespace Match3.Engine.Runtime.LiveOps
     // to Python json.dumps(payload, sort_keys=True, separators=(",", ":"))).
     //
     // Fail-closed policy: unknown envelope fields reject; unknown payload fields
-    // reject unless prefixed "x-"; any key, at any depth, naming a monetization,
-    // payment-instrument or credential concept rejects (monetization stays Engine/store
-    // authoritative). A key is forbidden when one of its words (split on '-', '_' and
+    // reject unless prefixed "x-"; any key, at any depth, naming a monetization (incl. offers
+    // and paywalls), payment-instrument, bank/tax/identity-number or credential concept rejects
+    // (monetization stays Engine/store authoritative; content metadata never carries payment or
+    // personal identifiers). A key is forbidden when one of its words (split on '-', '_' and
     // camelCase, optional plural 's') or adjacent word pairs is a ForbiddenWords entry,
     // OR its compact form (lowercased, '-'/'_' stripped) contains a ForbiddenSubstrings
     // entry -- see IsForbiddenKey. Any rejected item rejects the whole batch (nothing applied).
@@ -198,7 +199,8 @@ namespace Match3.Engine.Runtime.LiveOps
         {
             "price", "pricing", "sku", "iap", "inapp", "receipt", "purchase", "currency", "credential", "secret",
             "token", "password", "apikey", "payment", "billing", "transaction", "paid", "bearer", "auth",
-            "authorization", "authorisation", "productid", "storeproduct", "storesku", "privatekey", "pwd"
+            "authorization", "authorisation", "productid", "storeproduct", "storesku", "privatekey", "pwd",
+            "offer", "ssn"
         };
         // Substrings of the whole compact key: long, unambiguous monetization/payment/credential terms
         // only, so all-lowercase single-word forms ("storeproductid", "accesstoken", "paidcoins") are
@@ -211,7 +213,9 @@ namespace Match3.Engine.Runtime.LiveOps
             "accesstoken", "clientsecret", "authheader", "skuid", "iapid", "accesskey", "signingkey",
             "paidcurrency", "paidcoin", "paidgem", "paiditem",
             "hardcurrency", "premiumcurrency", "realcurrency",
-            "creditcard", "cardnumber", "walletaddress", "iban", "cvv"
+            "creditcard", "cardnumber", "walletaddress", "iban", "cvv",
+            "paywall", "offerid",
+            "bankaccount", "routingnumber", "sortcode", "paypal", "stripekey", "taxid", "cardno"
         };
 
         private readonly HashSet<ContentKind> _allowedKinds;
@@ -560,7 +564,7 @@ namespace Match3.Engine.Runtime.LiveOps
         /// Independently, the compact key (lowercased, '-' and '_' stripped) is searched for every
         /// <see cref="ForbiddenSubstrings"/> entry, so single-word lowercase forms such as
         /// "accesstoken", "skuid", "paidcoins" or "creditcard" are caught. Short ambiguous terms
-        /// ("iap", "sku", "paid", "auth", "pwd") stay word-only, which keeps "x-mediaPath",
+        /// ("iap", "sku", "paid", "auth", "pwd", "offer", "ssn") stay word-only, which keeps "x-mediaPath",
         /// "x-coinCost", "gems", "authorId", "authorName" and "producerId" allowed.
         /// Accepted fail-closed false positives (rejected by design; rename the key instead):
         /// "tokenCount" and "x-secretLevel" (words "token"/"secret"), "x-torchBearer" (substring
