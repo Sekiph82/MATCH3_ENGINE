@@ -14,15 +14,16 @@ namespace Match3.Engine.Tests.Editor
         private const string Player = "player-1";
         private static readonly DateTime LastActive = new DateTime(2026, 10, 1, 9, 30, 0, DateTimeKind.Utc);
         private static readonly DateTime Return = LastActive.AddDays(20); // threshold 14, window 7 (Standard)
+        private static readonly TrustedUtcAnchor Last = TrustedUtcAnchor.Server(LastActive);
 
         private static GameProfile Profile(string id = "Coral_Rescue", bool catchUp = true) =>
             new GameProfile(id, "placeholder." + id.ToLowerInvariant(), ProfileAgeRule.General, ProfileContentChannel.Development,
                 catchUp ? new[] { new FeatureFlag("catch_up", EngineCompatibility.MinimumCapability) } : null);
 
-        private static ComebackCatchUpService Service(out RewardLedger ledger, string id = "Coral_Rescue", bool catchUp = true)
+        private static ComebackCatchUpService Service(out RewardLedger ledger, string id = "Coral_Rescue", bool catchUp = true, bool child = false)
         {
             ledger = new RewardLedger(id, Player);
-            return new ComebackCatchUpService(Profile(id, catchUp), ledger, CatchUpPolicy.Standard);
+            return new ComebackCatchUpService(Profile(id, catchUp), ledger, CatchUpPolicy.Standard, child);
         }
 
         private static TrustedUtcAnchor At(DateTime utc) => TrustedUtcAnchor.Server(utc);
@@ -31,7 +32,7 @@ namespace Match3.Engine.Tests.Editor
         public void GenuineAbsence_OpensWindow_TransparentExplanation_SignalOnce()
         {
             var s = Service(out _);
-            var e = s.Evaluate(At(Return), LastActive);
+            var e = s.Evaluate(At(Return), Last);
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active), e.Reason);
             Assert.That(e.EmitEligibleSignal, Is.True);
             Assert.That(e.Explanation.RemainingWins, Is.EqualTo(3));
@@ -40,7 +41,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(e.Explanation.RewardPerWin["Coins"], Is.EqualTo(100));
             for (var i = 1; i <= 5; i++)
             {
-                var again = s.Evaluate(At(Return.AddHours(i)), LastActive);
+                var again = s.Evaluate(At(Return.AddHours(i)), Last);
                 Assert.That(again.Status, Is.EqualTo(CatchUpStatus.Active));
                 Assert.That(again.EmitEligibleSignal, Is.False, "at most one eligible signal per window");
             }
@@ -50,20 +51,23 @@ namespace Match3.Engine.Tests.Editor
         public void ShortAbsence_Ineligible()
         {
             var s = Service(out _);
-            var e = s.Evaluate(At(LastActive.AddDays(14).AddTicks(-1)), LastActive);
+            var e = s.Evaluate(At(LastActive.AddDays(14).AddTicks(-1)), Last);
             Assert.That(e.Reason, Is.EqualTo(C.InsufficientAbsence));
             Assert.That(e.EmitEligibleSignal, Is.False);
-            Assert.That(s.Evaluate(At(LastActive.AddDays(14)), LastActive).Status, Is.EqualTo(CatchUpStatus.Active));
+            Assert.That(s.Evaluate(At(LastActive.AddDays(14)), Last).Status, Is.EqualTo(CatchUpStatus.Active));
         }
 
         [Test]
-        public void MissingOrUntrustedAnchor_Rejected_NoDeviceClock()
+        public void MissingOrUntrustedAnchors_Rejected_NoDeviceClock()
         {
             var s = Service(out var ledger);
-            Assert.That(s.Evaluate(default(TrustedUtcAnchor), LastActive).Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
-            Assert.That(s.Evaluate(TrustedUtcAnchor.DeviceClock(Return), LastActive).Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
+            Assert.That(s.Evaluate(default(TrustedUtcAnchor), Last).Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
+            Assert.That(s.Evaluate(TrustedUtcAnchor.DeviceClock(Return), Last).Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
+            // Spoofed (client-provided) last-active value.
+            Assert.That(s.Evaluate(At(Return), TrustedUtcAnchor.DeviceClock(LastActive)).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
+            Assert.That(s.Evaluate(At(Return), default(TrustedUtcAnchor)).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
             Assert.That(s.State, Is.Null);
-            s.Evaluate(At(Return), LastActive);
+            s.Evaluate(At(Return), Last);
             Assert.That(s.RecordWin(TrustedUtcAnchor.DeviceClock(Return.AddHours(1)), "win-1").Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
             Assert.That(ledger.Count, Is.EqualTo(0));
         }
@@ -72,17 +76,17 @@ namespace Match3.Engine.Tests.Editor
         public void NonUtcInputs_Rejected()
         {
             var s = Service(out _);
-            Assert.That(s.Evaluate(At(new DateTime(2026, 10, 30, 0, 0, 0, DateTimeKind.Local)), LastActive).Reason, Is.EqualTo(C.NonUtcTime));
-            Assert.That(s.Evaluate(At(Return), new DateTime(2026, 10, 1)).Reason, Is.EqualTo(C.NonUtcTime));
+            Assert.That(s.Evaluate(At(new DateTime(2026, 10, 30, 0, 0, 0, DateTimeKind.Local)), Last).Reason, Is.EqualTo(C.NonUtcTime));
+            Assert.That(s.Evaluate(At(Return), At(new DateTime(2026, 10, 1))).Reason, Is.EqualTo(C.NonUtcTime));
         }
 
         [Test]
         public void ClockRollback_Rejected()
         {
             var s = Service(out var ledger);
-            Assert.That(s.Evaluate(At(LastActive.AddDays(-1)), LastActive).Reason, Is.EqualTo(C.ClockRollbackDetected));
-            s.Evaluate(At(Return), LastActive);
-            Assert.That(s.Evaluate(At(Return.AddDays(-1)), LastActive).Reason, Is.EqualTo(C.ClockRollbackDetected));
+            Assert.That(s.Evaluate(At(LastActive.AddDays(-1)), Last).Reason, Is.EqualTo(C.ClockRollbackDetected));
+            s.Evaluate(At(Return), Last);
+            Assert.That(s.Evaluate(At(Return.AddDays(-1)), Last).Reason, Is.EqualTo(C.ClockRollbackDetected));
             Assert.That(s.RecordWin(At(Return.AddDays(-1)), "win-1").Reason, Is.EqualTo(C.ClockRollbackDetected));
             Assert.That(ledger.Count, Is.EqualTo(0));
         }
@@ -91,7 +95,7 @@ namespace Match3.Engine.Tests.Editor
         public void ThreeWinsRewardedExactlyOnce_FourthNotRewarded_ReplayNotDoubleGranted()
         {
             var s = Service(out var ledger);
-            s.Evaluate(At(Return), LastActive);
+            s.Evaluate(At(Return), Last);
             for (var i = 1; i <= 3; i++)
                 Assert.That(s.RecordWin(At(Return.AddHours(i)), "win-" + i).Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
             var replay = s.RecordWin(At(Return.AddHours(5)), "win-2");
@@ -101,7 +105,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(ledger.Count, Is.EqualTo(3));
             Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(300));
             Assert.That(ledger.Balance(CurrencyType.Boosters), Is.EqualTo(3));
-            var done = s.Evaluate(At(Return.AddHours(7)), LastActive);
+            var done = s.Evaluate(At(Return.AddHours(7)), Last);
             Assert.That(done.Status, Is.EqualTo(CatchUpStatus.Completed));
             Assert.That(done.Explanation.RemainingWins, Is.EqualTo(0));
             Assert.That(done.EmitEligibleSignal, Is.False);
@@ -112,14 +116,14 @@ namespace Match3.Engine.Tests.Editor
         public void WindowExpiry_ThenSameAbsenceCannotReopen_NewGenuineAbsenceOpensNewWindow()
         {
             var s = Service(out var ledger);
-            s.Evaluate(At(Return), LastActive);
+            s.Evaluate(At(Return), Last);
             s.RecordWin(At(Return.AddHours(1)), "win-1");
             Assert.That(s.RecordWin(At(Return.AddDays(7)), "win-2").Reason, Is.EqualTo(C.WindowExpired));
-            Assert.That(s.Evaluate(At(Return.AddDays(30)), LastActive).Reason, Is.EqualTo(C.NewAbsenceRequired));
+            Assert.That(s.Evaluate(At(Return.AddDays(30)), Last).Reason, Is.EqualTo(C.NewAbsenceRequired));
             // Player was active during the window, then absent again for 13 days: not yet genuine.
             var active2 = Return.AddDays(2);
-            Assert.That(s.Evaluate(At(active2.AddDays(13)), active2).Reason, Is.EqualTo(C.InsufficientAbsence));
-            var e = s.Evaluate(At(active2.AddDays(15)), active2);
+            Assert.That(s.Evaluate(At(active2.AddDays(13)), At(active2)).Reason, Is.EqualTo(C.InsufficientAbsence));
+            var e = s.Evaluate(At(active2.AddDays(15)), At(active2));
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active));
             Assert.That(e.EmitEligibleSignal, Is.True);
             Assert.That(e.Explanation.RemainingWins, Is.EqualTo(3));
@@ -129,64 +133,124 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void Reinstall_LostLocalState_DerivesWinsAndWindowEndFromLedger()
+        public void Reinstall_LostLocalState_DerivesWindowFromLedger_NotFromCurrentPolicy()
         {
             var s = Service(out var ledger);
-            s.Evaluate(At(Return), LastActive);
+            s.Evaluate(At(Return), Last);
             s.RecordWin(At(Return.AddHours(1)), "win-1");
             s.RecordWin(At(Return.AddHours(2)), "win-2");
             var cloud = RewardLedger.FromSnapshot(ledger.ToSnapshot()).Ledger;
 
-            var reinstalled = new ComebackCatchUpService(Profile(), cloud, CatchUpPolicy.Standard);
-            var e = reinstalled.Evaluate(At(Return.AddDays(3)), LastActive);
+            // Policy window length changed since: the pinned window must not move.
+            var longer = new CatchUpPolicy(14, 30, CatchUpPolicy.Standard.RewardPerWin);
+            var reinstalled = new ComebackCatchUpService(Profile(), cloud, longer, false);
+            var e = reinstalled.Evaluate(At(Return.AddDays(3)), Last);
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active));
+            Assert.That(e.EmitEligibleSignal, Is.False, "no second signal after reinstall");
             Assert.That(e.Explanation.WinsEarned, Is.EqualTo(2));
             Assert.That(e.Explanation.WindowEndsUtc, Is.EqualTo(Return.AddDays(7)), "window not extended by reinstall");
+            Assert.That(reinstalled.State.OpenedUtc, Is.EqualTo(Return.AddHours(1)), "start = earliest recorded win");
             Assert.That(reinstalled.RecordWin(At(Return.AddDays(3)), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Duplicate));
             Assert.That(reinstalled.RecordWin(At(Return.AddDays(3)), "win-3").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
             Assert.That(reinstalled.RecordWin(At(Return.AddDays(3)), "win-4").Reason, Is.EqualTo(C.WinCapReached));
             Assert.That(cloud.Balance(CurrencyType.Coins), Is.EqualTo(300));
 
             // Reinstall after the window ended: the window is closed, not re-opened.
-            var late = new ComebackCatchUpService(Profile(), cloud, CatchUpPolicy.Standard);
-            Assert.That(late.Evaluate(At(Return.AddDays(9)), LastActive).Reason, Is.EqualTo(C.WindowExpired));
-            Assert.That(late.Evaluate(At(Return.AddDays(10)), LastActive).Reason, Is.EqualTo(C.NewAbsenceRequired));
+            var late = new ComebackCatchUpService(Profile(), cloud, CatchUpPolicy.Standard, false);
+            Assert.That(late.Evaluate(At(Return.AddDays(9)), Last).Reason, Is.EqualTo(C.WindowExpired));
+            Assert.That(late.Evaluate(At(Return.AddDays(10)), Last).Reason, Is.EqualTo(C.NewAbsenceRequired));
+        }
+
+        [Test]
+        public void StateLossPlusFabricatedLastActive_CannotOpenSecondTrack()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            s.RecordWin(At(Return.AddHours(1)), "win-1");
+            // Local state lost; a forged "server" last-active value is presented to get a fresh windowId.
+            foreach (var forged in new[] { LastActive.AddDays(-30), LastActive.AddDays(-1), LastActive.AddDays(1), LastActive.AddDays(7) })
+            {
+                var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false);
+                var e = fresh.Evaluate(At(Return.AddDays(1)), At(forged));
+                Assert.That(e.Reason, Is.EqualTo(C.RecentCatchUpWindow), forged.ToString("o"));
+                Assert.That(e.EmitEligibleSignal, Is.False);
+                Assert.That(fresh.RecordWin(At(Return.AddDays(1)), "forged-win").Reason, Is.EqualTo(C.NoActiveWindow));
+            }
+            Assert.That(ledger.Count, Is.EqualTo(1));
+            // A genuine later absence (>= latest recorded absence + threshold, and a full threshold ago) is allowed.
+            var genuine = LastActive.AddDays(22);
+            var ok = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false).Evaluate(At(genuine.AddDays(14)), At(genuine));
+            Assert.That(ok.Status, Is.EqualTo(CatchUpStatus.Active), ok.Reason);
+        }
+
+        [Test]
+        public void SettledCatchUpKeys_StillBlockFabricatedTrack()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            s.RecordWin(At(Return.AddHours(1)), "win-1");
+            Assert.That(ledger.Prune(At(Return.AddDays(400))), Is.EqualTo(1));
+            var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false);
+            Assert.That(fresh.Evaluate(At(Return.AddDays(400)), At(LastActive.AddDays(5))).Reason, Is.EqualTo(C.RecentCatchUpWindow));
+            Assert.That(fresh.Evaluate(At(Return.AddDays(400)), Last).Reason, Is.EqualTo(C.WindowExpired), "same absence, settled window");
         }
 
         [Test]
         public void PersistedState_RoundTrip_PreventsSecondSignal()
         {
             var s = Service(out var ledger);
-            Assert.That(s.Evaluate(At(Return), LastActive).EmitEligibleSignal, Is.True);
+            Assert.That(s.Evaluate(At(Return), Last).EmitEligibleSignal, Is.True);
             var text = s.State.ToCanonical();
             Assert.That(CatchUpWindowState.TryParse(text, out var restored), Is.True);
-            var resumed = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, restored);
-            Assert.That(resumed.Evaluate(At(Return.AddHours(1)), LastActive).EmitEligibleSignal, Is.False);
+            Assert.That(restored.WindowLength, Is.EqualTo(TimeSpan.FromDays(7)));
+            var resumed = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, restored);
+            Assert.That(resumed.Evaluate(At(Return.AddHours(1)), Last).EmitEligibleSignal, Is.False);
             Assert.That(CatchUpWindowState.TryParse(text.Replace(":true", ": true"), out _), Is.False);
             Assert.That(CatchUpWindowState.TryParse("{}", out _), Is.False);
         }
 
         [Test]
-        public void ChildProfile_WonderPop_OffEntirely()
+        public void ChildPlayer_OffEntirely_OnAnyTitle()
         {
-            var s = Service(out var ledger, "Wonder_Pop");
-            var e = s.Evaluate(At(Return), LastActive);
-            Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Off));
-            Assert.That(e.Reason, Is.EqualTo(C.ChildProfileOff));
-            Assert.That(e.EmitEligibleSignal, Is.False);
-            Assert.That(e.Explanation, Is.Null);
-            Assert.That(s.State, Is.Null);
-            Assert.That(s.RecordWin(At(Return), "win-1").Reason, Is.EqualTo(C.ChildProfileOff));
-            Assert.That(ledger.Count, Is.EqualTo(0));
+            foreach (var id in new[] { "Coral_Rescue", "Wonder_Pop" })
+            {
+                var s = Service(out var ledger, id, child: true);
+                var e = s.Evaluate(At(Return), Last);
+                Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Off), id);
+                Assert.That(e.Reason, Is.EqualTo(C.ChildProfileOff));
+                Assert.That(e.EmitEligibleSignal, Is.False);
+                Assert.That(e.Explanation, Is.Null);
+                Assert.That(s.State, Is.Null);
+                Assert.That(s.RecordWin(At(Return), "win-1").Reason, Is.EqualTo(C.ChildProfileOff));
+                Assert.That(ledger.Count, Is.EqualTo(0));
+            }
         }
 
         [Test]
-        public void FeatureFlagOff_ServiceOff()
+        public void FamilySafeTitle_WonderPop_NonTargetedTrack_NeverSignals()
         {
-            var s = Service(out _, catchUp: false);
-            var e = s.Evaluate(At(Return), LastActive);
-            Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Off));
-            Assert.That(e.Reason, Is.EqualTo(C.FeatureDisabled));
+            var s = Service(out var ledger, "Wonder_Pop");
+            var e = s.Evaluate(At(Return), Last);
+            Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active), e.Reason);
+            Assert.That(e.EmitEligibleSignal, Is.False);
+            Assert.That(s.Evaluate(At(Return.AddHours(1)), Last).EmitEligibleSignal, Is.False);
+            Assert.That(s.RecordWin(At(Return.AddHours(2)), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
+            Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(100));
+            Assert.That(ledger.Balance(CurrencyType.PremiumGems), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void FeatureFlagOff_ServiceOff_DefaultForEveryTitle()
+        {
+            foreach (var id in GameProfileCatalog.Ids)
+            {
+                var s = Service(out var ledger, id, catchUp: false);
+                var e = s.Evaluate(At(Return), Last);
+                Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Off), id);
+                Assert.That(e.Reason, Is.EqualTo(C.FeatureDisabled));
+                Assert.That(s.RecordWin(At(Return), "win-1").Reason, Is.EqualTo(C.FeatureDisabled));
+                Assert.That(ledger.Count, Is.EqualTo(0));
+            }
         }
 
         [Test]
@@ -195,26 +259,27 @@ namespace Match3.Engine.Tests.Editor
             // Absence spanning the US DST end (2026-11-01) expressed in different offsets yields identical results.
             var lastLocal = new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.FromHours(-4));
             var nowLocal = new DateTimeOffset(2026, 11, 8, 0, 30, 0, TimeSpan.FromHours(-5)); // exactly 14 days later in UTC
-            var a = Service(out _).Evaluate(At(nowLocal.UtcDateTime), lastLocal.UtcDateTime);
+            var a = Service(out _).Evaluate(At(nowLocal.UtcDateTime), At(lastLocal.UtcDateTime));
             var b = Service(out _).Evaluate(At(nowLocal.ToOffset(TimeSpan.FromHours(9)).UtcDateTime),
-                lastLocal.ToOffset(TimeSpan.FromHours(14)).UtcDateTime);
+                At(lastLocal.ToOffset(TimeSpan.FromHours(14)).UtcDateTime));
             Assert.That(a.Status, Is.EqualTo(CatchUpStatus.Active), a.Reason);
             Assert.That(b.Explanation.WindowEndsUtc, Is.EqualTo(a.Explanation.WindowEndsUtc));
             Assert.That(b.Explanation.WindowId, Is.EqualTo(a.Explanation.WindowId));
-            var justShort = Service(out _).Evaluate(At(nowLocal.UtcDateTime.AddTicks(-1)), lastLocal.UtcDateTime);
+            var justShort = Service(out _).Evaluate(At(nowLocal.UtcDateTime.AddTicks(-1)), At(lastLocal.UtcDateTime));
             Assert.That(justShort.Reason, Is.EqualTo(C.InsufficientAbsence), "local wall-clock hours (DST) never count");
         }
 
         [Test]
-        public void Policy_RejectsPaidOrUncappedRewards_AndLedgerMismatch()
+        public void Policy_RejectsPaidUnregisteredOrUncappedRewards_AndLedgerMismatch()
         {
             Assert.Throws<ArgumentException>(() => new CatchUpPolicy(14, 7, new Dictionary<string, long> { ["PremiumGems"] = 1 }));
+            Assert.Throws<ArgumentException>(() => new CatchUpPolicy(14, 7, new Dictionary<string, long> { ["coins"] = 1 }));
             Assert.Throws<ArgumentException>(() => new CatchUpPolicy(14, 7,
                 new Dictionary<string, long> { ["Coins"] = CatchUpPolicy.MaxRewardPerAssetPerWin + 1 }));
             Assert.Throws<ArgumentException>(() => new CatchUpPolicy(14, 7, new Dictionary<string, long>()));
             Assert.Throws<ArgumentOutOfRangeException>(() => new CatchUpPolicy(0, 7, new Dictionary<string, long> { ["Coins"] = 1 }));
             Assert.Throws<ArgumentException>(() =>
-                new ComebackCatchUpService(Profile("Dino_Islands"), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard));
+                new ComebackCatchUpService(Profile("Dino_Islands"), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false));
         }
     }
 }

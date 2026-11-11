@@ -9,23 +9,32 @@ namespace Match3.Engine.Runtime.Economy
 {
     // ENG-M16-011 Cross-reward exactly-once ledger.
     //
-    // Key scheme: "rgk1|" + L(gameId) + L(playerId) + L(source) + L(sourceInstanceId), L(s) = len ":" s "|",
-    // all Ordinal. Length prefixes make the key injective even when ids contain '|' or ':'.
-    // Persistence: canonical JSON lines (reuses LiveOps.CanonicalJson); line 1 = header, then one record per
-    // line sorted by key. Header "sha256" = SHA-256 over canonical [headerWithoutSha, records]. Restore rejects
-    // hash mismatch and any text that is not byte-identical to the canonical re-serialization. SHA-256 is
-    // tamper-EVIDENCE only (anyone can recompute it); authenticity needs a server signature (not implemented).
-    // Bounded growth: only records with an ExpiresUtc (event/weekly/tournament/catch-up windows) are pruned,
-    // once ExpiresUtc + retention(source) <= prune horizon; their amounts fold into the settled segment so
-    // balances are kept. Records without ExpiresUtc (first-clear, IAP, packs...) are replayable and never pruned.
-    // A grant whose source is already settled by the horizon is rejected (SourceSettled), so pruning never
-    // reopens a key.
-    // Merge: same owner, opening and retention required. Settled segment = max by (horizon, canonical).
-    // Records = key union; variants settled by that horizon are dropped; per key the variant with the latest
-    // expiry (none = latest), then ordinal-smallest payload, then earliest GrantedUtc wins. This total order
-    // makes merge commutative and associative. Same key with different payload is reported in ConflictedKeys
-    // and still counted once. Grants known only to a device whose settled segment lost are not re-credited
-    // (no double grant; possible under-credit -> server reconciliation, not implemented).
+    // Key: "rgk1|" + L(gameId) + L(playerId) + L(source) + L(sourceInstanceId), L(s) = len ":" s "|", Ordinal.
+    // Length prefixes make the key injective even when ids contain '|' or ':'.
+    //
+    // Sources: WINDOWED sources (daily, weekly, weekly_personal_best, seasonal_collection, tournament, catch_up)
+    // REQUIRE ExpiresUtc and are judged against a server-anchored TrustedUtcAnchor (SourceExpired: anchor > expiry).
+    // TryGrant(request, anchor) is the strict path; the one-argument TryGrant(request) is kept for existing callers
+    // (ENG-M20-012) and treats request.GrantedUtc as caller-asserted server time. PERMANENT sources (first_clear, level_win, streak, chest, earned_pack, iap, ad_ssv)
+    // FORBID ExpiresUtc: each instance id names one earned/purchased fact that never expires.
+    //
+    // Assets: fixed registry = CurrencyType names (Ordinal). Paid asset = PremiumGems; paid grants (iap or any
+    // PremiumGems) are rejected for non-monetized or family-safe profiles, also in opening and settled totals.
+    //
+    // Persistence: canonical JSON lines (LiveOps.CanonicalJson): header line, then one line per key (live record or
+    // settled tombstone) sorted by key. Header "sha256" = SHA-256 over canonical [headerWithoutSha, lines]. Restore
+    // rejects hash mismatch, non-canonical text and policy violations. SHA-256 is tamper-EVIDENCE only; authenticity
+    // needs a server signature (not implemented).
+    //
+    // Settlement: Prune(trusted anchor) turns a windowed record whose ExpiresUtc + retention(source) has passed into
+    // a TOMBSTONE (source, instance, payload digest, amounts); timestamps/reference are dropped but the key is kept
+    // forever. A tombstoned key is never applied again (any re-presentation -> KeySettled). Permanent records are
+    // never pruned. Key count is NOT bounded: keys are the exactly-once proof.
+    //
+    // Merge: exact union by key over live records and tombstones. One variant per key wins by the total order
+    // (payload digest asc, tombstone before live, GrantedUtc asc): commutative, associative, idempotent. Different
+    // digests under one key are reported in ConflictedKeys and counted once. Balance = opening + amounts of the
+    // winning variant of every unique key; never zero, never twice.
     // ponytail: single-writer (no locks); callers serialize access, add a lock if grants become concurrent.
 
     public static class RewardSources
@@ -50,12 +59,19 @@ namespace Match3.Engine.Runtime.Economy
             SeasonalCollection, Tournament, CatchUp, Purchase, AdServerSideVerified
         });
 
+        public static IReadOnlyList<string> Windowed { get; } = Array.AsReadOnly(new[]
+        {
+            Daily, Weekly, WeeklyPersonalBest, SeasonalCollection, Tournament, CatchUp
+        });
+
         public static bool IsKnown(string source) => source != null && All.Contains(source, StringComparer.Ordinal);
+        public static bool IsWindowed(string source) => source != null && Windowed.Contains(source, StringComparer.Ordinal);
     }
 
     public static class RewardLedgerReasons
     {
         public const string IdempotencyConflict = "IdempotencyConflict";
+        public const string KeySettled = "KeySettled";
         public const string PaidGrantNotAllowed = "PaidGrantNotAllowed";
         public const string AdRewardNotAllowed = "AdRewardNotAllowed";
         public const string LedgerOwnerMismatch = "LedgerOwnerMismatch";
@@ -64,8 +80,10 @@ namespace Match3.Engine.Runtime.Economy
         public const string InvalidReference = "InvalidReference";
         public const string InvalidAmounts = "InvalidAmounts";
         public const string NonUtcTimestamp = "NonUtcTimestamp";
+        public const string ExpiryRequired = "ExpiryRequired";
+        public const string ExpiryNotAllowed = "ExpiryNotAllowed";
+        public const string TrustedTimeAnchorRequired = "TrustedTimeAnchorRequired";
         public const string SourceExpired = "SourceExpired";
-        public const string SourceSettled = "SourceSettled";
         public const string BalanceOverflow = "BalanceOverflow";
         public const string MalformedSnapshot = "MalformedSnapshot";
         public const string UnsupportedSnapshotVersion = "UnsupportedSnapshotVersion";
@@ -98,8 +116,9 @@ namespace Match3.Engine.Runtime.Economy
         /// <summary>Optional triggering event id (order id, ad transaction, win event); part of the payload.</summary>
         public string Reference { get; }
         public IReadOnlyDictionary<string, long> Amounts { get; }
+        /// <summary>Recorded metadata only; expiry is checked against the trusted anchor, not this value.</summary>
         public DateTime GrantedUtc { get; }
-        /// <summary>End of the source's claim window; null = replayable/permanent source (never pruned).</summary>
+        /// <summary>End of a windowed source's claim window; must be null for permanent sources.</summary>
         public DateTime? ExpiresUtc { get; }
 
         public RewardLedgerRequest(string gameId, string playerId, string source, string sourceInstanceId,
@@ -128,8 +147,8 @@ namespace Match3.Engine.Runtime.Economy
         public IReadOnlyDictionary<string, long> Amounts { get; }
         public DateTime GrantedUtc { get; }
         public DateTime? ExpiresUtc { get; }
-        /// <summary>Canonical amounts+expiry+reference; equal payload under one key = same grant.</summary>
-        internal string Payload { get; }
+        /// <summary>SHA-256 hex of canonical amounts+expiry+reference; equal digest under one key = same grant.</summary>
+        public string PayloadDigest { get; }
 
         internal RewardLedgerRecord(string key, RewardLedgerRequest r)
         {
@@ -142,7 +161,7 @@ namespace Match3.Engine.Runtime.Economy
             Amounts = r.Amounts;
             GrantedUtc = r.GrantedUtc;
             ExpiresUtc = r.ExpiresUtc;
-            Payload = CanonicalJson.Serialize(new Dictionary<string, object>(StringComparer.Ordinal)
+            PayloadDigest = CanonicalJson.Sha256Hex(new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["amounts"] = RewardLedger.ToJsonMap(Amounts),
                 ["expiresTicks"] = ExpiresUtc.HasValue ? (object)ExpiresUtc.Value.Ticks : null,
@@ -152,12 +171,41 @@ namespace Match3.Engine.Runtime.Economy
 
         internal Dictionary<string, object> ToJson() => new Dictionary<string, object>(StringComparer.Ordinal)
         {
+            ["state"] = "live",
             ["source"] = Source,
             ["instance"] = SourceInstanceId,
             ["reference"] = Reference,
             ["amounts"] = RewardLedger.ToJsonMap(Amounts),
             ["grantedTicks"] = GrantedUtc.Ticks,
             ["expiresTicks"] = ExpiresUtc.HasValue ? (object)ExpiresUtc.Value.Ticks : null
+        };
+    }
+
+    /// <summary>Settled key: kept forever so the grant can never be applied again or lost in a merge.</summary>
+    public sealed class RewardLedgerTombstone
+    {
+        public string Key { get; }
+        public string Source { get; }
+        public string SourceInstanceId { get; }
+        public string PayloadDigest { get; }
+        public IReadOnlyDictionary<string, long> Amounts { get; }
+
+        internal RewardLedgerTombstone(string key, string source, string instance, string digest, IReadOnlyDictionary<string, long> amounts)
+        {
+            Key = key;
+            Source = source;
+            SourceInstanceId = instance;
+            PayloadDigest = digest;
+            Amounts = amounts;
+        }
+
+        internal Dictionary<string, object> ToJson() => new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["state"] = "settled",
+            ["source"] = Source,
+            ["instance"] = SourceInstanceId,
+            ["digest"] = PayloadDigest,
+            ["amounts"] = RewardLedger.ToJsonMap(Amounts)
         };
     }
 
@@ -187,7 +235,7 @@ namespace Match3.Engine.Runtime.Economy
         public RewardLedger Ledger { get; }
         public string Reason { get; }
         public bool Succeeded => Ledger != null;
-        /// <summary>Merge only: keys seen with different payloads (counted once; route to reconciliation).</summary>
+        /// <summary>Merge only: keys seen with different payload digests (counted once; route to reconciliation).</summary>
         public IReadOnlyList<string> ConflictedKeys { get; }
 
         internal RewardLedgerResult(RewardLedger ledger, string reason, IList<string> conflicts = null)
@@ -211,7 +259,7 @@ namespace Match3.Engine.Runtime.Economy
             var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
             foreach (var kv in daysBySource ?? new Dictionary<string, int>())
             {
-                if (!RewardSources.IsKnown(kv.Key)) throw new ArgumentException("Unknown reward source " + kv.Key, nameof(daysBySource));
+                if (!RewardSources.IsWindowed(kv.Key)) throw new ArgumentException("Retention applies to windowed sources only: " + kv.Key, nameof(daysBySource));
                 if (kv.Value < 1 || kv.Value > MaxDays) throw new ArgumentOutOfRangeException(nameof(daysBySource));
                 map[kv.Key] = kv.Value;
             }
@@ -231,7 +279,6 @@ namespace Match3.Engine.Runtime.Economy
         internal static RewardRetentionPolicy FromJson(object o)
         {
             var d = (Dictionary<string, object>)o;
-            if (d.Count != 2) throw new FormatException("retention");
             var by = ((Dictionary<string, object>)d["bySource"]).ToDictionary(kv => kv.Key, kv => checked((int)(long)kv.Value), StringComparer.Ordinal);
             return new RewardRetentionPolicy(checked((int)(long)d["defaultDays"]), by);
         }
@@ -240,101 +287,93 @@ namespace Match3.Engine.Runtime.Economy
     public sealed class RewardLedger
     {
         public const string SnapshotFormat = "m3-reward-ledger";
-        public const long SnapshotVersion = 1;
+        public const long SnapshotVersion = 2;
         public const int MaxIdLength = 128;
-        public const int MaxAssetsPerGrant = 16;
         public const long MaxAmountPerAsset = 1000000000L;
         public static readonly string PaidAssetId = nameof(CurrencyType.PremiumGems);
+        /// <summary>Fixed asset registry (Ordinal): the CurrencyType names.</summary>
+        public static IReadOnlyList<string> KnownAssets { get; } = Array.AsReadOnly(Enum.GetNames(typeof(CurrencyType)));
 
         private readonly SortedDictionary<string, long> _opening;
-        private readonly SortedDictionary<string, long> _settled = new SortedDictionary<string, long>(StringComparer.Ordinal);
         private readonly SortedDictionary<string, long> _balances;
         private readonly Dictionary<string, RewardLedgerRecord> _records = new Dictionary<string, RewardLedgerRecord>(StringComparer.Ordinal);
+        private readonly Dictionary<string, RewardLedgerTombstone> _settled = new Dictionary<string, RewardLedgerTombstone>(StringComparer.Ordinal);
         private readonly bool _paidAllowed;
         private readonly bool _adRewardsAllowed;
-        private long? _settledThroughTicks;
 
         public string GameId { get; }
         public string PlayerId { get; }
         public RewardRetentionPolicy Retention { get; }
+        /// <summary>Live (unsettled) records.</summary>
         public int Count => _records.Count;
-        public int SettledCount { get; private set; }
-        public DateTime? SettledThroughUtc =>
-            _settledThroughTicks.HasValue ? new DateTime(_settledThroughTicks.Value, DateTimeKind.Utc) : (DateTime?)null;
+        public int SettledCount => _settled.Count;
 
         public RewardLedger(string gameId, string playerId, IReadOnlyDictionary<string, long> opening = null,
             RewardRetentionPolicy retention = null)
         {
             if (!GameProfileCatalog.IsKnownId(gameId)) throw new ArgumentException("Unknown game profile.", nameof(gameId));
             if (!IsId(playerId)) throw new ArgumentException("Invalid player id.", nameof(playerId));
-            _opening = SortedCopy(opening ?? new Dictionary<string, long>());
-            if (_opening.Any(kv => !IsAssetId(kv.Key) || kv.Value < 0))
-                throw new ArgumentException("Opening balances need valid asset ids and non-negative amounts.", nameof(opening));
             GameId = gameId;
             PlayerId = playerId;
             Retention = retention ?? new RewardRetentionPolicy();
-            _balances = SortedCopy(_opening);
             var business = GameBusinessProfileCatalog.Require(gameId);
-            // Child-safe profiles never receive paid currency or purchase credits (non-relaxable).
+            // Non-monetized and family-safe profiles never hold paid currency (non-relaxable).
             _paidAllowed = business.MonetizationEnabled && !EconomyBalanceSimulator.IsFamilySafeProfile(gameId);
             _adRewardsAllowed = business.AdsEnabled;
+            _opening = SortedCopy(opening ?? new Dictionary<string, long>());
+            if (_opening.Any(kv => !IsKnownAsset(kv.Key) || kv.Value < 0))
+                throw new ArgumentException("Opening balances need registered assets and non-negative amounts.", nameof(opening));
+            if (!_paidAllowed && _opening.TryGetValue(PaidAssetId, out var paid) && paid > 0)
+                throw new ArgumentException(RewardLedgerReasons.PaidGrantNotAllowed, nameof(opening));
+            _balances = SortedCopy(_opening);
         }
 
         public long Balance(string assetId) => _balances.TryGetValue(assetId ?? string.Empty, out var v) ? v : 0L;
         public long Balance(CurrencyType currency) => Balance(currency.ToString());
+        /// <summary>Live records only; settled keys are visible through <see cref="TryGetTombstone"/>.</summary>
         public bool TryGetRecord(string key, out RewardLedgerRecord record) => _records.TryGetValue(key ?? string.Empty, out record);
+        public bool TryGetTombstone(string key, out RewardLedgerTombstone tombstone) => _settled.TryGetValue(key ?? string.Empty, out tombstone);
+        /// <summary>True when the key was ever granted (live or settled).</summary>
+        public bool ContainsKey(string key) => key != null && (_records.ContainsKey(key) || _settled.ContainsKey(key));
+
+        /// <summary>Instance ids of every granted key (live and settled) for one source, Ordinal-sorted.</summary>
+        public IReadOnlyList<string> InstanceIds(string source) =>
+            _records.Values.Where(r => r.Source == source).Select(r => r.SourceInstanceId)
+                .Concat(_settled.Values.Where(t => t.Source == source).Select(t => t.SourceInstanceId))
+                .OrderBy(s => s, StringComparer.Ordinal).ToList();
+
+        /// <summary>
+        /// Compatibility overload: for windowed sources the caller ASSERTS that request.GrantedUtc is trusted server
+        /// time (it becomes the anchor). Prefer <see cref="TryGrant(RewardLedgerRequest, TrustedUtcAnchor)"/>.
+        /// </summary>
+        public RewardLedgerGrantResult TryGrant(RewardLedgerRequest request) =>
+            TryGrant(request, TrustedUtcAnchor.Server((request ?? throw new ArgumentNullException(nameof(request))).GrantedUtc));
 
         /// <summary>Applies the grant and records its key together, or changes nothing.</summary>
-        public RewardLedgerGrantResult TryGrant(RewardLedgerRequest request)
-        {
-            if (request == null) throw new ArgumentNullException(nameof(request));
-            if (!string.Equals(request.GameId, GameId, StringComparison.Ordinal) ||
-                !string.Equals(request.PlayerId, PlayerId, StringComparison.Ordinal))
-                return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.LedgerOwnerMismatch);
-            var invalid = Validate(request);
-            if (invalid != null) return RewardLedgerGrantResult.Rejected(invalid);
-            var isPaid = request.Source == RewardSources.Purchase || request.Amounts.ContainsKey(PaidAssetId);
-            if (isPaid && !_paidAllowed) return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.PaidGrantNotAllowed);
-            if (request.Source == RewardSources.AdServerSideVerified && !_adRewardsAllowed)
-                return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.AdRewardNotAllowed);
+        public RewardLedgerGrantResult TryGrant(RewardLedgerRequest request, TrustedUtcAnchor anchor) => Apply(request, anchor, false);
 
-            var key = RewardLedgerKey.Derive(GameId, PlayerId, request.Source, request.SourceInstanceId);
-            var candidate = new RewardLedgerRecord(key, request);
-            if (_records.TryGetValue(key, out var original))
-                return string.Equals(original.Payload, candidate.Payload, StringComparison.Ordinal)
-                    ? RewardLedgerGrantResult.Duplicate(original)
-                    : RewardLedgerGrantResult.Rejected(RewardLedgerReasons.IdempotencyConflict);
-            if (_settledThroughTicks.HasValue && IsSettledBy(candidate, _settledThroughTicks.Value))
-                return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.SourceSettled);
-            if (!TryAdd(_balances, candidate.Amounts)) return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.BalanceOverflow);
-            _records.Add(key, candidate);
-            return RewardLedgerGrantResult.Applied(candidate);
-        }
-
-        /// <summary>Folds expired records past retention into the settled segment. Horizon is monotonic.</summary>
-        public int Prune(DateTime nowUtc)
+        /// <summary>Settles windowed records whose expiry + retention has passed by the server-anchored time.</summary>
+        public int Prune(TrustedUtcAnchor anchor)
         {
-            if (nowUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("UTC required.", nameof(nowUtc));
-            if (_settledThroughTicks.HasValue && nowUtc.Ticks <= _settledThroughTicks.Value) return 0;
-            var prunable = _records.Values.Where(r => IsSettledBy(r, nowUtc.Ticks)).ToList();
-            foreach (var r in prunable)
+            if (!anchor.IsServerAnchored || anchor.UtcNow.Kind != DateTimeKind.Utc)
+                throw new ArgumentException(RewardLedgerReasons.TrustedTimeAnchorRequired, nameof(anchor));
+            var due = _records.Values.Where(r => r.ExpiresUtc.HasValue &&
+                r.ExpiresUtc.Value.Ticks <= anchor.UtcNow.Ticks - Retention.For(r.Source).Ticks).ToList();
+            foreach (var r in due)
             {
-                TryAdd(_settled, r.Amounts); // cannot overflow: already part of _balances
                 _records.Remove(r.Key);
+                _settled.Add(r.Key, new RewardLedgerTombstone(r.Key, r.Source, r.SourceInstanceId, r.PayloadDigest, r.Amounts));
             }
-            SettledCount += prunable.Count;
-            _settledThroughTicks = nowUtc.Ticks;
-            return prunable.Count;
+            return due.Count;
         }
 
         public string ToSnapshot()
         {
             var header = HeaderJson();
-            var records = _records.Keys.OrderBy(k => k, StringComparer.Ordinal)
-                .Select(k => (object)_records[k].ToJson()).ToList();
-            header["sha256"] = CanonicalJson.Sha256Hex(new List<object> { HeaderJson(), records });
+            var lines = Lines();
+            header["sha256"] = CanonicalJson.Sha256Hex(new List<object> { HeaderJson(), lines });
             var sb = new StringBuilder(CanonicalJson.Serialize(header));
-            foreach (var r in records) sb.Append('\n').Append(CanonicalJson.Serialize(r));
+            foreach (var l in lines) sb.Append('\n').Append(CanonicalJson.Serialize(l));
             return sb.ToString();
         }
 
@@ -343,35 +382,37 @@ namespace Match3.Engine.Runtime.Economy
             try
             {
                 if (string.IsNullOrEmpty(text)) return Fail(RewardLedgerReasons.MalformedSnapshot);
-                var lines = text.Split('\n');
-                var header = CanonicalJson.Parse(lines[0]) as Dictionary<string, object>;
+                var parts = text.Split('\n');
+                var header = CanonicalJson.Parse(parts[0]) as Dictionary<string, object>;
                 if (header == null || !Equals(header["format"], SnapshotFormat)) return Fail(RewardLedgerReasons.MalformedSnapshot);
                 if (!Equals(header["version"], SnapshotVersion)) return Fail(RewardLedgerReasons.UnsupportedSnapshotVersion);
-                var records = lines.Skip(1).Select(CanonicalJson.Parse).ToList();
+                var lines = parts.Skip(1).Select(CanonicalJson.Parse).ToList();
                 var claimed = header["sha256"] as string;
                 header.Remove("sha256");
-                if (!string.Equals(claimed, CanonicalJson.Sha256Hex(new List<object> { header, records }), StringComparison.Ordinal))
+                if (!string.Equals(claimed, CanonicalJson.Sha256Hex(new List<object> { header, lines }), StringComparison.Ordinal))
                     return Fail(RewardLedgerReasons.IntegrityMismatch);
 
                 var ledger = new RewardLedger((string)header["gameId"], (string)header["playerId"],
                     FromJsonMap(header["opening"]), RewardRetentionPolicy.FromJson(header["retention"]));
-                var settled = (Dictionary<string, object>)header["settled"];
-                var totals = FromJsonMap(settled["totals"]);
-                if (totals.Any(kv => !IsAssetId(kv.Key) || kv.Value < 0) || !TryAdd(ledger._balances, totals))
-                    return Fail(RewardLedgerReasons.MalformedSnapshot);
-                foreach (var kv in totals) ledger._settled[kv.Key] = kv.Value;
-                ledger.SettledCount = checked((int)(long)settled["count"]);
-                ledger._settledThroughTicks = settled["throughTicks"] == null ? (long?)null : (long)settled["throughTicks"];
-
-                foreach (Dictionary<string, object> r in records)
+                foreach (Dictionary<string, object> l in lines)
                 {
-                    var res = ledger.TryGrant(new RewardLedgerRequest(ledger.GameId, ledger.PlayerId,
-                        (string)r["source"], (string)r["instance"], FromJsonMap(r["amounts"]),
-                        new DateTime((long)r["grantedTicks"], DateTimeKind.Utc),
-                        r["expiresTicks"] == null ? (DateTime?)null : new DateTime((long)r["expiresTicks"], DateTimeKind.Utc),
-                        (string)r["reference"]));
-                    if (res.Outcome != RewardLedgerOutcome.Applied)
-                        return Fail(RewardLedgerReasons.MalformedSnapshot + ":" + (res.Outcome == RewardLedgerOutcome.Duplicate ? "DuplicateKey" : res.Reason));
+                    var source = (string)l["source"];
+                    var instance = (string)l["instance"];
+                    var amounts = FromJsonMap(l["amounts"]);
+                    string reason;
+                    if ((string)l["state"] == "settled")
+                        reason = ledger.AddTombstone(source, instance, (string)l["digest"], amounts);
+                    else if ((string)l["state"] == "live")
+                    {
+                        var res = ledger.Apply(new RewardLedgerRequest(ledger.GameId, ledger.PlayerId, source, instance, amounts,
+                            new DateTime((long)l["grantedTicks"], DateTimeKind.Utc),
+                            l["expiresTicks"] == null ? (DateTime?)null : new DateTime((long)l["expiresTicks"], DateTimeKind.Utc),
+                            (string)l["reference"]), default(TrustedUtcAnchor), true);
+                        reason = res.Outcome == RewardLedgerOutcome.Applied ? null
+                            : res.Outcome == RewardLedgerOutcome.Duplicate ? "DuplicateKey" : res.Reason;
+                    }
+                    else reason = "UnknownState";
+                    if (reason != null) return Fail(RewardLedgerReasons.MalformedSnapshot + ":" + reason);
                 }
                 return string.Equals(ledger.ToSnapshot(), text, StringComparison.Ordinal)
                     ? new RewardLedgerResult(ledger, null)
@@ -384,7 +425,7 @@ namespace Match3.Engine.Runtime.Economy
             }
         }
 
-        /// <summary>Order-independent union of two ledgers of the same owner (e.g. cloud + local).</summary>
+        /// <summary>Exact, order-independent union of two ledgers of the same owner (e.g. cloud + local).</summary>
         public static RewardLedgerResult Merge(RewardLedger a, RewardLedger b)
         {
             if (a == null) throw new ArgumentNullException(nameof(a));
@@ -395,63 +436,112 @@ namespace Match3.Engine.Runtime.Economy
             if (CanonicalJson.Serialize(a.Retention.ToJson()) != CanonicalJson.Serialize(b.Retention.ToJson()))
                 return Fail(RewardLedgerReasons.RetentionPolicyMismatch);
 
-            var src = CompareSettled(a, b) >= 0 ? a : b;
             var merged = new RewardLedger(a.GameId, a.PlayerId, a._opening, a.Retention);
-            foreach (var kv in src._settled) merged._settled[kv.Key] = kv.Value;
-            merged.SettledCount = src.SettledCount;
-            merged._settledThroughTicks = src._settledThroughTicks;
-            if (!TryAdd(merged._balances, merged._settled)) return Fail(RewardLedgerReasons.BalanceOverflow);
-
             var conflicts = new List<string>();
-            foreach (var key in a._records.Keys.Union(b._records.Keys).OrderBy(k => k, StringComparer.Ordinal))
+            var keys = a._records.Keys.Concat(a._settled.Keys).Concat(b._records.Keys).Concat(b._settled.Keys)
+                .Distinct(StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal);
+            foreach (var key in keys)
             {
-                var variants = new[] { a, b }.Where(l => l._records.ContainsKey(key)).Select(l => l._records[key]).ToList();
-                if (variants.Select(v => v.Payload).Distinct(StringComparer.Ordinal).Count() > 1) conflicts.Add(key);
-                var live = variants.Where(v => !merged._settledThroughTicks.HasValue || !merged.IsSettledBy(v, merged._settledThroughTicks.Value));
-                var winner = live.OrderBy(v => v, WinnerOrder.Instance).FirstOrDefault();
-                if (winner == null) continue;
-                if (!TryAdd(merged._balances, winner.Amounts)) return Fail(RewardLedgerReasons.BalanceOverflow);
-                merged._records.Add(key, winner);
+                var variants = new List<Variant>();
+                foreach (var l in new[] { a, b })
+                {
+                    if (l._records.TryGetValue(key, out var r)) variants.Add(new Variant(r.PayloadDigest, false, r.GrantedUtc.Ticks, r, null));
+                    if (l._settled.TryGetValue(key, out var t)) variants.Add(new Variant(t.PayloadDigest, true, 0, null, t));
+                }
+                if (variants.Select(v => v.Digest).Distinct(StringComparer.Ordinal).Count() > 1) conflicts.Add(key);
+                var w = variants.OrderBy(v => v.Digest, StringComparer.Ordinal).ThenBy(v => v.Settled ? 0 : 1).ThenBy(v => v.Ticks).First();
+                if (!TryAdd(merged._balances, w.Record?.Amounts ?? w.Tombstone.Amounts)) return Fail(RewardLedgerReasons.BalanceOverflow);
+                if (w.Settled) merged._settled.Add(key, w.Tombstone);
+                else merged._records.Add(key, w.Record);
             }
             return new RewardLedgerResult(merged, null, conflicts);
         }
 
         // ---- internals -------------------------------------------------------------------------------
 
-        private sealed class WinnerOrder : IComparer<RewardLedgerRecord>
+        private readonly struct Variant
         {
-            public static readonly WinnerOrder Instance = new WinnerOrder();
-            public int Compare(RewardLedgerRecord x, RewardLedgerRecord y)
+            public readonly string Digest;
+            public readonly bool Settled;
+            public readonly long Ticks;
+            public readonly RewardLedgerRecord Record;
+            public readonly RewardLedgerTombstone Tombstone;
+
+            public Variant(string digest, bool settled, long ticks, RewardLedgerRecord record, RewardLedgerTombstone tombstone)
             {
-                // Latest expiry first (none = latest) so a winner is never settled before a loser.
-                var ex = x.ExpiresUtc?.Ticks ?? long.MaxValue;
-                var ey = y.ExpiresUtc?.Ticks ?? long.MaxValue;
-                if (ex != ey) return ey.CompareTo(ex);
-                var c = string.CompareOrdinal(x.Payload, y.Payload);
-                return c != 0 ? c : x.GrantedUtc.Ticks.CompareTo(y.GrantedUtc.Ticks);
+                Digest = digest;
+                Settled = settled;
+                Ticks = ticks;
+                Record = record;
+                Tombstone = tombstone;
             }
         }
 
-        private static int CompareSettled(RewardLedger a, RewardLedger b)
+        private RewardLedgerGrantResult Apply(RewardLedgerRequest request, TrustedUtcAnchor anchor, bool restoring)
         {
-            var c = (a._settledThroughTicks ?? -1L).CompareTo(b._settledThroughTicks ?? -1L);
-            return c != 0 ? c : string.CompareOrdinal(CanonicalJson.Serialize(a.SettledJson()), CanonicalJson.Serialize(b.SettledJson()));
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (!string.Equals(request.GameId, GameId, StringComparison.Ordinal) ||
+                !string.Equals(request.PlayerId, PlayerId, StringComparison.Ordinal))
+                return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.LedgerOwnerMismatch);
+            var invalid = Validate(request) ?? CheckAmounts(request.Source, request.Amounts);
+            if (invalid != null) return RewardLedgerGrantResult.Rejected(invalid);
+
+            var key = RewardLedgerKey.Derive(GameId, PlayerId, request.Source, request.SourceInstanceId);
+            var candidate = new RewardLedgerRecord(key, request);
+            if (_records.TryGetValue(key, out var original))
+                return string.Equals(original.PayloadDigest, candidate.PayloadDigest, StringComparison.Ordinal)
+                    ? RewardLedgerGrantResult.Duplicate(original)
+                    : RewardLedgerGrantResult.Rejected(RewardLedgerReasons.IdempotencyConflict);
+            if (_settled.ContainsKey(key)) return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.KeySettled);
+            if (!restoring && request.ExpiresUtc.HasValue)
+            {
+                if (!anchor.IsServerAnchored || anchor.UtcNow.Kind != DateTimeKind.Utc)
+                    return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.TrustedTimeAnchorRequired);
+                if (anchor.UtcNow > request.ExpiresUtc.Value) return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.SourceExpired);
+            }
+            if (!TryAdd(_balances, candidate.Amounts)) return RewardLedgerGrantResult.Rejected(RewardLedgerReasons.BalanceOverflow);
+            _records.Add(key, candidate);
+            return RewardLedgerGrantResult.Applied(candidate);
         }
 
-        private bool IsSettledBy(RewardLedgerRecord r, long horizonTicks) =>
-            r.ExpiresUtc.HasValue && r.ExpiresUtc.Value.Ticks <= horizonTicks - Retention.For(r.Source).Ticks;
+        private string AddTombstone(string source, string instance, string digest, IReadOnlyDictionary<string, long> amounts)
+        {
+            if (!RewardSources.IsWindowed(source)) return RewardLedgerReasons.UnknownRewardSource;
+            if (!IsId(instance)) return RewardLedgerReasons.InvalidSourceInstance;
+            if (digest == null || digest.Length != 64 || !digest.All(c => c >= '0' && c <= '9' || c >= 'a' && c <= 'f'))
+                return "InvalidDigest";
+            var invalid = CheckAmounts(source, amounts);
+            if (invalid != null) return invalid;
+            var key = RewardLedgerKey.Derive(GameId, PlayerId, source, instance);
+            if (ContainsKey(key)) return "DuplicateKey";
+            if (!TryAdd(_balances, amounts)) return RewardLedgerReasons.BalanceOverflow;
+            _settled.Add(key, new RewardLedgerTombstone(key, source, instance, digest, amounts));
+            return null;
+        }
 
         private static string Validate(RewardLedgerRequest r)
         {
             if (!RewardSources.IsKnown(r.Source)) return RewardLedgerReasons.UnknownRewardSource;
             if (!IsId(r.SourceInstanceId)) return RewardLedgerReasons.InvalidSourceInstance;
             if (r.Reference != null && !IsId(r.Reference)) return RewardLedgerReasons.InvalidReference;
-            if (r.Amounts == null || r.Amounts.Count == 0 || r.Amounts.Count > MaxAssetsPerGrant ||
-                r.Amounts.Any(kv => !IsAssetId(kv.Key) || kv.Value <= 0 || kv.Value > MaxAmountPerAsset))
-                return RewardLedgerReasons.InvalidAmounts;
             if (r.GrantedUtc.Kind != DateTimeKind.Utc || r.ExpiresUtc.HasValue && r.ExpiresUtc.Value.Kind != DateTimeKind.Utc)
                 return RewardLedgerReasons.NonUtcTimestamp;
-            if (r.ExpiresUtc.HasValue && r.GrantedUtc > r.ExpiresUtc.Value) return RewardLedgerReasons.SourceExpired;
+            var windowed = RewardSources.IsWindowed(r.Source);
+            if (windowed && !r.ExpiresUtc.HasValue) return RewardLedgerReasons.ExpiryRequired;
+            if (!windowed && r.ExpiresUtc.HasValue) return RewardLedgerReasons.ExpiryNotAllowed;
+            return null;
+        }
+
+        /// <summary>Asset registry, amount bounds and the paid/ad profile rules (shared by grants and tombstones).</summary>
+        private string CheckAmounts(string source, IReadOnlyDictionary<string, long> amounts)
+        {
+            if (amounts == null || amounts.Count == 0 ||
+                amounts.Any(kv => !IsKnownAsset(kv.Key) || kv.Value <= 0 || kv.Value > MaxAmountPerAsset))
+                return RewardLedgerReasons.InvalidAmounts;
+            if ((source == RewardSources.Purchase || amounts.ContainsKey(PaidAssetId)) && !_paidAllowed)
+                return RewardLedgerReasons.PaidGrantNotAllowed;
+            if (source == RewardSources.AdServerSideVerified && !_adRewardsAllowed)
+                return RewardLedgerReasons.AdRewardNotAllowed;
             return null;
         }
 
@@ -464,12 +554,9 @@ namespace Match3.Engine.Runtime.Economy
             return true;
         }
 
-        private Dictionary<string, object> SettledJson() => new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["count"] = (long)SettledCount,
-            ["throughTicks"] = _settledThroughTicks.HasValue ? (object)_settledThroughTicks.Value : null,
-            ["totals"] = ToJsonMap(_settled)
-        };
+        private List<object> Lines() =>
+            _records.Keys.Concat(_settled.Keys).OrderBy(k => k, StringComparer.Ordinal)
+                .Select(k => (object)(_records.TryGetValue(k, out var r) ? r.ToJson() : _settled[k].ToJson())).ToList();
 
         private Dictionary<string, object> HeaderJson() => new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -478,8 +565,7 @@ namespace Match3.Engine.Runtime.Economy
             ["gameId"] = GameId,
             ["playerId"] = PlayerId,
             ["opening"] = ToJsonMap(_opening),
-            ["retention"] = Retention.ToJson(),
-            ["settled"] = SettledJson()
+            ["retention"] = Retention.ToJson()
         };
 
         private static RewardLedgerResult Fail(string reason) => new RewardLedgerResult(null, reason);
@@ -487,9 +573,7 @@ namespace Match3.Engine.Runtime.Economy
         private static bool IsId(string s) =>
             !string.IsNullOrEmpty(s) && s.Length <= MaxIdLength && s.All(c => !char.IsControl(c) && !char.IsSurrogate(c));
 
-        internal static bool IsAssetId(string s) =>
-            !string.IsNullOrEmpty(s) && s.Length <= 64 &&
-            s.All(c => c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' || c == '-');
+        public static bool IsKnownAsset(string assetId) => assetId != null && KnownAssets.Contains(assetId, StringComparer.Ordinal);
 
         internal static SortedDictionary<string, long> SortedCopy(IEnumerable<KeyValuePair<string, long>> source)
         {
