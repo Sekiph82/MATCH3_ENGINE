@@ -5,38 +5,62 @@ using System.Threading.Tasks;
 
 namespace Match3.Engine.Runtime
 {
+    // Zero is a non-success sentinel so default(...) never reads as success.
+    // Non-success members keep their original numbers; the success member moved.
     public enum ServiceResultStatus
     {
-        Succeeded = 0,
+        None = 0,
         Disabled = 1,
         Denied = 2,
         Unavailable = 3,
         Failed = 4,
-        NotFound = 5
+        NotFound = 5,
+        Succeeded = 6
     }
 
     public sealed class ServiceResult<T>
     {
+        private readonly T _value;
+
         public ServiceResultStatus Status { get; }
-        public T Value { get; }
         public string ReasonCode { get; }
         public bool IsSuccess => Status == ServiceResultStatus.Succeeded;
+
+        // Fail closed: a non-success result has no value to read.
+        public T Value
+        {
+            get
+            {
+                if (!IsSuccess)
+                    throw new InvalidOperationException(
+                        "ServiceResult has no value: status " + Status +
+                        " (" + ReasonCode + ").");
+                return _value;
+            }
+        }
 
         private ServiceResult(ServiceResultStatus status, T value,
             string reasonCode)
         {
-            if (!Enum.IsDefined(typeof(ServiceResultStatus), status))
+            if (status == ServiceResultStatus.None ||
+                !Enum.IsDefined(typeof(ServiceResultStatus), status))
                 throw new ArgumentOutOfRangeException(nameof(status));
             if (status == ServiceResultStatus.Succeeded &&
                 ReferenceEquals(value, null))
                 throw new ArgumentNullException(nameof(value));
+            // Enum outcomes: the zero None sentinel or an undefined value is
+            // never a successful outcome.
+            if (status == ServiceResultStatus.Succeeded && value is Enum &&
+                (!Enum.IsDefined(typeof(T), value) ||
+                 Convert.ToInt64(value) == 0))
+                throw new ArgumentOutOfRangeException(nameof(value));
             if (status != ServiceResultStatus.Succeeded &&
                 string.IsNullOrWhiteSpace(reasonCode))
                 throw new ArgumentException(
                     "A non-success result requires a reason code.",
                     nameof(reasonCode));
             Status = status;
-            Value = value;
+            _value = value;
             ReasonCode = reasonCode;
         }
 
@@ -121,17 +145,19 @@ namespace Match3.Engine.Runtime
 
     public enum AdOutcome
     {
-        Rewarded = 0,
+        None = 0,
         NotReady = 1,
-        Skipped = 2
+        Skipped = 2,
+        Rewarded = 3
     }
 
     public enum PurchaseOutcome
     {
-        Purchased = 0,
+        None = 0,
         Pending = 1,
         Cancelled = 2,
-        Failed = 3
+        Failed = 3,
+        Purchased = 4
     }
 
     public interface IAdsService
