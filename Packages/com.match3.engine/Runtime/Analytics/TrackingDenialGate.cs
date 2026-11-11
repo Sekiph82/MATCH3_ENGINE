@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Match3.Engine.Runtime.Analytics
 {
@@ -104,6 +103,6 @@ namespace Match3.Engine.Runtime.Analytics
 
         public void Clear() => _entries.Clear();
 
-        public bool HasEntry(string gameId) => _entries.Any(e => e.StartsWith(gameId + ":"));
+        public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":"));
     }
 }
