@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Security.Cryptography;
+using Match3.Engine.Runtime.Economy;
 
 namespace Match3.Engine.Runtime.LiveOps
 {
@@ -11,14 +14,26 @@ namespace Match3.Engine.Runtime.LiveOps
     // - Records reuse ENG-M08-015: input is VerifiedProgressionResult, storage is PersonalBestRecord with the
     //   same key (game|profile|mode|level|week) and durable previous score/result ID.
     // - First verified completion in a window = participation. A strictly higher verified score replaces the
-    //   record. Improvements of at least MinImprovement earn one capped, idempotently keyed grant request
-    //   while the window is still open. No ranking, no other players' data.
-    // - Grants: ENG-M16-011 ledger is not on main yet, so this emits WeeklyRecordGrantRequest (idempotency key +
-    //   amount) for that ledger to consume; each key is emitted at most once by this service.
-    // - Gate: FeatureFlagGate (weekly_personal_best is a restricted, consent-gated feature).
-    //
-    // ponytail: state is in-memory per player (game, profile) and not thread-safe; persistence/snapshot
-    // export comes with the ENG-M16-011 ledger integration. Idempotency keys stay deterministic across restarts.
+    //   record. Improvements of at least MinImprovement earn one grant through the ENG-M16-011 RewardLedger
+    //   (source weekly_personal_best, instance "week|mode|level|t<tier>", Reference = result ID, ExpiresUtc = week
+    //   end) while the window is still open, capped per player per window across all levels. No ranking.
+    // - Tiers are derived from the ledger via TryGrant only (first tier slot not taken by another result), so a
+    //   restored or stale local state can never reuse a tier key; ledger Duplicate is reported as AlreadyGranted.
+    //   Every grant carries ExpiresUtc = end of its ISO week (UTC), as the ledger requires for windowed sources.
+    // - Replay: one entry per result ID and per verified ReplayTrace digest (mode|level|sha256(ReplayCodec.Encode)).
+    //   A fixed-seed level replayed with different moves is a different run and may still improve the record.
+    // - Durability: ExportSnapshot()/FromSnapshot() persist all local state (records, result IDs, replay keys,
+    //   per-week grant counts) as canonical JSON (LiveOps.CanonicalJson, same codec as RewardLedger) with a
+    //   SHA-256 field: tamper-EVIDENCE, not authentication. Persist it together with the ledger snapshot; the
+    //   per-week cap count lives here, tier slots live in the ledger.
+    // - Retention: weeks older than RetainedPastWeeks before the server week are rejected (WeekBeyondRetention)
+    //   and pruned, so pruning never reopens a result ID or a grant (grants are only for the current week).
+    // - No late-sync grant grace by design: an offline result synced after rollover updates its own week's
+    //   record but never grants (no retroactive cap accounting).
+    // - Small-step farming is bounded: every grant needs a +MinImprovement step over the current record and the
+    //   per-window cap bounds the total grants per player per week.
+    // ponytail: single-writer, not thread-safe; snapshot import limited to CanonicalJson.MaxUtf8Bytes (256 KiB),
+    // fine for a two-week retention; split per week if a title needs far more levels.
     public static class IsoWeekWindow
     {
         public static string WeekId(DateTime utcInstant)
@@ -59,24 +74,32 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public int MaxImprovementRewardsPerWindow { get; }
         public int MinImprovement { get; }
+        /// <summary>Non-premium ledger asset ID (e.g. "Coins").</summary>
         public string RewardId { get; }
         public int RewardAmount { get; }
+        /// <summary>Closed weeks still accepted (record only, no grant); older weeks are rejected and pruned.</summary>
+        public int RetainedPastWeeks { get; }
 
         public WeeklyPersonalRecordPolicy(int maxImprovementRewardsPerWindow, int minImprovement,
-            string rewardId, int rewardAmount)
+            string rewardId, int rewardAmount, int retainedPastWeeks = 1)
         {
             if (maxImprovementRewardsPerWindow < 0 || maxImprovementRewardsPerWindow > 50)
                 throw new ArgumentOutOfRangeException(nameof(maxImprovementRewardsPerWindow));
             if (minImprovement < 1)
                 throw new ArgumentOutOfRangeException(nameof(minImprovement));
-            if (string.IsNullOrWhiteSpace(rewardId) || rewardId.Contains("|"))
-                throw new ArgumentException("Reward ID required and cannot contain '|'.", nameof(rewardId));
+            // Asset-ID syntax is validated by the ledger at grant time; premium currency is never a weekly reward.
+            if (string.IsNullOrWhiteSpace(rewardId) || rewardId.Contains("|") ||
+                rewardId == nameof(CurrencyType.PremiumGems))
+                throw new ArgumentException("Reward must be a non-premium asset ID.", nameof(rewardId));
             if (rewardAmount < 1 || rewardAmount > 100000)
                 throw new ArgumentOutOfRangeException(nameof(rewardAmount));
+            if (retainedPastWeeks < 0 || retainedPastWeeks > 52)
+                throw new ArgumentOutOfRangeException(nameof(retainedPastWeeks));
             MaxImprovementRewardsPerWindow = maxImprovementRewardsPerWindow;
             MinImprovement = minImprovement;
             RewardId = rewardId;
             RewardAmount = rewardAmount;
+            RetainedPastWeeks = retainedPastWeeks;
         }
     }
 
@@ -97,15 +120,24 @@ namespace Match3.Engine.Runtime.LiveOps
         public const string NonUtcInstant = "NonUtcInstant";
         public const string Unverified = "Unverified";
         public const string GameOrProfileMismatch = "GameOrProfileMismatch";
+        public const string TraceGameMismatch = "TraceGameMismatch";
         public const string NotCompleted = "NotCompleted";
         public const string CompletionInFuture = "CompletionInFuture";
         public const string WeekIdMismatch = "WeekIdMismatch";
+        public const string WeekBeyondRetention = "WeekBeyondRetention";
         public const string DuplicateResult = "DuplicateResult";
-        public const string RunSeedReplayed = "RunSeedReplayed";
-        // Grant withheld (record still updated):
+        public const string TraceReplayed = "TraceReplayed";
+        // Grant withheld or not newly applied (record still updated); ledger rejections pass their own reason:
         public const string WindowClosed = "WindowClosed";
         public const string WindowCapReached = "WindowCapReached";
         public const string BelowMinimumImprovement = "BelowMinimumImprovement";
+        public const string AlreadyGranted = "AlreadyGranted";
+        // Snapshot import:
+        public const string MalformedSnapshot = "MalformedSnapshot";
+        public const string UnsupportedSnapshotVersion = "UnsupportedSnapshotVersion";
+        public const string IntegrityMismatch = "IntegrityMismatch";
+        public const string SnapshotOwnerMismatch = "SnapshotOwnerMismatch";
+        public const string NonCanonicalSnapshot = "NonCanonicalSnapshot";
     }
 
     /// <summary>Previous vs new personal record for one (mode, level, week). No ranking data.</summary>
@@ -128,43 +160,16 @@ namespace Match3.Engine.Runtime.LiveOps
         }
     }
 
-    /// <summary>Exactly-once grant request for the ENG-M16-011 reward ledger.</summary>
-    public sealed class WeeklyRecordGrantRequest
-    {
-        public string IdempotencyKey { get; }
-        public string GameId { get; }
-        public string ProfileId { get; }
-        public string WeekId { get; }
-        public string ModeId { get; }
-        public string LevelId { get; }
-        public int Tier { get; }
-        public string RewardId { get; }
-        public int Amount { get; }
-
-        internal WeeklyRecordGrantRequest(string gameId, string profileId, string weekId, string modeId,
-            string levelId, int tier, string rewardId, int amount)
-        {
-            IdempotencyKey = WeeklyPersonalRecordService.GrantKey(gameId, profileId, weekId, modeId, levelId, tier);
-            GameId = gameId;
-            ProfileId = profileId;
-            WeekId = weekId;
-            ModeId = modeId;
-            LevelId = levelId;
-            Tier = tier;
-            RewardId = rewardId;
-            Amount = amount;
-        }
-    }
-
     public sealed class WeeklyRecordOutcome
     {
         public WeeklyRecordStatus Status { get; }
         public string Reason { get; }
         public WeeklyRecordView View { get; }
-        public WeeklyRecordGrantRequest Grant { get; }
+        /// <summary>Ledger record applied now, or the original one when Reason is AlreadyGranted; else null.</summary>
+        public RewardLedgerRecord Grant { get; }
 
         internal WeeklyRecordOutcome(WeeklyRecordStatus status, string reason,
-            WeeklyRecordView view = null, WeeklyRecordGrantRequest grant = null)
+            WeeklyRecordView view = null, RewardLedgerRecord grant = null)
         {
             Status = status;
             Reason = reason ?? string.Empty;
@@ -175,41 +180,60 @@ namespace Match3.Engine.Runtime.LiveOps
 
     public sealed class WeeklyPersonalRecordService
     {
+        public const string SnapshotFormat = "m3-weekly-pb";
+        public const long SnapshotVersion = 1;
+
+        private sealed class Entry
+        {
+            public string Mode, Level, Week;
+            public PersonalBestRecord Record;
+        }
+
         private readonly WeeklyPersonalRecordPolicy _policy;
-        private readonly Dictionary<string, PersonalBestRecord> _records =
-            new Dictionary<string, PersonalBestRecord>(StringComparer.Ordinal);
-        private readonly HashSet<string> _processedResultIds = new HashSet<string>(StringComparer.Ordinal);
-        private readonly HashSet<string> _consumedRunSeeds = new HashSet<string>(StringComparer.Ordinal);
-        private readonly Dictionary<string, int> _tiersByRecord = new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly RewardLedger _ledger;
+        private readonly Dictionary<string, Entry> _records = new Dictionary<string, Entry>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _resultWeeks = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _replayWeeks = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _grantsByWeek = new Dictionary<string, int>(StringComparer.Ordinal);
 
         public string GameId { get; }
         public string ProfileId { get; }
 
-        public WeeklyPersonalRecordService(string gameId, string profileId, WeeklyPersonalRecordPolicy policy)
+        /// <param name="ledger">ENG-M16-011 ledger of the same game and player (ledger PlayerId = profileId).</param>
+        public WeeklyPersonalRecordService(string gameId, string profileId, WeeklyPersonalRecordPolicy policy,
+            RewardLedger ledger)
         {
             if (!GameProfileCatalog.IsKnownId(gameId))
                 throw new ArgumentException("Unknown game ID.", nameof(gameId));
             if (string.IsNullOrWhiteSpace(profileId) || profileId.Contains("|"))
                 throw new ArgumentException("Profile ID required and cannot contain '|'.", nameof(profileId));
+            _policy = policy ?? throw new ArgumentNullException(nameof(policy));
+            _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
+            if (!StringComparer.Ordinal.Equals(ledger.GameId, gameId) ||
+                !StringComparer.Ordinal.Equals(ledger.PlayerId, profileId))
+                throw new ArgumentException("Ledger belongs to another game/player.", nameof(ledger));
             GameId = gameId;
             ProfileId = profileId;
-            _policy = policy ?? throw new ArgumentNullException(nameof(policy));
         }
 
-        public static string GrantKey(string gameId, string profileId, string weekId, string modeId,
-            string levelId, int tier) =>
-            "weeklyPB|" + gameId + "|" + profileId + "|" + weekId + "|" + modeId + "|" + levelId + "|t" +
-            tier.ToString(CultureInfo.InvariantCulture);
+        public static string GrantInstanceId(string weekId, string modeId, string levelId, int tier) =>
+            weekId + "|" + modeId + "|" + levelId + "|t" + tier.ToString(CultureInfo.InvariantCulture);
 
-        /// <param name="runSeed">Per-attempt session seed (ReplayTrace.Seed) of the verified run.</param>
+        /// <summary>
+        /// Trust contract (inherited from ENG-M08-015, not redesigned here): <paramref name="result"/> and
+        /// <paramref name="verifiedTrace"/> are produced only by the server-side verifier that re-simulated the
+        /// trace; clients never construct VerifiedProgressionResult. This service enforces consistency (owner,
+        /// week window, duplicate/replay, cap, exactly-once grant), not the authenticity of the score.
+        /// </summary>
+        /// <param name="verifiedTrace">The verified run's replay trace; its canonical digest is the replay key.</param>
         /// <param name="verifiedCompletionUtc">Server-anchored completion instant (set at sync for offline runs).</param>
         /// <param name="serverNowUtc">Trusted server time; never the device clock.</param>
-        public WeeklyRecordOutcome Submit(VerifiedProgressionResult result, uint runSeed,
+        public WeeklyRecordOutcome Submit(VerifiedProgressionResult result, ReplayTrace verifiedTrace,
             DateTime verifiedCompletionUtc, DateTime serverNowUtc,
             FeatureFlagRecord weeklyPersonalBestFlag, FeatureFlagPolicy flagPolicy)
         {
             if (result == null) throw new ArgumentNullException(nameof(result));
+            if (verifiedTrace == null) throw new ArgumentNullException(nameof(verifiedTrace));
 
             if (weeklyPersonalBestFlag.Feature != LiveOpsFeature.WeeklyPersonalBest)
                 return new WeeklyRecordOutcome(WeeklyRecordStatus.NotEligible, WeeklyRecordReasons.WrongFeatureFlag);
@@ -223,6 +247,8 @@ namespace Match3.Engine.Runtime.LiveOps
             if (!StringComparer.Ordinal.Equals(result.GameId, GameId) ||
                 !StringComparer.Ordinal.Equals(result.ProfileId, ProfileId))
                 return Reject(WeeklyRecordReasons.GameOrProfileMismatch);
+            if (!StringComparer.Ordinal.Equals(verifiedTrace.ProfileId, GameId))
+                return Reject(WeeklyRecordReasons.TraceGameMismatch);
             if (!result.Won)
                 return Reject(WeeklyRecordReasons.NotCompleted);
             if (verifiedCompletionUtc > serverNowUtc)
@@ -231,39 +257,39 @@ namespace Match3.Engine.Runtime.LiveOps
             var weekId = IsoWeekWindow.WeekId(verifiedCompletionUtc);
             if (!StringComparer.Ordinal.Equals(result.CanonicalWeekId, weekId))
                 return Reject(WeeklyRecordReasons.WeekIdMismatch);
+            if (string.CompareOrdinal(weekId, RetentionHorizon(serverNowUtc)) < 0)
+                return Reject(WeeklyRecordReasons.WeekBeyondRetention);
 
             // Same key layout as ENG-M08-015 JourneyPlanner personal bests.
             var key = GameId + "|" + ProfileId + "|" + result.ModeId + "|" + result.LevelId + "|" + weekId;
-            _records.TryGetValue(key, out var prior);
+            _records.TryGetValue(key, out var entry);
+            var prior = entry?.Record;
 
-            if (_processedResultIds.Contains(result.ResultId))
+            if (_resultWeeks.ContainsKey(result.ResultId))
                 return new WeeklyRecordOutcome(WeeklyRecordStatus.Duplicate, WeeklyRecordReasons.DuplicateResult,
-                    prior == null ? null : new WeeklyRecordView(weekId, result.ModeId, result.LevelId, prior));
+                    View(weekId, result, prior));
 
-            // A run seed counts once per (mode, level) across all weeks: re-submitting an old run is replay farming.
-            var seedKey = result.ModeId + "|" + result.LevelId + "|" + runSeed.ToString(CultureInfo.InvariantCulture);
-            if (_consumedRunSeeds.Contains(seedKey))
-                return new WeeklyRecordOutcome(WeeklyRecordStatus.ReplayRejected, WeeklyRecordReasons.RunSeedReplayed,
-                    prior == null ? null : new WeeklyRecordView(weekId, result.ModeId, result.LevelId, prior));
+            var replayKey = result.ModeId + "|" + result.LevelId + "|" + TraceDigest(verifiedTrace);
+            if (_replayWeeks.ContainsKey(replayKey))
+                return new WeeklyRecordOutcome(WeeklyRecordStatus.ReplayRejected, WeeklyRecordReasons.TraceReplayed,
+                    View(weekId, result, prior));
 
-            _processedResultIds.Add(result.ResultId);
-            _consumedRunSeeds.Add(seedKey);
+            _resultWeeks[result.ResultId] = weekId;
+            _replayWeeks[replayKey] = weekId;
 
             if (prior == null)
             {
                 var first = new PersonalBestRecord(key, result.Score, result.ResultId);
-                _records[key] = first;
-                return new WeeklyRecordOutcome(WeeklyRecordStatus.Participated, string.Empty,
-                    new WeeklyRecordView(weekId, result.ModeId, result.LevelId, first));
+                _records[key] = new Entry { Mode = result.ModeId, Level = result.LevelId, Week = weekId, Record = first };
+                return new WeeklyRecordOutcome(WeeklyRecordStatus.Participated, string.Empty, View(weekId, result, first));
             }
 
             if (result.Score <= prior.Score)
-                return new WeeklyRecordOutcome(WeeklyRecordStatus.NotImproved, string.Empty,
-                    new WeeklyRecordView(weekId, result.ModeId, result.LevelId, prior));
+                return new WeeklyRecordOutcome(WeeklyRecordStatus.NotImproved, string.Empty, View(weekId, result, prior));
 
             var record = new PersonalBestRecord(key, result.Score, result.ResultId, prior.Score, prior.ResultId);
-            _records[key] = record;
-            var view = new WeeklyRecordView(weekId, result.ModeId, result.LevelId, record);
+            entry.Record = record;
+            var view = View(weekId, result, record);
 
             // Late arrivals land in their own (closed) week and never grant retroactively.
             if (!StringComparer.Ordinal.Equals(weekId, IsoWeekWindow.WeekId(serverNowUtc)))
@@ -275,23 +301,176 @@ namespace Match3.Engine.Runtime.LiveOps
             if (grantedThisWeek >= _policy.MaxImprovementRewardsPerWindow)
                 return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.WindowCapReached, view);
 
-            _tiersByRecord.TryGetValue(key, out var tier);
-            tier++;
-            var grant = new WeeklyRecordGrantRequest(GameId, ProfileId, weekId, result.ModeId, result.LevelId,
-                tier, _policy.RewardId, _policy.RewardAmount);
-            _tiersByRecord[key] = tier; // tier only advances on issue, so each key is issued at most once
-
-            _grantsByWeek[weekId] = grantedThisWeek + 1;
-            return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, string.Empty, view, grant);
+            // First free tier slot via TryGrant only: Duplicate = this result was granted before (same payload);
+            // IdempotencyConflict = slot taken by another result, try the next tier.
+            for (var tier = 1; tier <= _policy.MaxImprovementRewardsPerWindow; tier++)
+            {
+                var granted = _ledger.TryGrant(new RewardLedgerRequest(GameId, ProfileId,
+                    RewardSources.WeeklyPersonalBest, GrantInstanceId(weekId, result.ModeId, result.LevelId, tier),
+                    new Dictionary<string, long> { [_policy.RewardId] = _policy.RewardAmount },
+                    serverNowUtc, IsoWeekWindow.EndUtc(weekId), result.ResultId));
+                if (granted.Outcome == RewardLedgerOutcome.Rejected)
+                {
+                    if (granted.Reason == RewardLedgerReasons.IdempotencyConflict) continue;
+                    return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, granted.Reason, view);
+                }
+                _grantsByWeek[weekId] = grantedThisWeek + 1;
+                return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved,
+                    granted.Outcome == RewardLedgerOutcome.Duplicate ? WeeklyRecordReasons.AlreadyGranted : string.Empty,
+                    view, granted.Record);
+            }
+            return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.WindowCapReached, view);
         }
 
         public WeeklyRecordView GetView(string modeId, string levelId, string weekId)
         {
             var key = GameId + "|" + ProfileId + "|" + modeId + "|" + levelId + "|" + weekId;
-            return _records.TryGetValue(key, out var record)
-                ? new WeeklyRecordView(weekId, modeId, levelId, record)
-                : null;
+            return _records.TryGetValue(key, out var e) ? new WeeklyRecordView(weekId, modeId, levelId, e.Record) : null;
         }
+
+        /// <summary>Drops all state for weeks before the retention horizon. Returns the removed entry count.</summary>
+        public int Prune(DateTime serverNowUtc)
+        {
+            var horizon = RetentionHorizon(serverNowUtc);
+            bool Old(string week) => string.CompareOrdinal(week, horizon) < 0;
+            var removed = 0;
+            foreach (var k in _records.Where(kv => Old(kv.Value.Week)).Select(kv => kv.Key).ToList())
+            {
+                _records.Remove(k);
+                removed++;
+            }
+            foreach (var map in new[] { _resultWeeks, _replayWeeks })
+                foreach (var k in map.Where(kv => Old(kv.Value)).Select(kv => kv.Key).ToList())
+                {
+                    map.Remove(k);
+                    removed++;
+                }
+            foreach (var k in _grantsByWeek.Keys.Where(Old).ToList())
+            {
+                _grantsByWeek.Remove(k);
+                removed++;
+            }
+            return removed;
+        }
+
+        public string ExportSnapshot()
+        {
+            var doc = SnapshotBody();
+            doc["sha256"] = CanonicalJson.Sha256Hex(SnapshotBody());
+            return CanonicalJson.Serialize(doc);
+        }
+
+        /// <summary>Restores state; null plus a reason when the snapshot is malformed, tampered, non-canonical or foreign.</summary>
+        public static WeeklyPersonalRecordService FromSnapshot(string text, string gameId, string profileId,
+            WeeklyPersonalRecordPolicy policy, RewardLedger ledger, out string reason)
+        {
+            var service = new WeeklyPersonalRecordService(gameId, profileId, policy, ledger);
+            try
+            {
+                if (!(CanonicalJson.Parse(text) is Dictionary<string, object> doc) || doc.Count != 9 ||
+                    !Equals(doc["format"], SnapshotFormat))
+                    return Fail(WeeklyRecordReasons.MalformedSnapshot, out reason);
+                if (!Equals(doc["version"], SnapshotVersion))
+                    return Fail(WeeklyRecordReasons.UnsupportedSnapshotVersion, out reason);
+                var claimed = doc["sha256"] as string;
+                doc.Remove("sha256");
+                if (!StringComparer.Ordinal.Equals(claimed, CanonicalJson.Sha256Hex(doc)))
+                    return Fail(WeeklyRecordReasons.IntegrityMismatch, out reason);
+                if (!Equals(doc["gameId"], gameId) || !Equals(doc["profileId"], profileId))
+                    return Fail(WeeklyRecordReasons.SnapshotOwnerMismatch, out reason);
+
+                foreach (Dictionary<string, object> r in (List<object>)doc["records"])
+                {
+                    var week = Week(r["week"]);
+                    var mode = Id(r["mode"], false);
+                    var level = Id(r["level"], false);
+                    var key = gameId + "|" + profileId + "|" + mode + "|" + level + "|" + week;
+                    var prev = r["prevScore"] == null ? (int?)null : checked((int)(long)r["prevScore"]);
+                    service._records.Add(key, new Entry
+                    {
+                        Mode = mode,
+                        Level = level,
+                        Week = week,
+                        Record = new PersonalBestRecord(key, checked((int)(long)r["score"]), (string)r["resultId"],
+                            prev, (string)r["prevResultId"])
+                    });
+                }
+                foreach (Dictionary<string, object> r in (List<object>)doc["results"])
+                    service._resultWeeks.Add(Id(r["id"], true), Week(r["week"]));
+                foreach (Dictionary<string, object> r in (List<object>)doc["replays"])
+                    service._replayWeeks.Add(Id(r["key"], true), Week(r["week"]));
+                foreach (Dictionary<string, object> r in (List<object>)doc["grants"])
+                {
+                    var count = checked((int)(long)r["count"]);
+                    if (count < 1) throw new FormatException("grant count");
+                    service._grantsByWeek.Add(Week(r["week"]), count);
+                }
+                if (!StringComparer.Ordinal.Equals(service.ExportSnapshot(), text))
+                    return Fail(WeeklyRecordReasons.NonCanonicalSnapshot, out reason);
+            }
+            catch (Exception e) when (e is FormatException || e is ArgumentException || e is InvalidCastException ||
+                                      e is KeyNotFoundException || e is NullReferenceException || e is OverflowException)
+            {
+                return Fail(WeeklyRecordReasons.MalformedSnapshot, out reason);
+            }
+            reason = string.Empty;
+            return service;
+        }
+
+        private Dictionary<string, object> SnapshotBody() => new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["format"] = SnapshotFormat,
+            ["version"] = SnapshotVersion,
+            ["gameId"] = GameId,
+            ["profileId"] = ProfileId,
+            ["records"] = _records.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (object)
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["mode"] = kv.Value.Mode,
+                    ["level"] = kv.Value.Level,
+                    ["week"] = kv.Value.Week,
+                    ["score"] = (long)kv.Value.Record.Score,
+                    ["resultId"] = kv.Value.Record.ResultId,
+                    ["prevScore"] = kv.Value.Record.PreviousScore.HasValue
+                        ? (object)(long)kv.Value.Record.PreviousScore.Value : null,
+                    ["prevResultId"] = kv.Value.Record.PreviousResultId
+                }).ToList(),
+            ["results"] = Pairs(_resultWeeks, "id"),
+            ["replays"] = Pairs(_replayWeeks, "key"),
+            ["grants"] = _grantsByWeek.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (object)
+                new Dictionary<string, object>(StringComparer.Ordinal) { ["week"] = kv.Key, ["count"] = (long)kv.Value })
+                .ToList()
+        };
+
+        private static List<object> Pairs(Dictionary<string, string> map, string name) =>
+            map.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (object)
+                new Dictionary<string, object>(StringComparer.Ordinal) { [name] = kv.Key, ["week"] = kv.Value }).ToList();
+
+        private string RetentionHorizon(DateTime serverNowUtc) =>
+            IsoWeekWindow.WeekId(serverNowUtc.AddDays(-7 * _policy.RetainedPastWeeks));
+
+        private static string TraceDigest(ReplayTrace trace)
+        {
+            using (var sha = SHA256.Create())
+                return string.Concat(sha.ComputeHash(ReplayCodec.Encode(trace))
+                    .Select(b => b.ToString("x2", CultureInfo.InvariantCulture)));
+        }
+
+        private static string Week(object o) =>
+            o is string s && IsoWeekWindow.TryGetStartUtc(s, out _) ? s : throw new FormatException("week");
+
+        private static string Id(object o, bool pipeAllowed) =>
+            o is string s && !string.IsNullOrWhiteSpace(s) && (pipeAllowed || !s.Contains("|"))
+                ? s : throw new FormatException("id");
+
+        private static WeeklyPersonalRecordService Fail(string code, out string reason)
+        {
+            reason = code;
+            return null;
+        }
+
+        private static WeeklyRecordView View(string weekId, VerifiedProgressionResult r, PersonalBestRecord record) =>
+            record == null ? null : new WeeklyRecordView(weekId, r.ModeId, r.LevelId, record);
 
         private static WeeklyRecordOutcome Reject(string reason) =>
             new WeeklyRecordOutcome(WeeklyRecordStatus.Rejected, reason);

@@ -205,7 +205,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void NoContent_EmptyReceiverOrWorldsOnly()
+        public void NoContent_EmptyReceiver_WorldWithoutLevelsIsGap()
         {
             var empty = JourneyPreviewBuilder.Build(new ContentMetadataReceiver("Coral_Rescue", Kinds), new JourneySnapshot());
             Assert.AreEqual(JourneyStatus.NoContent, empty.Status);
@@ -213,7 +213,90 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsNull(empty.Next);
 
             var worldsOnly = JourneyPreviewBuilder.Build(Load(Doc(World("jx.world.a", 1))), new JourneySnapshot());
-            Assert.AreEqual(JourneyStatus.NoContent, worldsOnly.Status);
+            Assert.AreEqual(JourneyStatus.ContentGap, worldsOnly.Status);
+            CollectionAssert.IsEmpty(worldsOnly.Nodes);
+        }
+
+        [Test]
+        public void EmptyMiddleWorld_StopsJourneyAsContentGap()
+        {
+            var rx = Load(Doc(World("jx.world.a", 1) + "," + World("jx.world.b", 2) + "," + World("jx.world.c", 3) + "," +
+                Level("jx.a.1", "jx.world.a", 1) + "," + Level("jx.c.1", "jx.world.c", 1)));
+            Assert.AreEqual(new[] { "jx.a.1" },
+                JourneyPreviewBuilder.Build(rx, new JourneySnapshot()).Nodes.Select(n => n.LevelId));
+            var v = JourneyPreviewBuilder.Build(rx, new JourneySnapshot(new[] { "jx.a.1" }));
+            Assert.AreEqual(JourneyStatus.ContentGap, v.Status);
+            Assert.IsNull(v.Next);
+        }
+
+        [Test]
+        public void SkippedWorldOrder_StopsJourneyAsContentGap()
+        {
+            var rx = Load(Doc(World("jx.world.a", 1) + "," + World("jx.world.c", 3) + "," +
+                Level("jx.a.1", "jx.world.a", 1) + "," + Level("jx.c.1", "jx.world.c", 1)));
+            var v = JourneyPreviewBuilder.Build(rx, new JourneySnapshot(new[] { "jx.a.1" }));
+            Assert.AreEqual(JourneyStatus.ContentGap, v.Status);
+            Assert.AreEqual(1, v.TotalJourneyLevels);
+            Assert.That(v.Nodes.All(n => n.LevelId != "jx.c.1"));
+        }
+
+        // ---- ENG-M08-015 progress across strips -------------------------------------------
+
+        private static ContentMetadataReceiver TwentyLevels()
+        {
+            var items = new List<string> { World("jx.world.a", 1), World("jx.world.b", 2) };
+            for (var i = 1; i <= 10; i++)
+            {
+                items.Add(Level("jx.a." + i, "jx.world.a", i));
+                items.Add(Level("jx.b." + i, "jx.world.b", i));
+            }
+            return Load(Doc(string.Join(",", items)));
+        }
+
+        private static VerifiedProgressionResult Win(string level, int n) =>
+            new VerifiedProgressionResult("res." + n, "Coral_Rescue", "p1", "classic", level, level,
+                true, true, false, 1000, 1, 1, 0, "2026-W46");
+
+        [Test]
+        public void ProgressAdapter_RealJourneyPlannerAcrossTwoStrips_FeedsPreview()
+        {
+            var strip1 = new JourneyDefinition("Coral_Rescue", "p1", "classic", Enumerable.Range(1, 10).Select(i => "jx.a." + i));
+            var strip2 = new JourneyDefinition("Coral_Rescue", "p1", "classic", Enumerable.Range(1, 10).Select(i => "jx.b." + i));
+            var s1 = new JourneySnapshot();
+            var s2 = new JourneySnapshot();
+            var n = 0;
+            foreach (var id in strip1.LevelIds) s1 = JourneyPlanner.ApplyResult(strip1, s1, Win(id, ++n)).Result;
+            s2 = JourneyPlanner.ApplyResult(strip2, s2, Win("jx.b.1", ++n)).Result;
+            s2 = JourneyPlanner.ApplyResult(strip2, s2, Win("jx.b.2", ++n)).Result;
+
+            // The limitation the adapter covers: one JourneyPlanner strip cannot hold another strip's level.
+            Assert.Throws<ArgumentException>(() => JourneyPlanner.ApplyResult(strip1, s1, Win("jx.b.3", ++n)));
+
+            var progress = JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue", new[] { (strip1, s1), (strip2, s2) });
+            Assert.AreEqual(12, progress.CompletedLevelIds.Count);
+            var v = JourneyPreviewBuilder.Build(TwentyLevels(), progress);
+            Assert.AreEqual(JourneyStatus.Active, v.Status);
+            Assert.AreEqual("jx.b.3", v.Next.LevelId);
+            Assert.AreEqual(Enumerable.Range(11, 10), v.Nodes.Select(x => x.Position));
+            Assert.AreEqual(new[] { JourneyNodeState.Completed, JourneyNodeState.Completed, JourneyNodeState.Current },
+                v.Nodes.Take(3).Select(x => x.State));
+            Assert.AreEqual(Describe(v), Describe(JourneyPreviewBuilder.Build(TwentyLevels(),
+                new JourneySnapshot(progress.CompletedLevelIds))), "persisted completed-level set is equivalent");
+        }
+
+        [Test]
+        public void ProgressAdapter_RejectsForeignOrMixedStrips()
+        {
+            var a = new JourneyDefinition("Coral_Rescue", "p1", "classic", Enumerable.Range(1, 10).Select(i => "jx.a." + i));
+            var otherProfile = new JourneyDefinition("Coral_Rescue", "p2", "classic", Enumerable.Range(1, 10).Select(i => "jx.b." + i));
+            var empty = new JourneySnapshot();
+            Assert.Throws<ArgumentException>(() =>
+                JourneyProgressAdapter.CompletedAcrossStrips("Dino_Islands", new[] { (a, empty) }));
+            Assert.Throws<ArgumentException>(() =>
+                JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue", new[] { (a, empty), (otherProfile, empty) }));
+            Assert.Throws<ArgumentException>(() => JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue",
+                new[] { (a, new JourneySnapshot(new[] { "jx.b.1" })) }));
+            Assert.Throws<ArgumentNullException>(() => JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue", null));
         }
 
         [Test]

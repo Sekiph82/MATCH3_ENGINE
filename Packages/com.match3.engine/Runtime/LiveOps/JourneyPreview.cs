@@ -10,8 +10,13 @@ namespace Match3.Engine.Runtime.LiveOps
     // Read-only projection of content already accepted by ContentMetadataReceiver (ENG-M20-010 World/Level
     // metadata; no new content kind) plus the player's completed levels from the ENG-M08-015 JourneySnapshot.
     // - Canonical order: world Order, then level Order inside the world (ordinal content ID tie-break).
-    // - The journey stops at the first missing level order inside a world (ContentGap); the missing level is
-    //   never invented. Levels whose world metadata is absent cannot be ordered and are listed as unplaced.
+    // - The journey stops (ContentGap) at the first skipped world order, world with no levels, or missing level
+    //   order inside a world; missing content is never invented. Levels whose world metadata is absent cannot be
+    //   ordered and are listed as unplaced.
+    // - Producer "x-" extension fields are covered by the receiver's payloadSha256 (digest over the whole
+    //   payload, so they change PayloadSha256) but are never surfaced in any view.
+    // - Progress across strips: ENG-M08-015 JourneyPlanner is scoped to one 10-level JourneyDefinition, so
+    //   JourneyProgressAdapter merges the per-strip snapshots (or pass the persisted completed-level set directly).
     // - Strip = the aligned block of ten levels holding the current level (or the last block at end of content).
     // - Teaser = the current level's own objectives/obstacles/moves exactly as published; "new" obstacles are
     //   the ones not present in any earlier journey level. No scores, grants, prices, offers or paywalls:
@@ -107,28 +112,36 @@ namespace Match3.Engine.Runtime.LiveOps
             if (progress == null) throw new ArgumentNullException(nameof(progress));
 
             var items = content.Applied.Values.ToList();
-            var worldOrder = items.Where(i => i.Kind == ContentKind.World)
-                .ToDictionary(i => i.ContentId, i => i.Order, StringComparer.Ordinal);
-            var levels = items.Where(i => i.Kind == ContentKind.Level).ToList();
-
-            var placed = levels.Where(l => worldOrder.ContainsKey(l.WorldId))
-                .OrderBy(l => worldOrder[l.WorldId])
-                .ThenBy(l => l.Order)
-                .ThenBy(l => l.ContentId, StringComparer.Ordinal)
-                .ToList();
-            var unplaced = levels.Where(l => !worldOrder.ContainsKey(l.WorldId))
+            var worlds = items.Where(i => i.Kind == ContentKind.World)
+                .OrderBy(w => w.Order).ThenBy(w => w.ContentId, StringComparer.Ordinal).ToList();
+            var worldIds = new HashSet<string>(worlds.Select(w => w.ContentId), StringComparer.Ordinal);
+            var levelsByWorld = items.Where(i => i.Kind == ContentKind.Level && worldIds.Contains(i.WorldId))
+                .GroupBy(l => l.WorldId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.OrderBy(l => l.Order)
+                    .ThenBy(l => l.ContentId, StringComparer.Ordinal).ToList(), StringComparer.Ordinal);
+            var unplaced = items.Where(i => i.Kind == ContentKind.Level && !worldIds.Contains(i.WorldId))
                 .Select(l => l.ContentId)
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToList();
+            // World end = last published level of its world, so a gap never fakes a world boundary.
+            var worldEnds = new HashSet<string>(levelsByWorld.Values.Select(l => l.Last().ContentId),
+                StringComparer.Ordinal);
 
-            // Truncate at the first missing level order inside a world.
+            // Truncate at the first missing world order, world without levels, or missing level order.
             var journey = new List<ContentMetadataItem>();
             var gap = false;
-            for (var i = 0; i < placed.Count; i++)
+            for (var w = 0; w < worlds.Count && !gap; w++)
             {
-                var expected = i > 0 && placed[i - 1].WorldId == placed[i].WorldId ? placed[i - 1].Order + 1 : 1;
-                if (placed[i].Order != expected) { gap = true; break; }
-                journey.Add(placed[i]);
+                if (worlds[w].Order != w + 1 || !levelsByWorld.TryGetValue(worlds[w].ContentId, out var worldLevels))
+                {
+                    gap = true;
+                    break;
+                }
+                for (var i = 0; i < worldLevels.Count; i++)
+                {
+                    if (worldLevels[i].Order != i + 1) { gap = true; break; }
+                    journey.Add(worldLevels[i]);
+                }
             }
 
             var completed = new HashSet<string>(progress.CompletedLevelIds, StringComparer.Ordinal);
@@ -149,9 +162,8 @@ namespace Match3.Engine.Runtime.LiveOps
                     var state = completed.Contains(level.ContentId) ? JourneyNodeState.Completed
                         : i == current ? JourneyNodeState.Current
                         : JourneyNodeState.Locked;
-                    // World end is judged on all placed content, so a gap never fakes a world boundary.
-                    var worldEnd = i + 1 == placed.Count || placed[i + 1].WorldId != level.WorldId;
-                    nodes.Add(new JourneyNode(i + 1, level.ContentId, level.WorldId, state, worldEnd));
+                    nodes.Add(new JourneyNode(i + 1, level.ContentId, level.WorldId, state,
+                        worldEnds.Contains(level.ContentId)));
                 }
             }
 
@@ -165,6 +177,34 @@ namespace Match3.Engine.Runtime.LiveOps
             }
 
             return new JourneyStripView(content.GameId, status, journey.Count, nodes, next, unplaced);
+        }
+    }
+
+    public static class JourneyProgressAdapter
+    {
+        /// <summary>
+        /// Merges ENG-M08-015 per-strip (JourneyDefinition, JourneySnapshot) pairs of one game/profile/mode into
+        /// the completed-level set the preview reads. Each snapshot is validated against its own strip with
+        /// JourneyPlanner (throws ArgumentException on foreign levels/records).
+        /// </summary>
+        public static JourneySnapshot CompletedAcrossStrips(string gameId,
+            IEnumerable<(JourneyDefinition Definition, JourneySnapshot Snapshot)> strips)
+        {
+            if (strips == null) throw new ArgumentNullException(nameof(strips));
+            var completed = new HashSet<string>(StringComparer.Ordinal);
+            JourneyDefinition first = null;
+            foreach (var (definition, snapshot) in strips)
+            {
+                if (definition == null || snapshot == null) throw new ArgumentNullException(nameof(strips));
+                first = first ?? definition;
+                if (!StringComparer.Ordinal.Equals(definition.GameId, gameId) ||
+                    !StringComparer.Ordinal.Equals(definition.ProfileId, first.ProfileId) ||
+                    !StringComparer.Ordinal.Equals(definition.ModeId, first.ModeId))
+                    throw new ArgumentException("Journey strips must share one game/profile/mode.", nameof(strips));
+                JourneyPlanner.UpcomingLevel(definition, snapshot); // validation only
+                completed.UnionWith(snapshot.CompletedLevelIds);
+            }
+            return new JourneySnapshot(completed);
         }
     }
 }
