@@ -217,5 +217,19 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual(SubscriptionStatus.Expired, state.CurrentStatus);
             Assert.IsFalse(state.IsEligibleForContent());
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_PermissivePolicy_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var policy = new SubscriptionPolicy(true, true, "Full access");
+                var result = SubscriptionGate.CheckSubscriptionEligibility(gameId, policy, false);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+                Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial(gameId, policy, false));
+            }
+        }
     }
 }

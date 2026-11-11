@@ -182,5 +182,15 @@ namespace Match3.Engine.Tests.Editor
         {
             Assert.IsTrue(ReceiptVerificationGate.RequiresServerCall(ReceiptVerificationPolicy.Default));
         }
+
+
+        [Test]
+        public void CanGrantAfterVerification_NullOrEmptyGameId_False()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(ReceiptVerificationGate.CanGrantAfterVerification(gameId, ReceiptVerificationStatus.VerifiedValid));
+            }
+        }
     }
 }

@@ -36,19 +36,20 @@ namespace Match3.Engine.Runtime.Commerce
     {
         private static readonly StringComparer Ordinal = StringComparer.Ordinal;
 
+        // Fail closed on missing/unknown game context; known games are evaluated against their
+        // catalog business profile exactly as CheckWithProfile does.
         public static AdEligibilityResult Check(string gameId, AdConsentStatus consent, bool isKidProfile)
         {
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
                 return AdEligibilityResult.Ineligible("WonderPopExcluded");
 
-            // Unconditional: kid profiles are never ad-eligible, for any game
-            if (isKidProfile)
-                return AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return AdEligibilityResult.Ineligible("UnknownGame");
 
-            if (consent == AdConsentStatus.Unknown || consent == AdConsentStatus.Denied)
-                return AdEligibilityResult.Ineligible("ConsentNotGranted");
-
-            return AdEligibilityResult.Eligible();
+            return CheckWithProfile(GameBusinessProfileCatalog.Require(gameId), consent, isKidProfile);
         }
 
         [Obsolete("Kid status unknown: treated as a kid profile (KidProfileAdsProhibited, fail-closed). Use the overload taking isKidProfile.")]
@@ -64,7 +65,17 @@ namespace Match3.Engine.Runtime.Commerce
             if (!profile.AdsEnabled || !profile.MonetizationEnabled)
                 return AdEligibilityResult.Ineligible("AdsNotApproved");
 
-            return Check(profile.GameId, consent, isKidProfile);
+            if (Ordinal.Equals(profile.GameId, "Wonder_Pop"))
+                return AdEligibilityResult.Ineligible("WonderPopExcluded");
+
+            // Unconditional: kid profiles are never ad-eligible, for any game
+            if (isKidProfile)
+                return AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
+
+            if (consent == AdConsentStatus.Unknown || consent == AdConsentStatus.Denied)
+                return AdEligibilityResult.Ineligible("ConsentNotGranted");
+
+            return AdEligibilityResult.Eligible();
         }
 
         [Obsolete("Kid status unknown: treated as a kid profile (fail-closed). Use the overload taking isKidProfile.")]

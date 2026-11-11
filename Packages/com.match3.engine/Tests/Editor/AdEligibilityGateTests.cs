@@ -133,5 +133,51 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(r2.IsEligible, Is.False);
             Assert.That(r2.Reason, Is.EqualTo("KidProfileAdsProhibited"));
         }
+
+
+        [Test]
+        public void Check_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = AdEligibilityGate.Check(gameId, AdConsentStatus.Granted, false);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void Check_UnknownGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "SomeGame", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue" })
+            {
+                var result = AdEligibilityGate.Check(gameId, AdConsentStatus.Granted, false);
+                Assert.That(result.IsEligible, Is.False, gameId);
+                Assert.That(result.Reason, Is.EqualTo("UnknownGame"), gameId);
+            }
+        }
+
+        [Test]
+        public void Check_MonetizationDisabledProfile_Ineligible_ConsistentWithCheckWithProfile()
+        {
+            // Wonder_Pop is the catalog profile with ads/monetization disabled.
+            var profile = GameBusinessProfileCatalog.Require("Wonder_Pop");
+            Assert.That(profile.MonetizationEnabled, Is.False, "Precondition");
+            Assert.That(AdEligibilityGate.Check("Wonder_Pop", AdConsentStatus.Granted, false).IsEligible, Is.False);
+            Assert.That(AdEligibilityGate.CheckWithProfile(profile, AdConsentStatus.Granted, false).IsEligible, Is.False);
+        }
+
+        [Test]
+        public void Check_KnownAdultProfileWithConsent_EligibleAndMatchesCheckWithProfile()
+        {
+            foreach (var profile in GameBusinessProfileCatalog.All)
+            {
+                var viaId = AdEligibilityGate.Check(profile.GameId, AdConsentStatus.Granted, false);
+                var viaProfile = AdEligibilityGate.CheckWithProfile(profile, AdConsentStatus.Granted, false);
+                Assert.That(viaId.IsEligible, Is.EqualTo(viaProfile.IsEligible), profile.GameId);
+                Assert.That(viaId.IsEligible, Is.EqualTo(profile.AdsEnabled && profile.MonetizationEnabled), profile.GameId);
+            }
+            Assert.That(AdEligibilityGate.Check("Coral_Rescue", AdConsentStatus.Granted, false).IsEligible, Is.True);
+        }
     }
 }

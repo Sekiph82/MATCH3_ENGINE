@@ -259,5 +259,17 @@ namespace Match3.Engine.Tests.Editor
             var log = new CloudSaveLog();
             Assert.Throws<ArgumentException>(() => log.Record(default(CloudSaveToken), false, "r"));
         }
+
+
+        [Test]
+        public void CanWriteToCloud_NullOrEmptyGameId_PermissivePolicy_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = CloudSaveAdapterGate.CanWriteToCloud(gameId, new CloudSavePolicy(true, true, "write enabled"));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

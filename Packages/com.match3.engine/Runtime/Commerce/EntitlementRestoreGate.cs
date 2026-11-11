@@ -66,6 +66,10 @@ namespace Match3.Engine.Runtime.Commerce
     {
         public static RestoreEligibility CanRestore(string gameId, RestoreEntitlementPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return RestoreEligibility.Ineligible("GameIdMissing");
+
             // Guard 1 FIRST — Wonder_Pop is structurally prohibited
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return RestoreEligibility.Ineligible("WonderPopRestoreProhibited");

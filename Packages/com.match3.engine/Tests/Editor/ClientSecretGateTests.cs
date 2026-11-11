@@ -78,5 +78,17 @@ namespace Match3.Engine.Tests.Editor
             var policy = PaymentSecretPolicy.Default;
             Assert.DoesNotThrow(() => ClientSecretGate.AssertNoClientSecrets(policy));
         }
+
+
+        [Test]
+        public void CheckPaymentFlowEligibility_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = ClientSecretGate.CheckPaymentFlowEligibility(gameId, PaymentSecretPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

@@ -76,6 +76,10 @@ namespace Match3.Engine.Runtime.Identity
 
         public static CloudSaveEligibilityResult CanWriteToCloud(string gameId, CloudSavePolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return new CloudSaveEligibilityResult(false, "GameIdMissing");
+
             policy = Normalize(policy);
 
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is prohibited

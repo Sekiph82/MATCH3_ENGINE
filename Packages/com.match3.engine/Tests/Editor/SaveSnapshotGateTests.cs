@@ -223,5 +223,17 @@ namespace Match3.Engine.Tests.Editor
         {
             Assert.IsTrue(SaveSnapshotGate.RequiresServerEntitlements(default(SaveSchemaPolicy)));
         }
+
+
+        [Test]
+        public void CanSaveLocally_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = SaveSnapshotGate.CanSaveLocally(gameId, SaveField.Progression, SaveSchemaPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

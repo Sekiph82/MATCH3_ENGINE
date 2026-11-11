@@ -196,5 +196,17 @@ namespace Match3.Engine.Tests.Editor
             var log = new LinkAuditLog();
             Assert.Throws<ArgumentException>(() => log.Record(default(LinkRequest), false, "r"));
         }
+
+
+        [Test]
+        public void CanLink_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = AccountLinkGate.CanLink(gameId, AccountLinkPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

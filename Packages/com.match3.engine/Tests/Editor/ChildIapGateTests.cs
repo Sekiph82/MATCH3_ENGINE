@@ -202,5 +202,19 @@ namespace Match3.Engine.Tests.Editor
             var policy = IapRestrictionPolicy.Unrestricted("approved");
             Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("SomeGame", policy, ChildProfile));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_PermissivePolicy_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = ChildIapGate.CheckIapEligibility(gameId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+                Assert.IsFalse(ChildIapGate.CanShowPurchaseUi(gameId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile));
+                Assert.IsTrue(ChildIapGate.IsParentalGateRequired(gameId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile));
+            }
+        }
     }
 }

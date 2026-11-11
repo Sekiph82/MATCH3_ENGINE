@@ -83,6 +83,10 @@ namespace Match3.Engine.Runtime.Identity
 
         public static MigrationEligibility CanMigrate(string gameId, MigrationPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return MigrationEligibility.Ineligible("GameIdMissing");
+
             policy = Normalize(policy);
 
             // Guard 1 (FIRST): Wonder_Pop Ordinal check

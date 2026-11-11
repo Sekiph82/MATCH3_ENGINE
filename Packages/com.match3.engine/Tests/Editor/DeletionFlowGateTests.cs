@@ -262,5 +262,17 @@ namespace Match3.Engine.Tests.Editor
             var log = new DeletionAuditLog();
             Assert.Throws<ArgumentException>(() => log.Record(default(DeletionRequest), false, "r"));
         }
+
+
+        [Test]
+        public void CanInitiateDeletion_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion(gameId, DeletionPolicy.Default);
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

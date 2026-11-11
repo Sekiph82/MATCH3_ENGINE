@@ -68,6 +68,10 @@ namespace Match3.Engine.Runtime.Commerce
 
         public static AdEligibilityResult CanInitiateRestore(string gameId, RestorePolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             if (StringComparer.Ordinal.Equals(gameId, WonderPopId))
                 return AdEligibilityResult.Ineligible("WonderPopRestoreProhibited");
 
@@ -84,6 +88,10 @@ namespace Match3.Engine.Runtime.Commerce
 
         public static bool ShouldShowRestoreButton(string gameId, RestorePolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return false;
+
             if (StringComparer.Ordinal.Equals(gameId, WonderPopId))
                 return false;
 

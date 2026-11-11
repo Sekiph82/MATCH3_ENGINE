@@ -268,5 +268,17 @@ namespace Match3.Engine.Tests.Editor
             var log = new MigrationAuditLog();
             Assert.Throws<ArgumentException>(() => log.Record(default(MigrationContext), false, "r"));
         }
+
+
+        [Test]
+        public void CanMigrate_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = DeviceMigrationGate.CanMigrate(gameId, MigrationPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

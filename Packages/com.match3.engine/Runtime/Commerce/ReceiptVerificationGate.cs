@@ -63,6 +63,10 @@ namespace Match3.Engine.Runtime.Commerce
     {
         public static bool CanGrantAfterVerification(string gameId, ReceiptVerificationStatus status)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return false;
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return false;
 

@@ -166,5 +166,17 @@ namespace Match3.Engine.Tests.Editor
             cache.Store(AuthToken.FromPlatform(AuthProvider.Google, "t2", "G1")); // overwrite same gameId
             Assert.AreEqual(1, cache.Count);
         }
+
+
+        [Test]
+        public void CanUsePlatformLogin_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = AuthProviderGate.CanUsePlatformLogin(gameId, AuthProvider.Apple, AuthProviderPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

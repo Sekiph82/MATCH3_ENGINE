@@ -83,6 +83,10 @@ namespace Match3.Engine.Runtime.Identity
             AuthProvider provider,
             AuthProviderPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return new AuthEligibilityResult(false, "GameIdMissing");
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is prohibited
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new AuthEligibilityResult(false, "WonderPopAuthProhibited");

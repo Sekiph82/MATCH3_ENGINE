@@ -159,5 +159,29 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(state.OfferPending);
             Assert.IsFalse(state.RewardGranted);
         }
+
+
+        [Test]
+        public void RecoveryGate_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = RecoveryAdGate.CheckRecoveryEligibility(gameId, AdConsentStatus.Granted, RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraMoves, "enabled"), NonKidProfile);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void RecoveryGate_UnknownGame_InheritsAdGateFailClosed()
+        {
+            var policy = RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraMoves, "enabled");
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue" })
+            {
+                var result = RecoveryAdGate.CheckRecoveryEligibility(gameId, AdConsentStatus.Granted, policy, NonKidProfile);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
     }
 }

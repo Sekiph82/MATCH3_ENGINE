@@ -59,6 +59,10 @@ namespace Match3.Engine.Runtime.Commerce
         public static AdEligibilityResult CheckPurchaseEligibility(
             string gameId, ConsumablePolicy policy, bool isKidProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             // Guard 1: Wonder_Pop is independently blocked first, always
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("WonderPopConsumablesProhibited");

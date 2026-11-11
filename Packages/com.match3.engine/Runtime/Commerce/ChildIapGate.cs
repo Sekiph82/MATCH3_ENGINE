@@ -37,6 +37,10 @@ namespace Match3.Engine.Runtime.Commerce
         public static AdEligibilityResult CheckIapEligibility(
             string gameId, IapRestrictionPolicy policy, bool isChildProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             policy = Normalize(policy);
 
             if (!policy.PurchasesAllowed)
@@ -59,6 +63,10 @@ namespace Match3.Engine.Runtime.Commerce
 
         public static bool IsParentalGateRequired(string gameId, IapRestrictionPolicy policy, bool isChildProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return true;
+
             // Unconditional: every child/kid purchase path requires a parental gate
             if (isChildProfile)
                 return true;

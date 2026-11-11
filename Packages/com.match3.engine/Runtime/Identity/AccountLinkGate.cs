@@ -71,6 +71,10 @@ namespace Match3.Engine.Runtime.Identity
 
         public static CanLinkResult CanLink(string gameId, AccountLinkPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return new CanLinkResult(false, "GameIdMissing");
+
             policy = Normalize(policy);
 
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is never eligible for linking

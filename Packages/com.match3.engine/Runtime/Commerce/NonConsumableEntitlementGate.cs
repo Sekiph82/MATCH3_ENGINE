@@ -34,6 +34,10 @@ namespace Match3.Engine.Runtime.Commerce
         public static AdEligibilityResult CheckEntitlementEligibility(
             string gameId, EntitlementPolicy policy, bool isKidProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("WonderPopEntitlementProhibited");
 
@@ -59,6 +63,10 @@ namespace Match3.Engine.Runtime.Commerce
         public static bool CanGrantEntitlement(
             string gameId, EntitlementPolicy policy, ReceiptVerificationStatus verification)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return false;
+
             if (!policy.PurchasesAllowed)
                 return false;
 

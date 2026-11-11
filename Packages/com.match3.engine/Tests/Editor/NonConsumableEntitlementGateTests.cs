@@ -188,5 +188,18 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement("SomeGame", EntitlementPolicy.Unrestricted("ok")));
 #pragma warning restore 0618
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_PermissivePolicy_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = NonConsumableEntitlementGate.CheckEntitlementEligibility(gameId, EntitlementPolicy.Unrestricted("ok"), false);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+                Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(gameId, EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid));
+            }
+        }
     }
 }

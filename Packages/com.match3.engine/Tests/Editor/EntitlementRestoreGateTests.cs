@@ -202,5 +202,17 @@ namespace Match3.Engine.Tests.Editor
             vault.Store(EntitlementRecord.Active("G", "s1", "o2")); // overwrite same sku
             Assert.AreEqual(1, vault.Count);
         }
+
+
+        [Test]
+        public void CanRestore_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = EntitlementRestoreGate.CanRestore(gameId, RestoreEntitlementPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

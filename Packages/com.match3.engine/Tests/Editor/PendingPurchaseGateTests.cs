@@ -227,5 +227,15 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual(0, t.PendingCount);
             Assert.IsFalse(t.HasPending("order-1"));
         }
+
+
+        [Test]
+        public void CanFulfillPurchase_NullOrEmptyGameId_False()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase(gameId, PurchaseState.Completed, PendingPurchasePolicy.WithDeferral("deferral")));
+            }
+        }
     }
 }

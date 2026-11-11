@@ -246,5 +246,18 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(state.LastResult.Value.HasErrors, Is.True);
             Assert.That(state.LastResult.Value.ErrorReason, Is.EqualTo("StoreUnavailable"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_EnabledPolicy_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = RestorePurchasesGate.CanInitiateRestore(gameId, RestorePolicy.Enabled("enabled"));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+                Assert.IsFalse(RestorePurchasesGate.ShouldShowRestoreButton(gameId, RestorePolicy.Enabled("enabled")));
+            }
+        }
     }
 }

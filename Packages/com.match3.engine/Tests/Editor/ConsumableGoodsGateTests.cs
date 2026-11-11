@@ -200,5 +200,17 @@ namespace Match3.Engine.Tests.Editor
             tracker.MarkConsumed("x"); // duplicate
             Assert.AreEqual(2, tracker.Count);
         }
+
+
+        [Test]
+        public void CheckPurchaseEligibility_NullOrEmptyGameId_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = ConsumableGoodsGate.CheckPurchaseEligibility(gameId, ConsumablePolicy.Enabled("enabled"), false);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

@@ -88,6 +88,10 @@ namespace Match3.Engine.Runtime.Identity
 
         public static EligibilityResult CanSaveLocally(string gameId, SaveField field, SaveSchemaPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return new EligibilityResult(false, "GameIdMissing");
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is prohibited from local save
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new EligibilityResult(false, "WonderPopSaveProhibited");

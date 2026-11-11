@@ -35,6 +35,10 @@ namespace Match3.Engine.Runtime.Commerce
             RecoveryOfferPolicy policy,
             bool isKidProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             if (!policy.IsEnabled)
                 return AdEligibilityResult.Ineligible("RecoveryOfferDisabled");
 

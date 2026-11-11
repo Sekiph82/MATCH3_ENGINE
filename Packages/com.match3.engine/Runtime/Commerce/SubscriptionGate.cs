@@ -47,6 +47,10 @@ namespace Match3.Engine.Runtime.Commerce
         public static AdEligibilityResult CheckSubscriptionEligibility(
             string gameId, SubscriptionPolicy policy, bool isKidProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             // Guard 1: Wonder_Pop always prohibited, checked first
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
                 return AdEligibilityResult.Ineligible("WonderPopSubscriptionProhibited");
@@ -87,6 +91,10 @@ namespace Match3.Engine.Runtime.Commerce
 
         public static bool CanShowPromotionalTrial(string gameId, SubscriptionPolicy policy, bool isKidProfile)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return false;
+
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
                 return false;
             // Unconditional: kid profiles are never shown subscription offers

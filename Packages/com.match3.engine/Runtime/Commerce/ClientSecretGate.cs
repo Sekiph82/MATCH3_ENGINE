@@ -29,6 +29,10 @@ namespace Match3.Engine.Runtime.Commerce
 
         public static AdEligibilityResult CheckPaymentFlowEligibility(string gameId, PaymentSecretPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             if (policy.ClientSecretsAllowed)
                 return AdEligibilityResult.Ineligible("ClientPaymentSecretsNotAllowed");
 

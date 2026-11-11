@@ -68,6 +68,10 @@ namespace Match3.Engine.Runtime.Identity
 
         public static (bool eligible, string reason) CanInitiateDeletion(string gameId, DeletionPolicy policy)
         {
+            // Fail closed: a missing game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             policy = Normalize(policy);
 
             // Guard 1 (FIRST): Wonder_Pop Ordinal check
