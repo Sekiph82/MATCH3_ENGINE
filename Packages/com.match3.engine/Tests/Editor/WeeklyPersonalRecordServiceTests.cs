@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Match3.Engine.Runtime;
 using Match3.Engine.Runtime.Economy;
@@ -57,7 +58,7 @@ namespace Match3.Engine.Tests.Editor
 
         private static WeeklyRecordOutcome Submit(WeeklyPersonalRecordService svc, VerifiedProgressionResult r,
             uint seed, DateTime completion, DateTime? now = null, FeatureFlagRecord? flag = null, int steps = 1) =>
-            svc.Submit(r, Trace(seed, steps, svc.GameId), completion, now ?? completion,
+            svc.Submit(r, Trace(seed, steps, svc.GameId), completion, TrustedUtcAnchor.Server(now ?? completion),
                 flag ?? Flag(svc.GameId), FeatureFlagPolicy.Default);
 
         private static string Instance(string week, int slot) =>
@@ -154,7 +155,7 @@ namespace Match3.Engine.Tests.Editor
             var svc = Service();
             var nonUtc = new DateTime(2026, 11, 11, 12, 0, 0, kind);
             var o = svc.Submit(Result("r1", 100), Trace(1), completionSide ? nonUtc : W46Wed,
-                completionSide ? W46Wed : nonUtc, Flag(), FeatureFlagPolicy.Default);
+                TrustedUtcAnchor.Server(completionSide ? W46Wed : nonUtc), Flag(), FeatureFlagPolicy.Default);
             Assert.AreEqual(WeeklyRecordStatus.Rejected, o.Status);
             Assert.AreEqual(R.NonUtcInstant, o.Reason);
             Assert.IsNull(svc.GetView(Mode, Level, W46));
@@ -288,7 +289,7 @@ namespace Match3.Engine.Tests.Editor
         public void TraceFromAnotherGame_Rejected()
         {
             var svc = Service();
-            var o = svc.Submit(Result("r1", 100), Trace(1, 1, "Dino_Islands"), W46Wed, W46Wed, Flag(),
+            var o = svc.Submit(Result("r1", 100), Trace(1, 1, "Dino_Islands"), W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(),
                 FeatureFlagPolicy.Default);
             Assert.AreEqual(R.TraceGameMismatch, o.Reason);
             Assert.IsNull(svc.GetView(Mode, Level, W46));
@@ -660,14 +661,14 @@ namespace Match3.Engine.Tests.Editor
         public void ConsentOff_NotEligible_ForWonderPopEvenWithPermissivePolicy()
         {
             var svc = Service(game: "Wonder_Pop");
-            var noConsent = svc.Submit(Result("r1", 100, game: "Wonder_Pop"), Trace(1, 1, "Wonder_Pop"), W46Wed, W46Wed,
+            var noConsent = svc.Submit(Result("r1", 100, game: "Wonder_Pop"), Trace(1, 1, "Wonder_Pop"), W46Wed, TrustedUtcAnchor.Server(W46Wed),
                 Flag("Wonder_Pop", consent: false), FeatureFlagPolicy.Permissive("test"));
             Assert.AreEqual(WeeklyRecordStatus.NotEligible, noConsent.Status);
             Assert.AreEqual("RestrictedFeatureRequiresConsent", noConsent.Reason);
             Assert.IsNull(noConsent.View);
             Assert.IsNull(svc.GetView(Mode, Level, W46));
 
-            var consented = svc.Submit(Result("r1", 100, game: "Wonder_Pop"), Trace(1, 1, "Wonder_Pop"), W46Wed, W46Wed,
+            var consented = svc.Submit(Result("r1", 100, game: "Wonder_Pop"), Trace(1, 1, "Wonder_Pop"), W46Wed, TrustedUtcAnchor.Server(W46Wed),
                 Flag("Wonder_Pop", consent: true), FeatureFlagPolicy.Default);
             Assert.AreEqual(WeeklyRecordStatus.Participated, consented.Status);
         }
@@ -679,15 +680,15 @@ namespace Match3.Engine.Tests.Editor
             var r = Result("r1", 100);
             var t = Trace(1);
             Assert.AreEqual("RestrictedFeatureRequiresConsent",
-                svc.Submit(r, t, W46Wed, W46Wed, Flag(consent: false), FeatureFlagPolicy.Default).Reason);
+                svc.Submit(r, t, W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(consent: false), FeatureFlagPolicy.Default).Reason);
             Assert.AreEqual("RestrictedFeatureRequiresConsent",
-                svc.Submit(r, t, W46Wed, W46Wed, Flag(consent: false), default(FeatureFlagPolicy)).Reason);
+                svc.Submit(r, t, W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(consent: false), default(FeatureFlagPolicy)).Reason);
             Assert.AreEqual("FeatureFlagDisabled",
-                svc.Submit(r, t, W46Wed, W46Wed, Flag(enabled: false), FeatureFlagPolicy.Default).Reason);
+                svc.Submit(r, t, W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(enabled: false), FeatureFlagPolicy.Default).Reason);
             Assert.AreEqual(R.WrongFeatureFlag,
-                svc.Submit(r, t, W46Wed, W46Wed, Flag(feature: LiveOpsFeature.TimedMode), FeatureFlagPolicy.Default).Reason);
+                svc.Submit(r, t, W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(feature: LiveOpsFeature.TimedMode), FeatureFlagPolicy.Default).Reason);
             Assert.AreEqual("GameIdMismatch",
-                svc.Submit(r, t, W46Wed, W46Wed, Flag("Wonder_Pop"), FeatureFlagPolicy.Default).Reason);
+                svc.Submit(r, t, W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag("Wonder_Pop"), FeatureFlagPolicy.Default).Reason);
             Assert.IsNull(svc.GetView(Mode, Level, W46));
         }
 
@@ -719,8 +720,60 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => new WeeklyPersonalRecordPolicy(1, 1, "a|b", 1));
             Assert.Throws<ArgumentException>(() => new WeeklyPersonalRecordPolicy(1, 1, RewardLedger.PaidAssetId, 1));
             var svc = Service();
-            Assert.Throws<ArgumentNullException>(() => svc.Submit(null, Trace(1), W46Wed, W46Wed, Flag(), FeatureFlagPolicy.Default));
-            Assert.Throws<ArgumentNullException>(() => svc.Submit(Result("r", 1), null, W46Wed, W46Wed, Flag(), FeatureFlagPolicy.Default));
+            Assert.Throws<ArgumentNullException>(() => svc.Submit(null, Trace(1), W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(), FeatureFlagPolicy.Default));
+            Assert.Throws<ArgumentNullException>(() => svc.Submit(Result("r", 1), null, W46Wed, TrustedUtcAnchor.Server(W46Wed), Flag(), FeatureFlagPolicy.Default));
+        }
+
+        [Test]
+        public void Policy_RewardIdMustBeRegisteredLedgerAsset_Ordinal()
+        {
+            Assert.AreEqual("Coins", new WeeklyPersonalRecordPolicy(1, 1, "Coins", 1).RewardId);
+            Assert.AreEqual("Boosters", new WeeklyPersonalRecordPolicy(1, 1, "Boosters", 1).RewardId);
+            foreach (var bad in new[] { "coins", "COINS", "premiumgems", "Gems", "booster.hammer", "", null })
+                Assert.Throws<ArgumentException>(() => new WeeklyPersonalRecordPolicy(1, 1, bad, 1), bad ?? "null");
+        }
+
+        [Test]
+        public void Submit_UntrustedOrLegacyTime_FailsClosed_NoStateChange()
+        {
+            var svc = Service();
+            var r = Result("r1", 100);
+            Assert.AreEqual(R.TrustedTimeAnchorRequired, svc.Submit(r, Trace(1), W46Wed,
+                TrustedUtcAnchor.DeviceClock(W46Wed), Flag(), FeatureFlagPolicy.Default).Reason);
+            Assert.AreEqual(R.TrustedTimeAnchorRequired, svc.Submit(r, Trace(1), W46Wed,
+                default(TrustedUtcAnchor), Flag(), FeatureFlagPolicy.Default).Reason);
+#pragma warning disable CS0618
+            var legacy = svc.Submit(r, Trace(1), W46Wed, W46Wed, Flag(), FeatureFlagPolicy.Default);
+#pragma warning restore CS0618
+            Assert.AreEqual(WeeklyRecordStatus.Rejected, legacy.Status);
+            Assert.AreEqual(R.TrustedTimeAnchorRequired, legacy.Reason);
+            Assert.IsNull(svc.GetView(Mode, Level, W46));
+            Assert.AreEqual(0L, svc.Sequence);
+            Assert.AreEqual(WeeklyRecordStatus.Participated, Submit(svc, r, 1, W46Wed).Status, "result id not consumed");
+        }
+
+        [Test]
+        public void SettledSlot_SameResultIsAlreadyGranted_OtherResultFailsClosed()
+        {
+            var ledger = new RewardLedger(Game, Profile, null,
+                new RewardRetentionPolicy(180, new Dictionary<string, int> { [RewardSources.WeeklyPersonalBest] = 1 }));
+            var policy = new WeeklyPersonalRecordPolicy(3, 1, "Coins", 25);
+            var svc = new WeeklyPersonalRecordService(Game, Profile, policy, ledger);
+            Submit(svc, Result("a", 100), 1, W46Wed);
+            Assert.AreEqual(string.Empty, Submit(svc, Result("b", 120), 2, W46Wed).Reason);
+            Assert.AreEqual(1, ledger.Prune(TrustedUtcAnchor.Server(W48Wed)), "slot 1 of W46 settled (week end + 1 day)");
+
+            // Lost local state on a device whose clock-anchored view is still inside W46 (merged ledger).
+            var fresh = new WeeklyPersonalRecordService(Game, Profile, policy, ledger);
+            Submit(fresh, Result("a", 100), 1, W46Fri);
+            var again = Submit(fresh, Result("b", 120), 2, W46Fri);
+            Assert.AreEqual(WeeklyRecordStatus.Improved, again.Status);
+            Assert.AreEqual(R.AlreadyGranted, again.Reason, "tombstone digest matches the same result");
+            Assert.IsNull(again.Grant);
+            var other = Submit(fresh, Result("c", 140), 3, W46Fri);
+            Assert.AreEqual(RewardLedgerReasons.KeySettled, other.Reason, "settled slot of another result fails closed");
+            Assert.AreEqual(25, ledger.Balance(CurrencyType.Coins));
+            Assert.AreEqual(0, ledger.Count);
         }
     }
 }

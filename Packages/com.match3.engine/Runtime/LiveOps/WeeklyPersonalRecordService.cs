@@ -21,6 +21,10 @@ namespace Match3.Engine.Runtime.LiveOps
     //   week UTC). Slots are probed upward with TryGrant: Applied = granted; Duplicate = already granted;
     //   IdempotencyConflict = slot taken, and if that record's Reference is this result (e.g. reward amount
     //   changed mid-week) it is AlreadyGranted, otherwise the next slot is tried; no free slot = WindowCapReached.
+    //   KeySettled (slot tombstoned by ledger Prune) is AlreadyGranted only when the tombstone's payload digest
+    //   equals this grant's (same result, amount and week end); otherwise it fails closed with KeySettled.
+    // - Time: Submit takes a server-anchored TrustedUtcAnchor, which is also the ledger grant anchor; the legacy
+    //   DateTime overload is [Obsolete] and always fails closed (TrustedTimeAnchorRequired).
     //   So local state loss, an older snapshot or several devices on one merged ledger cannot exceed the cap.
     // - Replay: one entry per result ID and per verified ReplayTrace digest (mode|level|sha256(ReplayCodec.Encode)).
     //   A fixed-seed level replayed with different moves is a different run and may still improve the record.
@@ -92,10 +96,9 @@ namespace Match3.Engine.Runtime.LiveOps
                 throw new ArgumentOutOfRangeException(nameof(maxImprovementRewardsPerWindow));
             if (minImprovement < 1)
                 throw new ArgumentOutOfRangeException(nameof(minImprovement));
-            // Asset-ID syntax is validated by the ledger at grant time; premium currency is never a weekly reward.
-            if (string.IsNullOrWhiteSpace(rewardId) || rewardId.Contains("|") ||
-                rewardId == nameof(CurrencyType.PremiumGems))
-                throw new ArgumentException("Reward must be a non-premium asset ID.", nameof(rewardId));
+            // Registered ledger asset (Ordinal) only; premium currency is never a weekly reward.
+            if (!RewardLedger.IsKnownAsset(rewardId) || rewardId == RewardLedger.PaidAssetId)
+                throw new ArgumentException("Reward must be a registered non-premium ledger asset ID.", nameof(rewardId));
             if (rewardAmount < 1 || rewardAmount > 100000)
                 throw new ArgumentOutOfRangeException(nameof(rewardAmount));
             if (retainedPastWeeks < 0 || retainedPastWeeks > 52)
@@ -123,6 +126,7 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public const string WrongFeatureFlag = "WrongFeatureFlag";
         public const string NonUtcInstant = "NonUtcInstant";
+        public const string TrustedTimeAnchorRequired = "TrustedTimeAnchorRequired";
         public const string Unverified = "Unverified";
         public const string GameOrProfileMismatch = "GameOrProfileMismatch";
         public const string TraceGameMismatch = "TraceGameMismatch";
@@ -234,9 +238,9 @@ namespace Match3.Engine.Runtime.LiveOps
         /// </summary>
         /// <param name="verifiedTrace">The verified run's replay trace; its canonical digest is the replay key.</param>
         /// <param name="verifiedCompletionUtc">Server-anchored completion instant (set at sync for offline runs).</param>
-        /// <param name="serverNowUtc">Trusted server time; never the device clock.</param>
+        /// <param name="serverNow">Server-anchored time (never the device clock); it is also the ledger grant anchor.</param>
         public WeeklyRecordOutcome Submit(VerifiedProgressionResult result, ReplayTrace verifiedTrace,
-            DateTime verifiedCompletionUtc, DateTime serverNowUtc,
+            DateTime verifiedCompletionUtc, TrustedUtcAnchor serverNow,
             FeatureFlagRecord weeklyPersonalBestFlag, FeatureFlagPolicy flagPolicy)
         {
             if (result == null) throw new ArgumentNullException(nameof(result));
@@ -247,6 +251,8 @@ namespace Match3.Engine.Runtime.LiveOps
             if (!FeatureFlagGate.CanEnableFlag(GameId, weeklyPersonalBestFlag, flagPolicy, out var flagReason))
                 return new WeeklyRecordOutcome(WeeklyRecordStatus.NotEligible, flagReason);
 
+            if (!serverNow.IsServerAnchored) return Reject(WeeklyRecordReasons.TrustedTimeAnchorRequired);
+            var serverNowUtc = serverNow.UtcNow;
             if (verifiedCompletionUtc.Kind != DateTimeKind.Utc || serverNowUtc.Kind != DateTimeKind.Utc)
                 return Reject(WeeklyRecordReasons.NonUtcInstant);
             if (!result.Verified)
@@ -309,25 +315,39 @@ namespace Match3.Engine.Runtime.LiveOps
             for (var slot = 1; slot <= _policy.MaxImprovementRewardsPerWindow; slot++)
             {
                 var instance = GrantInstanceId(weekId, slot);
-                var granted = _ledger.TryGrant(new RewardLedgerRequest(GameId, ProfileId,
+                var slotKey = RewardLedgerKey.Derive(GameId, ProfileId, RewardSources.WeeklyPersonalBest, instance);
+                var request = new RewardLedgerRequest(GameId, ProfileId,
                     RewardSources.WeeklyPersonalBest, instance,
                     new Dictionary<string, long> { [_policy.RewardId] = _policy.RewardAmount },
-                    serverNowUtc, IsoWeekWindow.EndUtc(weekId), result.ResultId));
+                    serverNowUtc, IsoWeekWindow.EndUtc(weekId), result.ResultId);
+                var granted = _ledger.TryGrant(request, serverNow);
                 if (granted.Outcome == RewardLedgerOutcome.Applied)
                     return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, string.Empty, view, granted.Record);
                 if (granted.Outcome == RewardLedgerOutcome.Duplicate)
                     return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.AlreadyGranted,
                         view, granted.Record);
+                // Settled slot: a tombstone keeps only the payload digest (amounts + expiry + reference). An equal
+                // digest means this very result was granted there; anything else fails closed with KeySettled.
+                if (granted.Reason == RewardLedgerReasons.KeySettled &&
+                    _ledger.TryGetTombstone(slotKey, out var settled) &&
+                    StringComparer.Ordinal.Equals(settled.PayloadDigest, new RewardLedgerRecord(slotKey, request).PayloadDigest))
+                    return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.AlreadyGranted, view);
                 if (granted.Reason != RewardLedgerReasons.IdempotencyConflict)
                     return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, granted.Reason, view);
-                if (_ledger.TryGetRecord(RewardLedgerKey.Derive(GameId, ProfileId, RewardSources.WeeklyPersonalBest,
-                        instance), out var existing) &&
+                if (_ledger.TryGetRecord(slotKey, out var existing) &&
                     StringComparer.Ordinal.Equals(existing.Reference, result.ResultId))
                     return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.AlreadyGranted,
                         view, existing);
             }
             return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.WindowCapReached, view);
         }
+
+        /// <summary>Superseded: a bare DateTime cannot prove server time. Always fails closed.</summary>
+        [Obsolete("Pass a server-anchored TrustedUtcAnchor; this overload always returns TrustedTimeAnchorRequired.")]
+        public WeeklyRecordOutcome Submit(VerifiedProgressionResult result, ReplayTrace verifiedTrace,
+            DateTime verifiedCompletionUtc, DateTime serverNowUtc,
+            FeatureFlagRecord weeklyPersonalBestFlag, FeatureFlagPolicy flagPolicy) =>
+            Reject(WeeklyRecordReasons.TrustedTimeAnchorRequired);
 
         public WeeklyRecordView GetView(string modeId, string levelId, string weekId)
         {
