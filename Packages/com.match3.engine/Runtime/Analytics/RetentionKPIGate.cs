@@ -64,6 +64,9 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (policy.PolicyDescription == null) policy = RetentionPolicy.Default;
 
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal) ||
                 !string.Equals(gameId, consent.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");
@@ -86,6 +89,9 @@ namespace Match3.Engine.Runtime.Analytics
         public static (bool eligible, string reason) CanRecordRetention(
             string gameId, RetentionRecord record, RetentionPolicy policy)
         {
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");
 

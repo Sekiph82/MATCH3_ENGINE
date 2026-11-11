@@ -304,5 +304,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Wonder_Pop", record, ExperienceFairnessPolicy.Default, out string reason));
             Assert.AreEqual("GameIdMismatch", reason);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent(gameId, default(ExperienceRecord), default(ExperienceFairnessPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

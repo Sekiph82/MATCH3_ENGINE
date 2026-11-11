@@ -151,21 +151,44 @@ namespace Match3.Engine.Tests.Editor
         public void CanShowPromotionalTrial_WonderPop_False()
         {
             var policy = new SubscriptionPolicy(true, true, "All allowed");
-            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("Wonder_Pop", policy));
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("Wonder_Pop", policy, false));
         }
 
         [Test]
         public void CanShowPromotionalTrial_TrialsDisabled_False()
         {
             var policy = SubscriptionPolicy.Enabled("Enabled but no trials");
-            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy));
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy, false));
         }
 
         [Test]
         public void CanShowPromotionalTrial_EnabledAndAllowed_True()
         {
             var policy = new SubscriptionPolicy(true, true, "Full access");
-            Assert.IsTrue(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy));
+            Assert.IsTrue(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy, false));
+        }
+
+        [Test]
+        public void CanShowPromotionalTrial_KidProfile_NeverUnderAnyPolicy()
+        {
+            foreach (var policy in new[] { new SubscriptionPolicy(true, true, "Full access"), SubscriptionPolicy.Enabled("e"), SubscriptionPolicy.Default, default(SubscriptionPolicy) })
+                foreach (var gameId in new[] { "Coral_Rescue", "Dino_Islands", "Garage_Legends", "The_Fractured_Realms" })
+                    Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial(gameId, policy, true));
+        }
+
+        [Test]
+        public void CanShowPromotionalTrial_SubscriptionsDisabled_False()
+        {
+            var policy = new SubscriptionPolicy(false, true, "Trials flag on but subscriptions disabled");
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy, false));
+        }
+
+        [Test]
+        public void CanShowPromotionalTrial_ObsoleteOverload_FailsClosed()
+        {
+#pragma warning disable 0618
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", new SubscriptionPolicy(true, true, "Full access")));
+#pragma warning restore 0618
         }
 
         [Test]

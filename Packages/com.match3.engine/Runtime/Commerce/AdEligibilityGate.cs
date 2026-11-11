@@ -36,10 +36,14 @@ namespace Match3.Engine.Runtime.Commerce
     {
         private static readonly StringComparer Ordinal = StringComparer.Ordinal;
 
-        public static AdEligibilityResult Check(string gameId, AdConsentStatus consent)
+        public static AdEligibilityResult Check(string gameId, AdConsentStatus consent, bool isKidProfile)
         {
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
                 return AdEligibilityResult.Ineligible("WonderPopExcluded");
+
+            // Unconditional: kid profiles are never ad-eligible, for any game
+            if (isKidProfile)
+                return AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
 
             if (consent == AdConsentStatus.Unknown || consent == AdConsentStatus.Denied)
                 return AdEligibilityResult.Ineligible("ConsentNotGranted");
@@ -47,8 +51,12 @@ namespace Match3.Engine.Runtime.Commerce
             return AdEligibilityResult.Eligible();
         }
 
+        [Obsolete("Kid status unknown: treated as a kid profile (KidProfileAdsProhibited, fail-closed). Use the overload taking isKidProfile.")]
+        public static AdEligibilityResult Check(string gameId, AdConsentStatus consent) =>
+            Check(gameId, consent, isKidProfile: true);
+
         public static AdEligibilityResult CheckWithProfile(
-            GameBusinessProfile profile, AdConsentStatus consent)
+            GameBusinessProfile profile, AdConsentStatus consent, bool isKidProfile)
         {
             if (profile == null)
                 throw new ArgumentNullException(nameof(profile));
@@ -56,7 +64,12 @@ namespace Match3.Engine.Runtime.Commerce
             if (!profile.AdsEnabled || !profile.MonetizationEnabled)
                 return AdEligibilityResult.Ineligible("AdsNotApproved");
 
-            return Check(profile.GameId, consent);
+            return Check(profile.GameId, consent, isKidProfile);
         }
+
+        [Obsolete("Kid status unknown: treated as a kid profile (fail-closed). Use the overload taking isKidProfile.")]
+        public static AdEligibilityResult CheckWithProfile(
+            GameBusinessProfile profile, AdConsentStatus consent) =>
+            CheckWithProfile(profile, consent, isKidProfile: true);
     }
 }

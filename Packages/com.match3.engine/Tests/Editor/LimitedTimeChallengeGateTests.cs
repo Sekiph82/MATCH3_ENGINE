@@ -324,5 +324,16 @@ namespace Match3.Engine.Tests.Editor
             softHyphenLog.Record("Game\u00ADA", "evt");
             Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(LimitedTimeChallengeGate.CanActivateEvent(gameId, default(ChallengeEventRecord), default(ChallengeEventPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

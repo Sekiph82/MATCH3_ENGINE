@@ -73,10 +73,11 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void IsAnalyticsAllowed_ChildSafe_NotRevoked_IsTrue()
+        public void IsAnalyticsAllowed_ChildSafe_NotRevoked_IsFalse()
         {
             var r = ConsentRecord.Create("GameA", ConsentBasis.ChildSafe);
-            Assert.IsTrue(r.IsAnalyticsAllowed);
+            Assert.IsFalse(r.IsAnalyticsAllowed);
+            Assert.IsFalse(ConsentAnalyticsGate.IsConsentActive(r));
         }
 
         [Test]
@@ -343,6 +344,17 @@ namespace Match3.Engine.Tests.Editor
             log.Record("GameA", "granted");
             log.Clear();
             Assert.IsFalse(log.HasEntry("GameA"));
+        }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics(gameId, default(ConsentRecord), default(ConsentPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
         }
     }
 }

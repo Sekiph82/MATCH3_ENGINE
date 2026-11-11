@@ -277,5 +277,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(TrackingDenialGate.CanTrack("Coral_Rescue", record, NoBlock, out var reason));
             Assert.AreEqual("GameIdMismatch", reason);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(TrackingDenialGate.CanTrack(gameId, default(DenialRecord), default(DenialPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

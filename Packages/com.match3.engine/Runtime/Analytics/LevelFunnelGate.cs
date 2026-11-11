@@ -82,6 +82,9 @@ namespace Match3.Engine.Runtime.Analytics
         {
             policy = Normalize(policy);
 
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             if (!string.Equals(gameId, attempt.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");
 

@@ -356,5 +356,20 @@ namespace Match3.Engine.Tests.Editor
             var log = new ChildAuditLog();
             Assert.IsFalse(log.HasEntry("NoGame"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = ChildAccountGate.CanUsePublicHandle(gameId, default(ChildProfile), default(ChildAccountPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+                var (socialEligible, socialReason) = ChildAccountGate.CanUseSocialFeatures(gameId, default(ChildProfile), default(ChildAccountPolicy));
+                Assert.IsFalse(socialEligible);
+                Assert.AreEqual("GameIdMissing", socialReason);
+            }
+        }
     }
 }

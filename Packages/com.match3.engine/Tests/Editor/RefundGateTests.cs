@@ -310,5 +310,15 @@ namespace Match3.Engine.Tests.Editor
             // Control: matching game id with the same record and policy does revoke
             Assert.IsTrue(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, RefundPolicy.Active("active")));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(RefundGate.ShouldRevokeEntitlement(gameId, default(RefundRecord), RefundPolicy.Active("active")));
+            }
+        }
     }
 }

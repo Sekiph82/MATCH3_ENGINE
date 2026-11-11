@@ -299,5 +299,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Game\u00ADA"));
             Assert.IsFalse(log.HasEntry("GameA"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(ConsentSafeRemoteConfigGate.CanFetchRemoteConfig(gameId, default(RemoteConfigRecord), default(ConsentSafeRemoteConfigPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

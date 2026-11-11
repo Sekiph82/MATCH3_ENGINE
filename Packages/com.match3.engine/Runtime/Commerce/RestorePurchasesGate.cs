@@ -14,7 +14,7 @@ namespace Match3.Engine.Runtime.Commerce
     public readonly struct RestorePolicy
     {
         public bool RestoreAllowed { get; }
-        public bool RequireUserInitiated { get; }
+        public bool RequireUserInitiated => true;
         public string PolicyDescription { get; }
 
         private RestorePolicy(bool restoreAllowed, string description)
@@ -22,7 +22,6 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.IsNullOrEmpty(description))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(description));
             RestoreAllowed = restoreAllowed;
-            RequireUserInitiated = true;
             PolicyDescription = description;
         }
 

@@ -88,6 +88,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = RetentionPolicy.Safe("desc");
             Assert.IsTrue(p.ExcludeTestDevices);
+            Assert.IsTrue(RetentionKPIGate.RequiresLawfulBasis(p));
             Assert.AreEqual("desc", p.PolicyDescription);
         }
 
@@ -293,6 +294,23 @@ namespace Match3.Engine.Tests.Editor
             var (eligible, reason) = RetentionKPIGate.CanRecordRetention("GameZ", r, Consent("GameZ"), RetentionPolicy.Default);
             Assert.IsTrue(eligible);
             Assert.AreEqual(string.Empty, reason);
+        }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = RetentionKPIGate.CanRecordRetention(gameId, default(RetentionRecord), default(ConsentRecord), default(RetentionPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+                #pragma warning disable 0618
+                var (oldEligible, oldReason) = RetentionKPIGate.CanRecordRetention(gameId, default(RetentionRecord), default(RetentionPolicy));
+                #pragma warning restore 0618
+                Assert.IsFalse(oldEligible);
+                Assert.AreEqual("GameIdMissing", oldReason);
+            }
         }
     }
 }

@@ -242,5 +242,17 @@ namespace Match3.Engine.Tests.Editor.Commerce
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("GameIdMismatch", result.Reason);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = LocalizedPriceDisplayGate.CanDisplayPrice(gameId, default(LocalizedPrice), default(PriceDisplayPolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

@@ -313,5 +313,17 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.IsFalse(log.HasEntry("GameA"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive(gameId, default(StorageEntry), default(SensitiveStoragePolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

@@ -93,6 +93,9 @@ namespace Match3.Engine.Runtime.Analytics
         {
             policy = Normalize(policy);
 
+            if (string.IsNullOrEmpty(gameId))
+                return PipelineGateResult.Ineligible("GameIdMissing");
+
             if (!string.Equals(gameId, batch.GameId, StringComparison.Ordinal))
                 return PipelineGateResult.Ineligible("GameIdMismatch");
 

@@ -81,6 +81,12 @@ namespace Match3.Engine.Runtime.Privacy
         {
             if (policy.PolicyDescription == null) policy = FamilyFriendlyPolicy.Default;
 
+            if (string.IsNullOrEmpty(gameId))
+            {
+                reason = "GameIdMissing";
+                return false;
+            }
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = "GameIdMismatch";

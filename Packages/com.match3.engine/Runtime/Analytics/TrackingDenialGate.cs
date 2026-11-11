@@ -59,6 +59,12 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (policy.PolicyDescription == null) policy = DenialPolicy.Default;
 
+            if (string.IsNullOrEmpty(gameId))
+            {
+                reason = "GameIdMissing";
+                return false;
+            }
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = "GameIdMismatch";

@@ -290,5 +290,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Wonder_Pop", record, PresentationAnalyticsPolicy.Default, out string reason));
             Assert.AreEqual("GameIdMismatch", reason);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent(gameId, default(PresentationRecord), default(PresentationAnalyticsPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

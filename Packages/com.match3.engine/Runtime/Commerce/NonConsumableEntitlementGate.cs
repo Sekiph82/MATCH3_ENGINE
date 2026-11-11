@@ -55,7 +55,9 @@ namespace Match3.Engine.Runtime.Commerce
         // Non-consumables always need server verification regardless of policy hint.
         public static bool IsServerVerificationRequired(EntitlementPolicy policy) => true;
 
-        public static bool CanGrantEntitlement(string gameId, EntitlementPolicy policy)
+        // Grant requires a server-verified valid receipt. Restoring owned content is not gated on kid status.
+        public static bool CanGrantEntitlement(
+            string gameId, EntitlementPolicy policy, ReceiptVerificationStatus verification)
         {
             if (!policy.PurchasesAllowed)
                 return false;
@@ -63,7 +65,15 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return false;
 
+            // Unconditional: only a server-verified valid receipt grants a non-consumable
+            if (verification != ReceiptVerificationStatus.VerifiedValid)
+                return false;
+
             return true;
         }
+
+        [Obsolete("Receipt verification unknown: always false (fail-closed). Use the overload taking ReceiptVerificationStatus.")]
+        public static bool CanGrantEntitlement(string gameId, EntitlementPolicy policy) =>
+            CanGrantEntitlement(gameId, policy, ReceiptVerificationStatus.Unverified);
     }
 }

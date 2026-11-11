@@ -71,6 +71,9 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (policy.PolicyDescription == null) policy = ReconciliationPolicy.Default;
 
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             if (!string.Equals(gameId, entry.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");
 

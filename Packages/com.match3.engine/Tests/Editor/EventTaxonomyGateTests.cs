@@ -230,6 +230,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void Registry_Register_DefaultRecord_Throws()
+        {
+            var reg = new EventRegistry();
+            Assert.Throws<ArgumentException>(() => reg.Register(default(EventRecord)));
+            Assert.AreEqual(0, reg.Count);
+        }
+
+        [Test]
         public void Registry_Contains_ReturnsTrue()
         {
             var reg = new EventRegistry();
@@ -298,6 +306,18 @@ namespace Match3.Engine.Tests.Editor
             var (eligible, reason) = EventTaxonomyGate.CanRecordEvent("Wonder_Pop", EventRecord.Create("Coral_Rescue", AnalyticsEvent.LevelStart, 1), EventTaxonomyPolicy.Default);
             Assert.IsFalse(eligible);
             Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = EventTaxonomyGate.CanRecordEvent(gameId, default(EventRecord), default(EventTaxonomyPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
         }
     }
 }

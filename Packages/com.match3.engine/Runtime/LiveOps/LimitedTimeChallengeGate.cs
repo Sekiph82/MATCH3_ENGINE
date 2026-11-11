@@ -71,6 +71,12 @@ namespace Match3.Engine.Runtime.LiveOps
 
         public static bool CanActivateEvent(string gameId, ChallengeEventRecord record, ChallengeEventPolicy policy, out string reason)
         {
+            if (string.IsNullOrEmpty(gameId))
+            {
+                reason = "GameIdMissing";
+                return false;
+            }
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = GameIdMismatchReason;

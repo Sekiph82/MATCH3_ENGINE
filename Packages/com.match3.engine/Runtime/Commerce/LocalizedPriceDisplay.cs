@@ -112,6 +112,9 @@ namespace Match3.Engine.Runtime.Commerce
         {
             policy = Normalize(policy);
 
+            if (string.IsNullOrEmpty(gameId))
+                return AdEligibilityResult.Ineligible("GameIdMissing");
+
             if (!string.Equals(gameId, price.GameId, StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("GameIdMismatch");
 

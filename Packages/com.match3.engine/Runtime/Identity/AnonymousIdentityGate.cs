@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Match3.Engine.Runtime.Analytics;
 
 namespace Match3.Engine.Runtime.Identity
 {
@@ -62,17 +63,48 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class AnonymousIdentityGate
     {
-        public static CollectionEligibilityResult CanCollectData(string gameId, IdentityPolicy policy)
+        /// <summary>
+        /// Data collection for a guest identity. Child/unknown identities are never collected from and
+        /// explicit analytics consent (ConsentAnalyticsGate under ConsentPolicy.Default) is required
+        /// unconditionally; the policy can only add restriction.
+        /// </summary>
+        public static CollectionEligibilityResult CanCollectData(
+            string gameId, GuestIdentity identity, ConsentRecord consent, IdentityPolicy policy)
         {
-            // Guard 1 FIRST (CRITICAL): Wonder_Pop is never eligible for data collection
+            if (policy.PolicyDescription == null) policy = IdentityPolicy.Default;
+
+            if (string.IsNullOrEmpty(gameId))
+                return new CollectionEligibilityResult(false, "GameIdMissing");
+
+            if (!string.Equals(gameId, identity.GameId, StringComparison.Ordinal) ||
+                !string.Equals(gameId, consent.GameId, StringComparison.Ordinal))
+                return new CollectionEligibilityResult(false, "GameIdMismatch");
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new CollectionEligibilityResult(false, "WonderPopCollectionProhibited");
 
-            // Guard 2: policy must allow collection
+            // Unconditional: child-restricted or unknown (empty) identities are never collected from
+            if (identity.IsEmpty || identity.IsRestricted)
+                return new CollectionEligibilityResult(false, "ChildCollectionProhibited");
+
+            // Unconditional: explicit analytics consent is required under every policy
+            if (!ConsentAnalyticsGate.CanCollectAnalytics(gameId, consent, ConsentPolicy.Default, out _))
+                return new CollectionEligibilityResult(false, "ConsentRequired");
+
             if (!policy.CollectionAllowed)
                 return new CollectionEligibilityResult(false, "CollectionNotAllowed");
 
             return new CollectionEligibilityResult(true, "Eligible");
+        }
+
+        /// <summary>Identity and consent unknown: fails closed with "ConsentRequired".</summary>
+        [Obsolete("Identity and consent unknown: always ineligible (ConsentRequired). Use the overload taking GuestIdentity and ConsentRecord.")]
+        public static CollectionEligibilityResult CanCollectData(string gameId, IdentityPolicy policy)
+        {
+            if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
+                return new CollectionEligibilityResult(false, "WonderPopCollectionProhibited");
+
+            return new CollectionEligibilityResult(false, "ConsentRequired");
         }
 
         public static bool RequiresGuestMode(IdentityPolicy policy) =>

@@ -153,21 +153,40 @@ namespace Match3.Engine.Tests.Editor
         public void CanGrantEntitlement_WonderPop_AlwaysFalse()
         {
             Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(
-                "Wonder_Pop", EntitlementPolicy.Unrestricted("ok")));
+                "Wonder_Pop", EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid));
         }
 
         [Test]
         public void CanGrantEntitlement_RestrictedPolicy_False()
         {
             Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(
-                "SomeGame", EntitlementPolicy.Restricted("test")));
+                "SomeGame", EntitlementPolicy.Restricted("test"), ReceiptVerificationStatus.VerifiedValid));
         }
 
         [Test]
-        public void CanGrantEntitlement_Unrestricted_NonWonderPop_True()
+        public void CanGrantEntitlement_Unrestricted_NonWonderPop_VerifiedValid_True()
         {
             Assert.IsTrue(NonConsumableEntitlementGate.CanGrantEntitlement(
-                "SomeGame", EntitlementPolicy.Unrestricted("ok")));
+                "SomeGame", EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid));
+        }
+
+        [Test]
+        public void CanGrantEntitlement_NotVerifiedValid_AlwaysFalse()
+        {
+            foreach (ReceiptVerificationStatus status in Enum.GetValues(typeof(ReceiptVerificationStatus)))
+            {
+                if (status == ReceiptVerificationStatus.VerifiedValid) continue;
+                Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(
+                    "SomeGame", EntitlementPolicy.Unrestricted("ok"), status), status.ToString());
+            }
+        }
+
+        [Test]
+        public void CanGrantEntitlement_ObsoleteOverload_FailsClosed()
+        {
+#pragma warning disable 0618
+            Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement("SomeGame", EntitlementPolicy.Unrestricted("ok")));
+#pragma warning restore 0618
         }
     }
 }

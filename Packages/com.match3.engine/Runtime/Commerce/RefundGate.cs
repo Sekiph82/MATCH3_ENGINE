@@ -86,7 +86,7 @@ namespace Match3.Engine.Runtime.Commerce
         /// <summary>
         /// Determines whether an entitlement should be revoked.
         /// Guard order is structurally enforced:
-        ///   0. gameId must equal record.GameId (Ordinal), else never revoke.
+        ///   0. gameId must be non-empty and equal record.GameId (Ordinal), else never revoke.
         ///   1. Wonder_Pop never revokes (child-safety / policy).
         ///   2. Policy must permit revocation.
         ///   3. Record must be in an actionable state.
@@ -94,6 +94,9 @@ namespace Match3.Engine.Runtime.Commerce
         public static bool ShouldRevokeEntitlement(string gameId, RefundRecord record, RefundPolicy policy)
         {
             policy = Normalize(policy);
+
+            if (string.IsNullOrEmpty(gameId))
+                return false;
 
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
                 return false;

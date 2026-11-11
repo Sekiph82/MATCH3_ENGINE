@@ -80,6 +80,9 @@ namespace Match3.Engine.Runtime.Identity
         {
             policy = Normalize(policy);
 
+            if (string.IsNullOrEmpty(gameId))
+                return new QueueEligibilityResult(false, "GameIdMissing");
+
             if (!string.Equals(gameId, entry.GameId, StringComparison.Ordinal))
                 return new QueueEligibilityResult(false, "GameIdMismatch");
 

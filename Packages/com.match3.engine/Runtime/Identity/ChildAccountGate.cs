@@ -75,6 +75,9 @@ namespace Match3.Engine.Runtime.Identity
         {
             policy = Normalize(policy);
 
+            if (string.IsNullOrEmpty(gameId))
+                return Ineligible("GameIdMissing");
+
             if (!string.Equals(gameId, profile.GameId, StringComparison.Ordinal))
                 return Ineligible("GameIdMismatch");
 
@@ -97,6 +100,9 @@ namespace Match3.Engine.Runtime.Identity
             string gameId, ChildProfile profile, ChildAccountPolicy policy)
         {
             policy = Normalize(policy);
+
+            if (string.IsNullOrEmpty(gameId))
+                return Ineligible("GameIdMissing");
 
             if (!string.Equals(gameId, profile.GameId, StringComparison.Ordinal))
                 return Ineligible("GameIdMismatch");

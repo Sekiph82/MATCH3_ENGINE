@@ -75,6 +75,12 @@ namespace Match3.Engine.Runtime.LiveOps
                 policy = FeatureFlagPolicy.Default;
 
             // Guard 0: the record must belong to the game being evaluated (prevents Wonder_Pop guard bypass).
+            if (string.IsNullOrEmpty(gameId))
+            {
+                reason = "GameIdMissing";
+                return false;
+            }
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = "GameIdMismatch";

@@ -387,5 +387,16 @@ namespace Match3.Engine.Tests.Editor
         {
             Assert.AreEqual(6, Enum.GetValues(typeof(CalendarEventType)).Length);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward(gameId, default(CalendarEventRecord), default(CalendarEventPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

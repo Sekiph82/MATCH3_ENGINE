@@ -294,5 +294,17 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("GameIdMismatch", result.Reason);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = OfflineQueueGate.CanEnqueue(gameId, default(OfflineEntry), default(OfflineQueuePolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
     }
 }

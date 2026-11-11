@@ -85,14 +85,23 @@ namespace Match3.Engine.Runtime.Commerce
         public static bool RequiresUserAction(SubscriptionStatus status) =>
             status == SubscriptionStatus.BillingRetry || status == SubscriptionStatus.Canceled;
 
-        public static bool CanShowPromotionalTrial(string gameId, SubscriptionPolicy policy)
+        public static bool CanShowPromotionalTrial(string gameId, SubscriptionPolicy policy, bool isKidProfile)
         {
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
+                return false;
+            // Unconditional: kid profiles are never shown subscription offers
+            if (isKidProfile)
+                return false;
+            if (!policy.SubscriptionsEnabled)
                 return false;
             if (!policy.AllowPromotionalTrials)
                 return false;
             return true;
         }
+
+        [Obsolete("Kid status unknown: always false (fail-closed). Use the overload taking isKidProfile.")]
+        public static bool CanShowPromotionalTrial(string gameId, SubscriptionPolicy policy) =>
+            CanShowPromotionalTrial(gameId, policy, isKidProfile: true);
     }
 
     public sealed class SubscriptionSessionState

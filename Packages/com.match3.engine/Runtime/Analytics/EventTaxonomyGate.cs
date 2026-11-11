@@ -94,6 +94,9 @@ namespace Match3.Engine.Runtime.Analytics
         {
             policy = Normalize(policy);
 
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");
 
@@ -128,6 +131,8 @@ namespace Match3.Engine.Runtime.Analytics
 
         public void Register(EventRecord record)
         {
+            if (string.IsNullOrEmpty(record.GameId))
+                throw new ArgumentException("Record GameId must not be null or empty.", nameof(record));
             var key = (record.GameId, record.Event);
             if (_records.ContainsKey(key))
                 throw new ArgumentException(

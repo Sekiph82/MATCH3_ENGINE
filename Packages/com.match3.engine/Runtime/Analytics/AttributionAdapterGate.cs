@@ -68,6 +68,9 @@ namespace Match3.Engine.Runtime.Analytics
         {
             if (policy.PolicyDescription == null) policy = AttributionPolicy.Default;
 
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+
             if (!string.Equals(gameId, token.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");
 

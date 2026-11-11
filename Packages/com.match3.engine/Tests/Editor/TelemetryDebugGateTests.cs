@@ -268,5 +268,17 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(eligible);
             Assert.AreEqual("GameIdMismatch", reason);
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = TelemetryDebugGate.CanActivateDebug(gameId, default(DebugSession), default(DebugPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

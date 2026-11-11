@@ -345,5 +345,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => new OfferPolicy(null));
             Assert.Throws<ArgumentException>(() => new OfferPolicy(""));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(OffersAndPricingGate.CanPresentOffer(gameId, default(OfferRecord), default(OfferPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

@@ -275,5 +275,17 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual(0, log.Count);
             Assert.IsFalse(log.HasEntry("G"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = RevenueReconciliationGate.CanReconcile(gameId, default(ReconciliationEntry), default(ReconciliationPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

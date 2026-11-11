@@ -223,7 +223,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void RequiresConsent_ReturnsPolicyFlag()
+        public void RequiresConsent_AlwaysTrue()
         {
             var p = AttributionPolicy.Safe("desc");
             Assert.IsTrue(AttributionAdapterGate.RequiresConsent(p));
@@ -282,6 +282,18 @@ namespace Match3.Engine.Tests.Editor
             log.Record("Wonder_Pop", AttributionChannel.Organic);
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
+        }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution(gameId, default(AttributionToken), default(AttributionPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
         }
     }
 }

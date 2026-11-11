@@ -277,5 +277,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Game\u00ADA"));
             Assert.IsFalse(log.HasEntry("GameA"));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(AgePrivacyMatrixGate.CanEnableFeature(gameId, default(TitleAgeRecord), default(AgePrivacyPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

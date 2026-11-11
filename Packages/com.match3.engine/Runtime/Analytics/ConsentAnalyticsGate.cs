@@ -19,8 +19,10 @@ namespace Match3.Engine.Runtime.Analytics
         public ConsentBasis Basis { get; }
         public bool IsRevoked { get; }
 
-        // IsAnalyticsAllowed: not revoked and there is a lawful basis (NoneRequired = no analytics allowed)
-        public bool IsAnalyticsAllowed => !IsRevoked && Basis != ConsentBasis.NoneRequired;
+        // IsAnalyticsAllowed: not revoked and there is a lawful analytics basis.
+        // NoneRequired carries no basis and ChildSafe is never an analytics basis.
+        public bool IsAnalyticsAllowed =>
+            !IsRevoked && Basis != ConsentBasis.NoneRequired && Basis != ConsentBasis.ChildSafe;
 
         private ConsentRecord(string gameId, ConsentBasis basis, bool isRevoked)
         {
@@ -72,6 +74,12 @@ namespace Match3.Engine.Runtime.Analytics
             out string ineligibilityReason)
         {
             if (policy.PolicyDescription == null) policy = ConsentPolicy.Default;
+
+            if (string.IsNullOrEmpty(gameId))
+            {
+                ineligibilityReason = "GameIdMissing";
+                return false;
+            }
 
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {

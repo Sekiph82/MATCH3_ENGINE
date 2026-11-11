@@ -450,5 +450,16 @@ namespace Match3.Engine.Tests.Editor
                 Assert.AreEqual("FallbackRequired", reason, key.ToString());
             }
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig(gameId, default(RemoteConfigRecord), default(RemoteConfigPolicy), out var reason));
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
     }
 }

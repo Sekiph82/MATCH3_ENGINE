@@ -45,7 +45,7 @@ namespace Match3.Engine.Runtime.Commerce
             if (isKidProfile)
                 return AdEligibilityResult.Ineligible("KidProfileAdsProhibited");
 
-            return AdEligibilityGate.Check(gameId, consent);
+            return AdEligibilityGate.Check(gameId, consent, isKidProfile);
         }
 
         [Obsolete("Kid-profile flags are ignored: pass isKidProfile explicitly. This overload treats the profile as a kid profile (fail-closed).")]

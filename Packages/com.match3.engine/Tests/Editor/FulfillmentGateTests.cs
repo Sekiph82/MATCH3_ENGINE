@@ -222,5 +222,15 @@ namespace Match3.Engine.Tests.Editor
             // Control: matching game id with the same pending record is grantable
             Assert.IsTrue(FulfillmentGate.CanGrantReward("Coral_Rescue", record));
         }
+
+
+        [Test]
+        public void NullOrEmptyGameId_DefaultRecord_GameIdMissing()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(FulfillmentGate.CanGrantReward(gameId, default(FulfillmentRecord)));
+            }
+        }
     }
 }
