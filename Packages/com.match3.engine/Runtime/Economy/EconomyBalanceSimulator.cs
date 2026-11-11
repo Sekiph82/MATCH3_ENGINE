@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
@@ -484,7 +483,7 @@ namespace Match3.Engine.Runtime.Economy
             if (elapsedMinutes < 0) throw new ArgumentOutOfRangeException(nameof(elapsedMinutes));
             if (hearts >= maxHearts)
             {
-                newAccumulatedMinutes = accumulatedMinutes;
+                newAccumulatedMinutes = 0;
                 return hearts;
             }
             var total = accumulatedMinutes + elapsedMinutes;

@@ -96,6 +96,21 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void BoxedEnumInObjectOrInterfaceT_IsCheckedAgainstItsRuntimeEnum()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                ServiceResult<object>.Success(PurchaseOutcome.None));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                ServiceResult<object>.Success((PurchaseOutcome)99));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                ServiceResult<IComparable>.Success(AdOutcome.None));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                ServiceResult<Enum>.Success((AdOutcome)42));
+            Assert.That(ServiceResult<object>.Success(PurchaseOutcome.Purchased).Value,
+                Is.EqualTo(PurchaseOutcome.Purchased));
+        }
+
+        [Test]
         public void DisabledPurchaseAdAndReadPreserveCancellation()
         {
             var disabled = new DisabledCommercialServices();

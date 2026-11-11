@@ -238,18 +238,63 @@ namespace Match3.Engine.Tests.Editor
         [TestCase("authHeader", true)]
         [TestCase("authorization", true)]
         [TestCase("storeproductid", true)]
-        [TestCase("tokenCount", true)] // documented conservative rejection (fail closed)
+        // Compact lowercase single-word forms (QA A1): caught by compact-substring matching.
+        [TestCase("accesstoken", true)]
+        [TestCase("access_token", true)]
+        [TestCase("clientsecret", true)]
+        [TestCase("authheader", true)]
+        [TestCase("skuid", true)]
+        [TestCase("x-sku-id", true)]
+        [TestCase("iapid", true)]
+        [TestCase("paidcoins", true)]
+        [TestCase("x-paidCurrency", true)]
+        [TestCase("paidgems", true)]
+        [TestCase("paiditem", true)]
+        [TestCase("hardcurrency", true)]
+        [TestCase("premiumcurrency", true)]
+        [TestCase("realcurrency", true)]
+        [TestCase("creditcard", true)]
+        [TestCase("cardNumber", true)]
+        [TestCase("walletaddress", true)]
+        [TestCase("iban", true)]
+        [TestCase("x-cvv", true)]
+        [TestCase("passwd", true)]
+        [TestCase("password", true)]
+        [TestCase("pwd", true)]
+        [TestCase("x-pwdHint", true)]
+        [TestCase("accesskey", true)]
+        [TestCase("signingkey", true)]
+        [TestCase("privatekey", true)]
+        // Documented accepted fail-closed false positives.
+        [TestCase("tokenCount", true)]
+        [TestCase("x-secretLevel", true)]
+        [TestCase("x-torchBearer", true)]
+        [TestCase("x-pricelessGem", true)]
+        // Allowed: soft-currency and benign words; short terms stay word-only.
         [TestCase("x-mediaPath", false)]
         [TestCase("x-coinCost", false)]
         [TestCase("gems", false)]
         [TestCase("authorId", false)]
+        [TestCase("authorName", false)]
         [TestCase("producerId", false)]
         [TestCase("obstacleIds", false)]
         [TestCase("targetId", false)]
         [TestCase("objectives", false)]
-        public void ForbiddenKeyDetection_IsWordBased(string key, bool forbidden)
+        public void ForbiddenKeyDetection_MatchesWordsAndCompactSubstrings(string key, bool forbidden)
         {
             Assert.That(ContentMetadataReceiver.IsForbiddenKey(key), Is.EqualTo(forbidden));
+        }
+
+        [Test]
+        public void Summary_NoDigestCountsOnlyAcceptedItems()
+        {
+            // Item 0 accepted without digest; item 1 rejected (bad id, never parsed -> NoDigest integrity).
+            var result = Coral().Receive(Doc(World("cr.world.reef", 1, 1) + "," + World("bad id", 1, 2)));
+
+            Assert.That(result.Accepted, Is.False, result.Summary);
+            Assert.That(result.Items[1].Accepted, Is.False);
+            Assert.That(result.Items[1].Integrity, Is.EqualTo(ContentIntegrity.NoDigest));
+            Assert.That(result.Summary, Does.Contain(" items=2 rejected=1 noDigest=1"));
         }
 
         [Test]

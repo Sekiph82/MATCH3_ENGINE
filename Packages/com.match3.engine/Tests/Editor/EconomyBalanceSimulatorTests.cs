@@ -105,6 +105,8 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(acc, Is.EqualTo(0), "timer resets when full");
             Assert.That(EconomyBalanceSimulator.RegenerateHearts(5, 0, 1000, 5, 10, out acc), Is.EqualTo(5));
             Assert.That(acc, Is.EqualTo(0));
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(5, 7, 3, 5, 10, out acc), Is.EqualTo(5));
+            Assert.That(acc, Is.EqualTo(0), "already full: stale remainder is discarded, as documented");
             Assert.That(EconomyBalanceSimulator.RegenerateHearts(0, 0, long.MaxValue / 2, 5, 10, out acc), Is.EqualTo(5));
             Assert.Throws<ArgumentOutOfRangeException>(() => EconomyBalanceSimulator.RegenerateHearts(0, 0, 1, 5, 0, out acc));
             Assert.Throws<ArgumentOutOfRangeException>(() => EconomyBalanceSimulator.RegenerateHearts(0, 0, -1, 5, 10, out acc));
@@ -231,15 +233,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void FamilySafeHeartWaitCap_CanBeTightened()
         {
+            // A per-heart wait can never exceed HeartRegenMinutes, so with regen 5 under a tightened cap
+            // of 5 the config check cannot fire and observed waits must pass; regen 6 is flagged only
+            // because the effective cap really is 5 (6 is under the default 15).
             var p = EconomyParameters.DefaultFor("Wonder_Pop");
             p.FamilySafeMaxHeartWaitMinutes = 5;
+            p.HeartRegenMinutes = 5;
             p.MaxHearts = 2;
             p.SessionMinutes = 60;
             p.HeartRefillCoinCost = 100000;
-            p.BaseWinBp = 3000;
+            p.BaseWinBp = 0;
+            p.MinWinBp = 0;
+            p.BoosterWinBonusBp = 0;
+            p.ContinueWinBp = 0;
             var r = EconomyBalanceSimulator.Run(p);
-            Assert.That(r.MaxHeartWaitMinutes, Is.GreaterThan(5), Describe(r));
-            Assert.That(r.Violations, Does.Contain(V.ChildHeartWaitExceeded));
+            Assert.That(r.EffectiveFamilySafeMaxHeartWaitMinutes, Is.EqualTo(5));
+            Assert.That(r.MaxHeartWaitMinutes, Is.InRange(1, 5), "waits actually observed: " + Describe(r));
+            Assert.That(r.Violations, Does.Not.Contain(V.ChildHeartWaitExceeded), Describe(r));
+
+            p.HeartRegenMinutes = 6;
+            r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.EffectiveFamilySafeMaxHeartWaitMinutes, Is.EqualTo(5));
+            Assert.That(r.Violations, Does.Contain(V.ChildHeartWaitExceeded), Describe(r));
         }
 
         // ---- family-safe: configuration-based checks and tighten-only limits ---------

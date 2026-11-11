@@ -35,9 +35,12 @@ namespace Match3.Engine.Runtime.LiveOps
     // to Python json.dumps(payload, sort_keys=True, separators=(",", ":"))).
     //
     // Fail-closed policy: unknown envelope fields reject; unknown payload fields
-    // reject unless prefixed "x-"; any key naming prices, SKUs, IAP, receipts,
-    // credentials or tokens rejects anywhere (monetization stays Engine/store
-    // authoritative). Any rejected item rejects the whole batch (nothing applied).
+    // reject unless prefixed "x-"; any key, at any depth, naming a monetization,
+    // payment-instrument or credential concept rejects (monetization stays Engine/store
+    // authoritative). A key is forbidden when one of its words (split on '-', '_' and
+    // camelCase, optional plural 's') or adjacent word pairs is a ForbiddenWords entry,
+    // OR its compact form (lowercased, '-'/'_' stripped) contains a ForbiddenSubstrings
+    // entry -- see IsForbiddenKey. Any rejected item rejects the whole batch (nothing applied).
 
     public enum ContentKind { World = 0, Level = 1, Event = 2 }
 
@@ -165,7 +168,8 @@ namespace Match3.Engine.Runtime.LiveOps
               .Append(" producer=").Append(producer ?? "-")
               .Append(" items=").Append(Items.Count)
               .Append(" rejected=").Append(Items.Count(i => !i.Accepted))
-              .Append(" noDigest=").Append(Items.Count(i => i.Integrity == ContentIntegrity.NoDigest));
+              // Only accepted items have a meaningful integrity; rejected ones are counted by rejected=.
+              .Append(" noDigest=").Append(Items.Count(i => i.Accepted && i.Integrity == ContentIntegrity.NoDigest));
             if (Detail.Length > 0) sb.Append(" detail=").Append(Detail);
             foreach (var i in Items)
                 sb.Append('\n').Append('[').Append(i.Index).Append("] ")
@@ -194,14 +198,20 @@ namespace Match3.Engine.Runtime.LiveOps
         {
             "price", "pricing", "sku", "iap", "inapp", "receipt", "purchase", "currency", "credential", "secret",
             "token", "password", "apikey", "payment", "billing", "transaction", "paid", "bearer", "auth",
-            "authorization", "authorisation", "productid", "storeproduct", "storesku", "privatekey"
+            "authorization", "authorisation", "productid", "storeproduct", "storesku", "privatekey", "pwd"
         };
-        // Substrings of the whole compact key: long, unambiguous monetization/credential terms only,
-        // so all-lowercase concatenations ("storeproductid", "purchasetoken") are caught too.
+        // Substrings of the whole compact key: long, unambiguous monetization/payment/credential terms
+        // only, so all-lowercase single-word forms ("storeproductid", "accesstoken", "paidcoins") are
+        // caught too. "paid" alone stays word-only (too short for a safe substring); only its
+        // currency compounds are substrings.
         private static readonly string[] ForbiddenSubstrings =
         {
-            "price", "receipt", "purchase", "credential", "password", "apikey", "productid", "storeproduct",
-            "privatekey", "payment", "billing", "transaction", "bearer"
+            "price", "receipt", "purchase", "credential", "password", "passwd", "apikey", "productid",
+            "storeproduct", "privatekey", "payment", "billing", "transaction", "bearer",
+            "accesstoken", "clientsecret", "authheader", "skuid", "iapid", "accesskey", "signingkey",
+            "paidcurrency", "paidcoin", "paidgem", "paiditem",
+            "hardcurrency", "premiumcurrency", "realcurrency",
+            "creditcard", "cardnumber", "walletaddress", "iban", "cvv"
         };
 
         private readonly HashSet<ContentKind> _allowedKinds;
@@ -546,10 +556,15 @@ namespace Match3.Engine.Runtime.LiveOps
         /// True when the key names a monetization or credential concept. The key is lowercased and
         /// split on '-', '_' and camelCase two ways (acronym kept whole: "SKUs" -> skus; acronym end
         /// split: "IAPId" -> iap, id). Each word and each adjacent word pair is matched exactly against
-        /// <see cref="ForbiddenWords"/>, also with one trailing 's' removed ("SKUs", "productIds");
-        /// the compact whole key is also searched for long unambiguous substrings ("storeproductid").
-        /// Word-exact matching keeps "x-mediaPath" allowed. Known conservative rejections: any key
-        /// containing the word "token" or "secret" (e.g. "tokenCount") is rejected (fail closed).
+        /// <see cref="ForbiddenWords"/>, also with one trailing 's' removed ("SKUs", "productIds").
+        /// Independently, the compact key (lowercased, '-' and '_' stripped) is searched for every
+        /// <see cref="ForbiddenSubstrings"/> entry, so single-word lowercase forms such as
+        /// "accesstoken", "skuid", "paidcoins" or "creditcard" are caught. Short ambiguous terms
+        /// ("iap", "sku", "paid", "auth", "pwd") stay word-only, which keeps "x-mediaPath",
+        /// "x-coinCost", "gems", "authorId", "authorName" and "producerId" allowed.
+        /// Accepted fail-closed false positives (rejected by design; rename the key instead):
+        /// "tokenCount" and "x-secretLevel" (words "token"/"secret"), "x-torchBearer" (substring
+        /// "bearer"), "x-pricelessGem" (substring "price").
         /// </summary>
         public static bool IsForbiddenKey(string key)
         {

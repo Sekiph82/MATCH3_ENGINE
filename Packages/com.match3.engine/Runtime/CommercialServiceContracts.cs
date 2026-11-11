@@ -49,9 +49,11 @@ namespace Match3.Engine.Runtime
                 ReferenceEquals(value, null))
                 throw new ArgumentNullException(nameof(value));
             // Enum outcomes: the zero None sentinel or an undefined value is
-            // never a successful outcome.
+            // never a successful outcome. Rule: enums used as T must reserve 0
+            // as None and must not be [Flags]. value.GetType() (not typeof(T))
+            // so object/interface T holding a boxed enum is checked too.
             if (status == ServiceResultStatus.Succeeded && value is Enum &&
-                (!Enum.IsDefined(typeof(T), value) ||
+                (!Enum.IsDefined(value.GetType(), value) ||
                  Convert.ToInt64(value) == 0))
                 throw new ArgumentOutOfRangeException(nameof(value));
             if (status != ServiceResultStatus.Succeeded &&
