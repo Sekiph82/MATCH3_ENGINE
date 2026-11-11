@@ -42,6 +42,7 @@ namespace Match3.Engine.Runtime.Privacy
     public readonly struct AttPolicy
     {
         public bool AllowCrossAppTracking { get; }
+        // Retained for API compatibility only; the gate blocks child profiles unconditionally (not policy-relaxable).
         public bool BlockChildProfiles { get; }
         public string PolicyDescription { get; }
 
@@ -88,7 +89,8 @@ namespace Match3.Engine.Runtime.Privacy
                 return false;
             }
 
-            if (policy.BlockChildProfiles && record.IsChildProfile)
+            // Minor protection: ATT prompts are never shown to child profiles, regardless of policy.
+            if (record.IsChildProfile)
             {
                 reason = "ChildProfileBlocked";
                 return false;

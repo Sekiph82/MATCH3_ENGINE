@@ -104,7 +104,7 @@ namespace Match3.Engine.Runtime.Privacy
                 return false;
             }
 
-            // Guard 4: non-Wonder_Pop + block owner-locked + owner-locked + no owner approval
+            // Guard 4: all games + block owner-locked + owner-locked + no owner approval (Wonder_Pop cases already stopped by Guard 2)
             if (policy.BlockOwnerLockedFeatures && record.IsOwnerLockedFeature && !record.IsOwnerApproved)
             {
                 reason = "OwnerApprovalRequired";

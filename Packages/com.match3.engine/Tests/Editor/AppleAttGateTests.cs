@@ -98,12 +98,8 @@ namespace Match3.Engine.Tests.Editor
         public void CanRequestAttPermission_WonderPop_Blocked()
         {
             var record = AttRecord.Create("Wonder_Pop", AttAuthorizationStatus.NotDetermined, false, true);
-            var policy = new System.Func<AttPolicy>(() => {
-                // Need a policy that would otherwise allow, to prove Wonder_Pop is first guard
-                // Build via reflection or use a known allowing policy
-                // Use Safe which blocks cross-app - but Wonder_Pop check is first
-                return AttPolicy.Safe("test");
-            })();
+            // Most relaxed constructible policy, to prove the Wonder_Pop guard is not policy-relaxable
+            var policy = MakeAllowingPolicy(blockChild: false);
             var result = AppleAttGate.CanRequestAttPermission("Wonder_Pop", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("WonderPopAttProhibited", reason);
@@ -168,13 +164,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRequestAttPermission_AllowTracking_BlockChild_False_Child_Eligible()
+        public void CanRequestAttPermission_MostRelaxedPolicy_ChildProfile_StillBlocked()
         {
+            // Child-profile protection is unconditional: even AllowCrossAppTracking=true, BlockChildProfiles=false blocks.
             var record = AttRecord.Create("OtherGame", AttAuthorizationStatus.NotDetermined, true, true);
             var policy = MakeAllowingPolicy(blockChild: false);
             var result = AppleAttGate.CanRequestAttPermission("OtherGame", record, policy, out var reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("ChildProfileBlocked", reason);
         }
 
         // Helper method tests
@@ -285,6 +282,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("Wonder_Pop", "evt");
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            log.Record("Game\u00ADA", "evt");
+            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
+            Assert.IsFalse(log.HasEntry("GameA"));
         }
     }
 }

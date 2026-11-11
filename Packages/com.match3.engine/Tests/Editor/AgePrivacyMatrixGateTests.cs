@@ -272,6 +272,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("Wonder_Pop", "evt");
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            log.Record("Game\u00ADA", "evt");
+            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
+            Assert.IsFalse(log.HasEntry("GameA"));
         }
     }
 }
