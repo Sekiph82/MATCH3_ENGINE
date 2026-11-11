@@ -119,8 +119,111 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(result, Is.True);
             // NullProvider immediately moves lifecycle through Loading->Failed
             Assert.That(lifecycle.State, Is.EqualTo(RewardedAdState.Failed));
-            // suspension was called (NullProvider is synchronous, so IsSuspended may be true still)
-            // The key contract: Suspend was invoked. We verify it was set at some point via result=true + no exception.
+            // Gameplay stays suspended until OnAdSessionEnded resumes it.
+            Assert.That(suspension.IsSuspended, Is.True);
+        }
+
+        [Test]
+        public void ShowStep_ConsentRevokedBetweenRequestAndShow_NotShown_GameplayResumed()
+        {
+            var provider = new CountingProvider();
+            var suspension = new NullGameplaySuspension();
+            var coordinator = new AdShowCoordinator(provider, suspension);
+            var lifecycle = new RewardedAdLifecycle();
+
+            Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+            Assert.That(lifecycle.State, Is.EqualTo(RewardedAdState.Ready));
+            Assert.That(suspension.IsSuspended, Is.True);
+
+            foreach (var revoked in new[] { AdConsentStatus.Denied, AdConsentStatus.Unknown })
+            {
+                Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, revoked, false), Is.False, revoked.ToString());
+                Assert.That(provider.ShowCalls, Is.EqualTo(0), revoked.ToString());
+                Assert.That(suspension.IsSuspended, Is.False, revoked.ToString());
+            }
+            Assert.That(lifecycle.State, Is.EqualTo(RewardedAdState.Ready));
+        }
+
+        [Test]
+        public void ShowStep_KidProfileAtShowTime_NotShown()
+        {
+            var provider = new CountingProvider();
+            var coordinator = new AdShowCoordinator(provider, new NullGameplaySuspension());
+            var lifecycle = new RewardedAdLifecycle();
+            Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, true), Is.False);
+            Assert.That(provider.ShowCalls, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ShowStep_IneligibleGameOrDisabledPlacement_NotShown()
+        {
+            foreach (var placement in new[]
+            {
+                new RewardPlacement("test_id", RewardPlacementKind.ExtraMoves, "Wonder_Pop", 5, true),
+                new RewardPlacement("test_id", RewardPlacementKind.ExtraMoves, "coral_rescue", 5, true),
+                new RewardPlacement("test_id", RewardPlacementKind.ExtraMoves, "Unknown_Game", 5, true),
+                DisabledPlacement(),
+                default(RewardPlacement)
+            })
+            {
+                var provider = new CountingProvider();
+                var coordinator = new AdShowCoordinator(provider, new NullGameplaySuspension());
+                var lifecycle = new RewardedAdLifecycle();
+                lifecycle.RequestLoad();
+                lifecycle.NotifyReady();
+                Assert.That(coordinator.TryShowLoadedRewardedAd(placement, lifecycle, AdConsentStatus.Granted, false), Is.False, placement.GameId);
+                Assert.That(provider.ShowCalls, Is.EqualTo(0), placement.GameId);
+            }
+        }
+
+        [Test]
+        public void ShowStep_StillEligibleAndReady_ShowsExactlyOnce()
+        {
+            var provider = new CountingProvider();
+            var suspension = new NullGameplaySuspension();
+            var coordinator = new AdShowCoordinator(provider, suspension);
+            var lifecycle = new RewardedAdLifecycle();
+            Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+            Assert.That(provider.ShowCalls, Is.EqualTo(1));
+            Assert.That(lifecycle.State, Is.EqualTo(RewardedAdState.Completed));
+            // Not Ready any more: a second show is refused.
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.False);
+            Assert.That(provider.ShowCalls, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ShowStep_NotLoaded_NotShown()
+        {
+            var provider = new CountingProvider();
+            var coordinator = new AdShowCoordinator(provider, new NullGameplaySuspension());
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), new RewardedAdLifecycle(), AdConsentStatus.Granted, false), Is.False);
+            Assert.That(provider.ShowCalls, Is.EqualTo(0));
+            Assert.Throws<ArgumentNullException>(() => coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), null, AdConsentStatus.Granted, false));
+        }
+
+        private sealed class CountingProvider : IAdMediationProvider
+        {
+            public int ShowCalls { get; private set; }
+            public string ProviderId => "Counting";
+            public bool IsAvailable => true;
+            public void Initialize(string gameId) { }
+
+            public void RequestRewardedAd(string placementId, RewardedAdLifecycle lifecycle)
+            {
+                lifecycle.RequestLoad();
+                lifecycle.NotifyReady();
+            }
+
+            public void ShowRewardedAd(string placementId, RewardedAdLifecycle lifecycle)
+            {
+                ShowCalls++;
+                lifecycle.NotifyShow();
+                lifecycle.NotifyCompleted();
+            }
         }
 
         [Test]

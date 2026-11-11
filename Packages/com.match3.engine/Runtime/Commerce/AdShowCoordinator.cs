@@ -59,6 +59,30 @@ namespace Match3.Engine.Runtime.Commerce
             return true;
         }
 
+        /// <summary>
+        /// Show step for an ad loaded via <see cref="TryShowRewardedAd(RewardPlacement, RewardedAdLifecycle, AdConsentStatus, bool)"/>.
+        /// Re-runs <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> at show time with the CURRENT
+        /// consent and kid flag (consent can be revoked between request and show) and re-checks the placement;
+        /// only then calls <see cref="IAdMediationProvider.ShowRewardedAd"/>. When eligibility no longer holds the
+        /// ad is not shown and gameplay is resumed. Returns false (no show) unless the lifecycle is Ready.
+        /// </summary>
+        public bool TryShowLoadedRewardedAd(RewardPlacement placement, RewardedAdLifecycle lifecycle,
+            AdConsentStatus consent, bool isKidProfile)
+        {
+            if (lifecycle == null) throw new ArgumentNullException(nameof(lifecycle));
+
+            if (!AdEligibilityGate.Check(placement.GameId, consent, isKidProfile).IsEligible || !placement.IsEnabled)
+            {
+                _suspension.Resume();
+                return false;
+            }
+            if (lifecycle.State != RewardedAdState.Ready)
+                return false;
+
+            _provider.ShowRewardedAd(placement.PlacementId, lifecycle);
+            return true;
+        }
+
         [Obsolete("Caller-built eligibility is not trusted: always returns false. Use TryShowRewardedAd(placement, lifecycle, consent, isKidProfile).")]
         public bool TryShowRewardedAd(RewardPlacement placement, RewardedAdLifecycle lifecycle, AdEligibilityResult eligibility) =>
             false;

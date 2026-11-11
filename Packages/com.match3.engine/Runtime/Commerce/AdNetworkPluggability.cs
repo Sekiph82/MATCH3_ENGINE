@@ -74,17 +74,28 @@ namespace Match3.Engine.Runtime.Commerce
         public static void Reset() => _current = NullAdNetworkInitializer.Instance;
 
         /// <summary>
-        /// Calls <see cref="IAdNetworkInitializer.Initialize"/> only when ads are enabled
-        /// and Current is not already initialized.
-        /// Returns true if initialization was attempted; false if skipped.
+        /// The only sanctioned ad-network initialization path. Runs
+        /// <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> for config.GameId FIRST
+        /// (missing/unknown/case-variant game, Wonder_Pop, kid profile and Unknown/Denied consent all fail
+        /// closed), then requires config.AdsEnabled and a not-yet-initialized Current, and only then calls
+        /// <see cref="IAdNetworkInitializer.Initialize"/>. IsEligible == true means Initialize was called.
         /// </summary>
-        public static bool TryInitialize(AdNetworkConfig config)
+        public static AdEligibilityResult TryInitialize(AdNetworkConfig config, AdConsentStatus consent, bool isKidProfile)
         {
-            if (!config.AdsEnabled || _current.IsInitialized)
-                return false;
+            var eligibility = AdEligibilityGate.Check(config.GameId, consent, isKidProfile);
+            if (!eligibility.IsEligible)
+                return eligibility;
+            if (!config.AdsEnabled)
+                return AdEligibilityResult.Ineligible("AdsDisabledInConfig");
+            if (_current.IsInitialized)
+                return AdEligibilityResult.Ineligible("AlreadyInitialized");
 
             _current.Initialize(config);
-            return true;
+            return eligibility;
         }
+
+        /// <summary>Consent and kid status unknown: never initializes (fail-closed), always returns false.</summary>
+        [Obsolete("Consent and kid status unknown: never initializes, always returns false. Use TryInitialize(config, consent, isKidProfile).")]
+        public static bool TryInitialize(AdNetworkConfig config) => false;
     }
 }

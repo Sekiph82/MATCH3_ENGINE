@@ -7,6 +7,10 @@ namespace Match3.Engine.Runtime.Commerce
     /// Actual SDK adapters (LevelPlay/IronSource, etc.) implement this in a
     /// separate asmdef excluded from the core package.
     /// See ENG-M14-002-levelplay-mediation-policy.md for installation gating rules.
+    /// ENGINE-INTERNAL USE: game code must not call these members directly. Initialize is reached only
+    /// through <see cref="AdMediationInitializer.TryInitialize"/>, and RequestRewardedAd/ShowRewardedAd only
+    /// through <see cref="AdShowCoordinator"/> (TryShowRewardedAd / TryShowLoadedRewardedAd), each of which
+    /// runs <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> immediately before the call.
     /// </summary>
     public interface IAdMediationProvider
     {

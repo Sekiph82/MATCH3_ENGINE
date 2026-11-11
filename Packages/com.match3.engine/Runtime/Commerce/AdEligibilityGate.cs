@@ -43,11 +43,11 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.IsNullOrEmpty(gameId))
                 return AdEligibilityResult.Ineligible("GameIdMissing");
 
-            if (Ordinal.Equals(gameId, "Wonder_Pop"))
-                return AdEligibilityResult.Ineligible("WonderPopExcluded");
-
             if (!GameProfileCatalog.IsKnownId(gameId))
                 return AdEligibilityResult.Ineligible("UnknownGame");
+
+            if (Ordinal.Equals(gameId, "Wonder_Pop"))
+                return AdEligibilityResult.Ineligible("WonderPopExcluded");
 
             return CheckWithProfile(GameBusinessProfileCatalog.Require(gameId), consent, isKidProfile);
         }

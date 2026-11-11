@@ -65,21 +65,108 @@ namespace Match3.Engine.Tests.Editor
         {
             var stub = new StubInitializer();
             AdNetworkInitializerRegistry.Register(stub);
-            var cfg = new AdNetworkConfig("Wonder_Pop", string.Empty, false);
-            bool result = AdNetworkInitializerRegistry.TryInitialize(cfg);
-            Assert.IsFalse(result);
-            Assert.IsFalse(stub.IsInitialized, "Initialize must not have been called for ads-disabled config.");
+            // Even an ads-enabled config for Wonder_Pop never initializes.
+            foreach (var cfg in new[] { new AdNetworkConfig("Wonder_Pop", string.Empty, false), new AdNetworkConfig("Wonder_Pop", "app-wp", true) })
+            {
+                var result = AdNetworkInitializerRegistry.TryInitialize(cfg, AdConsentStatus.Granted, isKidProfile: false);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("WonderPopExcluded", result.Reason);
+            }
+            Assert.AreEqual(0, stub.InitializeCalls, "Initialize must never be called for Wonder_Pop.");
         }
 
         [Test]
-        public void TryInitialize_ValidGame_ReturnsTrueAndCallsInitialize()
+        public void TryInitialize_KidProfile_NeverInitializes()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+            foreach (var consent in new[] { AdConsentStatus.Granted, AdConsentStatus.NotRequired, AdConsentStatus.Unknown, AdConsentStatus.Denied })
+            {
+                var result = AdNetworkInitializerRegistry.TryInitialize(new AdNetworkConfig("Garage_Legends", "app-456", true), consent, isKidProfile: true);
+                Assert.IsFalse(result.IsEligible, consent.ToString());
+                Assert.AreEqual("KidProfileAdsProhibited", result.Reason, consent.ToString());
+            }
+            Assert.AreEqual(0, stub.InitializeCalls);
+        }
+
+        [Test]
+        public void TryInitialize_ConsentUnknownOrDenied_NeverInitializes()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+            foreach (var consent in new[] { AdConsentStatus.Unknown, AdConsentStatus.Denied })
+            {
+                var result = AdNetworkInitializerRegistry.TryInitialize(new AdNetworkConfig("Garage_Legends", "app-456", true), consent, isKidProfile: false);
+                Assert.IsFalse(result.IsEligible, consent.ToString());
+                Assert.AreEqual("ConsentNotGranted", result.Reason, consent.ToString());
+            }
+            Assert.AreEqual(0, stub.InitializeCalls);
+        }
+
+        [Test]
+        public void TryInitialize_UnknownOrCaseVariantGame_NeverInitializes()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+            foreach (var gameId in new[] { "Unknown_Game", "garage_legends", "GARAGE_LEGENDS", " Garage_Legends", "Garage_Legends ", "wonder_pop" })
+            {
+                var result = AdNetworkInitializerRegistry.TryInitialize(new AdNetworkConfig(gameId, "app-456", true), AdConsentStatus.Granted, isKidProfile: false);
+                Assert.IsFalse(result.IsEligible, gameId);
+                Assert.AreEqual("UnknownGame", result.Reason, gameId);
+            }
+            Assert.AreEqual(0, stub.InitializeCalls);
+        }
+
+        [Test]
+        public void TryInitialize_MissingGameId_DefaultConfig_NeverInitializes()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+            // default(AdNetworkConfig) carries a null GameId (the constructor rejects null/""), the only way to reach it.
+            var result = AdNetworkInitializerRegistry.TryInitialize(default(AdNetworkConfig), AdConsentStatus.Granted, isKidProfile: false);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMissing", result.Reason);
+            Assert.AreEqual(0, stub.InitializeCalls);
+            Assert.Throws<ArgumentException>(() => new AdNetworkConfig(null, "app", true));
+            Assert.Throws<ArgumentException>(() => new AdNetworkConfig(string.Empty, "app", true));
+        }
+
+        [Test]
+        public void TryInitialize_Eligible_InitializesExactlyOnce()
         {
             var stub = new StubInitializer();
             AdNetworkInitializerRegistry.Register(stub);
             var cfg = new AdNetworkConfig("Garage_Legends", "app-456", true);
-            bool result = AdNetworkInitializerRegistry.TryInitialize(cfg);
-            Assert.IsTrue(result);
+
+            var first = AdNetworkInitializerRegistry.TryInitialize(cfg, AdConsentStatus.Granted, isKidProfile: false);
+            Assert.IsTrue(first.IsEligible);
             Assert.IsTrue(stub.IsInitialized);
+
+            var second = AdNetworkInitializerRegistry.TryInitialize(cfg, AdConsentStatus.Granted, isKidProfile: false);
+            Assert.IsFalse(second.IsEligible);
+            Assert.AreEqual("AlreadyInitialized", second.Reason);
+            Assert.AreEqual(1, stub.InitializeCalls);
+        }
+
+        [Test]
+        public void TryInitialize_NotRequiredConsent_EligibleGame_Initializes()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+            var result = AdNetworkInitializerRegistry.TryInitialize(new AdNetworkConfig("Coral_Rescue", "app-1", true), AdConsentStatus.NotRequired, isKidProfile: false);
+            Assert.IsTrue(result.IsEligible);
+            Assert.AreEqual(1, stub.InitializeCalls);
+        }
+
+        [Test]
+        public void TryInitialize_EligibleButAdsDisabledConfig_NeverInitializes()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+            var result = AdNetworkInitializerRegistry.TryInitialize(new AdNetworkConfig("Coral_Rescue", string.Empty, false), AdConsentStatus.Granted, isKidProfile: false);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("AdsDisabledInConfig", result.Reason);
+            Assert.AreEqual(0, stub.InitializeCalls);
         }
 
         [Test]
@@ -88,8 +175,23 @@ namespace Match3.Engine.Tests.Editor
             var stub = new StubInitializer { ForceInitialized = true };
             AdNetworkInitializerRegistry.Register(stub);
             var cfg = new AdNetworkConfig("Dino_Islands", "app-789", true);
-            bool result = AdNetworkInitializerRegistry.TryInitialize(cfg);
-            Assert.IsFalse(result, "Should skip when already initialized.");
+            var result = AdNetworkInitializerRegistry.TryInitialize(cfg, AdConsentStatus.Granted, isKidProfile: false);
+            Assert.IsFalse(result.IsEligible, "Should skip when already initialized.");
+            Assert.AreEqual("AlreadyInitialized", result.Reason);
+            Assert.AreEqual(0, stub.InitializeCalls);
+        }
+
+        [Test]
+        public void ObsoleteTryInitialize_ConsentUnknown_AlwaysFailsClosed()
+        {
+            var stub = new StubInitializer();
+            AdNetworkInitializerRegistry.Register(stub);
+#pragma warning disable CS0618
+            foreach (var cfg in new[] { new AdNetworkConfig("Garage_Legends", "app-456", true), new AdNetworkConfig("Wonder_Pop", string.Empty, false), new AdNetworkConfig("Unknown_Game", "x", true) })
+                Assert.IsFalse(AdNetworkInitializerRegistry.TryInitialize(cfg), cfg.GameId);
+#pragma warning restore CS0618
+            Assert.AreEqual(0, stub.InitializeCalls);
+            Assert.IsFalse(stub.IsInitialized);
         }
 
         // ---- test double ----
@@ -98,11 +200,13 @@ namespace Match3.Engine.Tests.Editor
         {
             public string NetworkName => "Stub";
             public bool ForceInitialized { get; set; }
+            public int InitializeCalls { get; private set; }
             private bool _initialized;
             public bool IsInitialized => ForceInitialized || _initialized;
 
             public void Initialize(AdNetworkConfig config)
             {
+                InitializeCalls++;
                 if (config.AdsEnabled == false)
                     throw new InvalidOperationException("Ads disabled.");
                 _initialized = true;
