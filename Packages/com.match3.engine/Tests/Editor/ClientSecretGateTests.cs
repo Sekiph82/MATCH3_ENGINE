@@ -90,5 +90,17 @@ namespace Match3.Engine.Tests.Editor
                 Assert.AreEqual("GameIdMissing", result.Reason);
             }
         }
+
+
+        [Test]
+        public void CheckPaymentFlowEligibility_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = ClientSecretGate.CheckPaymentFlowEligibility(unknownId, PaymentSecretPolicy.Default);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
     }
 }

@@ -62,6 +62,11 @@ namespace Match3.Engine.Runtime.Commerce
             if (profile == null)
                 throw new ArgumentNullException(nameof(profile));
 
+            // Only the catalog's own instance is trusted (no reflection-built or stale profiles)
+            if (!GameProfileCatalog.IsKnownId(profile.GameId) ||
+                !ReferenceEquals(profile, GameBusinessProfileCatalog.Require(profile.GameId)))
+                return AdEligibilityResult.Ineligible("ProfileNotCatalog");
+
             if (!profile.AdsEnabled || !profile.MonetizationEnabled)
                 return AdEligibilityResult.Ineligible("AdsNotApproved");
 

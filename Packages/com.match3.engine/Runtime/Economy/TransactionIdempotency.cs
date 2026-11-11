@@ -89,6 +89,16 @@ namespace Match3.Engine.Runtime.Economy
         public static TransactionEligibility CanProcessTransaction(
             string gameId, TransactionId txId, IdempotencyPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return TransactionEligibility.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return TransactionEligibility.Ineligible("UnknownGame");
+
+            // A transaction id issued for another game is never processed here (Ordinal)
+            if (!txId.IsEmpty && !string.Equals(gameId, txId.GameId, StringComparison.Ordinal))
+                return TransactionEligibility.Ineligible("GameIdMismatch");
+
             // Guard 1 (FIRST): Wonder_Pop is permanently ineligible.
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return TransactionEligibility.Ineligible("WonderPopTransactionProhibited");

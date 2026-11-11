@@ -55,6 +55,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static (bool eligible, string reason) CanCreditPremium(string gameId, LedgerPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return (false, "UnknownGame");
+
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return (false, "WonderPopPremiumProhibited");
             if (!policy.ServerAuthoritative)
@@ -64,6 +70,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static bool IsOfflinePlayAllowed(string gameId, LedgerPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return false;
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return false;
+
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return false;
             return policy.AllowOfflineNonPremium;

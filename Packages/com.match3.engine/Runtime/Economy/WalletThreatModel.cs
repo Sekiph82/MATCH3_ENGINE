@@ -69,6 +69,15 @@ namespace Match3.Engine.Runtime.Economy
 
         public static (bool IsEligible, string Reason) CanBypassServerAuth(string gameId, WalletThreatPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return (false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return (false, "UnknownGame");
+
+            // default(WalletThreatPolicy) would read ServerAuthoritative=false; normalize to the hardened Default
+            if (policy.PolicyDescription == null) policy = WalletThreatPolicy.Default;
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is never eligible for bypass
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopBypassProhibited");

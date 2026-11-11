@@ -122,7 +122,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanBypassServerAuth_ServerAuth_BlocksOtherGames()
         {
-            var (eligible, reason) = WalletThreatGate.CanBypassServerAuth("OtherGame", WalletThreatPolicy.Default);
+            var (eligible, reason) = WalletThreatGate.CanBypassServerAuth("Coral_Rescue", WalletThreatPolicy.Default);
             Assert.IsFalse(eligible);
             Assert.AreEqual("ServerAuthoritativeEnforced", reason);
         }
@@ -161,6 +161,40 @@ namespace Match3.Engine.Tests.Editor
             foreach (var t in threats)
                 Assert.IsTrue(t.Severity == "Critical" || t.Severity == "High",
                     $"Unexpected severity '{t.Severity}' for {t.Vector}");
+        }
+
+
+        [Test]
+        public void CanBypassServerAuth_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = WalletThreatGate.CanBypassServerAuth(gameId, default(WalletThreatPolicy));
+                Assert.IsFalse(eligible, gameId);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void CanBypassServerAuth_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var (eligible, reason) = WalletThreatGate.CanBypassServerAuth(unknownId, default(WalletThreatPolicy));
+                Assert.IsFalse(eligible, unknownId);
+                Assert.AreEqual("UnknownGame", reason);
+            }
+        }
+
+        [Test]
+        public void CanBypassServerAuth_DefaultStructPolicy_NeverAllowsBypass()
+        {
+            foreach (var gameId in new[] { "Coral_Rescue", "Dino_Islands", "Garage_Legends", "The_Fractured_Realms" })
+            {
+                var (eligible, reason) = WalletThreatGate.CanBypassServerAuth(gameId, default(WalletThreatPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("ServerAuthoritativeEnforced", reason);
+            }
         }
     }
 }

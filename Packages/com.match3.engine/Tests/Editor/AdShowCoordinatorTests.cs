@@ -41,14 +41,53 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void IneligibleAd_DoesNotSuspend_ReturnsFalse()
+        public void IneligibleAd_ConsentDenied_DoesNotSuspend_ReturnsFalse()
         {
             var suspension = new NullGameplaySuspension();
             var coordinator = new AdShowCoordinator(NullAdMediationProvider.Instance, suspension);
-            var eligibility = AdEligibilityResult.Ineligible("NotEligible");
 
-            var result = coordinator.TryShowRewardedAd(EnabledPlacement(), new RewardedAdLifecycle(), eligibility);
+            var result = coordinator.TryShowRewardedAd(EnabledPlacement(), new RewardedAdLifecycle(), AdConsentStatus.Denied, false);
 
+            Assert.That(result, Is.False);
+            Assert.That(suspension.IsSuspended, Is.False);
+        }
+
+        [Test]
+        public void KidProfile_NeverShown_EvenWithConsent()
+        {
+            var suspension = new NullGameplaySuspension();
+            var coordinator = new AdShowCoordinator(NullAdMediationProvider.Instance, suspension);
+            var lifecycle = new RewardedAdLifecycle();
+
+            var result = coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, true);
+
+            Assert.That(result, Is.False);
+            Assert.That(suspension.IsSuspended, Is.False);
+            Assert.That(lifecycle.State, Is.EqualTo(new RewardedAdLifecycle().State));
+        }
+
+        [Test]
+        public void NonCatalogOrAdsDisabledGame_NeverShown()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "Wonder_Pop" })
+            {
+                var suspension = new NullGameplaySuspension();
+                var coordinator = new AdShowCoordinator(NullAdMediationProvider.Instance, suspension);
+                var placement = new RewardPlacement("test_id", RewardPlacementKind.ExtraMoves, gameId, 5, true);
+
+                Assert.That(coordinator.TryShowRewardedAd(placement, new RewardedAdLifecycle(), AdConsentStatus.Granted, false), Is.False, gameId);
+                Assert.That(suspension.IsSuspended, Is.False, gameId);
+            }
+        }
+
+        [Test]
+        public void ObsoleteOverload_CallerBuiltEligibility_NotTrusted()
+        {
+            var suspension = new NullGameplaySuspension();
+            var coordinator = new AdShowCoordinator(NullAdMediationProvider.Instance, suspension);
+#pragma warning disable 0618
+            var result = coordinator.TryShowRewardedAd(EnabledPlacement(), new RewardedAdLifecycle(), AdEligibilityResult.Eligible());
+#pragma warning restore 0618
             Assert.That(result, Is.False);
             Assert.That(suspension.IsSuspended, Is.False);
         }
@@ -58,9 +97,8 @@ namespace Match3.Engine.Tests.Editor
         {
             var suspension = new NullGameplaySuspension();
             var coordinator = new AdShowCoordinator(NullAdMediationProvider.Instance, suspension);
-            var eligibility = AdEligibilityResult.Eligible();
 
-            var result = coordinator.TryShowRewardedAd(DisabledPlacement(), new RewardedAdLifecycle(), eligibility);
+            var result = coordinator.TryShowRewardedAd(DisabledPlacement(), new RewardedAdLifecycle(), AdConsentStatus.Granted, false);
 
             Assert.That(result, Is.False);
             Assert.That(suspension.IsSuspended, Is.False);
@@ -71,13 +109,12 @@ namespace Match3.Engine.Tests.Editor
         {
             var suspension = new NullGameplaySuspension();
             var coordinator = new AdShowCoordinator(NullAdMediationProvider.Instance, suspension);
-            var eligibility = AdEligibilityResult.Eligible();
 
             // NullAdMediationProvider.RequestRewardedAd calls RequestLoad+NotifyFailed internally
             // We need a lifecycle that hasn't started yet
             var lifecycle = new RewardedAdLifecycle();
 
-            var result = coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, eligibility);
+            var result = coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false);
 
             Assert.That(result, Is.True);
             // NullProvider immediately moves lifecycle through Loading->Failed

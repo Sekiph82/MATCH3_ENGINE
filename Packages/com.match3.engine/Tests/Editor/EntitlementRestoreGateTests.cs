@@ -13,9 +13,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void EntitlementRecord_Active_SetsIsActiveTrue()
         {
-            var r = EntitlementRecord.Active("GameA", "sku1", "ord1");
+            var r = EntitlementRecord.Active("Coral_Rescue", "sku1", "ord1");
             Assert.IsTrue(r.IsActive);
-            Assert.AreEqual("GameA", r.GameId);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual("sku1",  r.SkuId);
             Assert.AreEqual("ord1",  r.OrderId);
         }
@@ -23,7 +23,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void EntitlementRecord_Revoked_SetsIsActiveFalse()
         {
-            var r = EntitlementRecord.Revoked("GameB", "sku2", "ord2");
+            var r = EntitlementRecord.Revoked("Dino_Islands", "sku2", "ord2");
             Assert.IsFalse(r.IsActive);
         }
 
@@ -107,12 +107,12 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRestore_WonderPop_OrdinalCaseSensitive_OtherCaseIsEligible()
+        public void CanRestore_WonderPop_OtherCase_IsUnknownGame()
         {
-            // "wonder_pop" (lowercase) must NOT be caught by Wonder_Pop guard
-            var policy = RestoreEntitlementPolicy.Default;
-            var result = EntitlementRestoreGate.CanRestore("wonder_pop", policy);
-            Assert.IsTrue(result.IsEligible);
+            // Ordinal: "wonder_pop" is not a catalog ID, so it fails closed as UnknownGame
+            var result = EntitlementRestoreGate.CanRestore("wonder_pop", RestoreEntitlementPolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
@@ -126,7 +126,7 @@ namespace Match3.Engine.Tests.Editor
                     new[] { typeof(bool), typeof(int), typeof(string) },
                     null);
             var policy = (RestoreEntitlementPolicy)ctor.Invoke(new object[] { false, 3, "no receipt" });
-            var result = EntitlementRestoreGate.CanRestore("OtherGame", policy);
+            var result = EntitlementRestoreGate.CanRestore("The_Fractured_Realms", policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("ServerReceiptDisabled", result.Reason);
         }
@@ -212,6 +212,18 @@ namespace Match3.Engine.Tests.Editor
                 var result = EntitlementRestoreGate.CanRestore(gameId, RestoreEntitlementPolicy.Default);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+
+        [Test]
+        public void CanRestore_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = EntitlementRestoreGate.CanRestore(unknownId, RestoreEntitlementPolicy.Default);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

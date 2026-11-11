@@ -67,6 +67,10 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.IsNullOrEmpty(gameId))
                 return false;
 
+            // Fail closed: only catalog game IDs (Ordinal) are eligible
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return false;
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return false;
 

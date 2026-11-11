@@ -70,6 +70,10 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.IsNullOrEmpty(gameId))
                 return RestoreEligibility.Ineligible("GameIdMissing");
 
+            // Fail closed: only catalog game IDs (Ordinal) are eligible
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return RestoreEligibility.Ineligible("UnknownGame");
+
             // Guard 1 FIRST — Wonder_Pop is structurally prohibited
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return RestoreEligibility.Ineligible("WonderPopRestoreProhibited");

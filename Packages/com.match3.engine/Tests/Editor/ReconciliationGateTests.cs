@@ -20,7 +20,7 @@ namespace Match3.Engine.Tests.Editor
         public void ReconciliationEvent_NullTransactionId_ThrowsArgumentException()
         {
             Assert.Throws<ArgumentException>(() =>
-                new ReconciliationEvent("game1", null, "FailedGrant", 1000L, false));
+                new ReconciliationEvent("Coral_Rescue", null, "FailedGrant", 1000L, false));
         }
 
         // 3. ReconciliationEvent validation: null EventType throws
@@ -28,7 +28,7 @@ namespace Match3.Engine.Tests.Editor
         public void ReconciliationEvent_NullEventType_ThrowsArgumentException()
         {
             Assert.Throws<ArgumentException>(() =>
-                new ReconciliationEvent("game1", "tx1", null, 1000L, false));
+                new ReconciliationEvent("Coral_Rescue", "tx1", null, 1000L, false));
         }
 
         // 4. ReconciliationEvent validation: Timestamp <= 0 throws
@@ -36,14 +36,14 @@ namespace Match3.Engine.Tests.Editor
         public void ReconciliationEvent_ZeroTimestamp_ThrowsArgumentOutOfRangeException()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new ReconciliationEvent("game1", "tx1", "FailedGrant", 0L, false));
+                new ReconciliationEvent("Coral_Rescue", "tx1", "FailedGrant", 0L, false));
         }
 
         // 5. FailedGrant factory produces correct EventType and IsResolved=false
         [Test]
         public void FailedGrant_Factory_SetsEventTypeAndIsResolved()
         {
-            var ev = ReconciliationEvent.FailedGrant("game1", "tx1", 1000L);
+            var ev = ReconciliationEvent.FailedGrant("Coral_Rescue", "tx1", 1000L);
             Assert.AreEqual("FailedGrant", ev.EventType);
             Assert.IsFalse(ev.IsResolved);
         }
@@ -52,7 +52,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Duplicate_Factory_SetsEventTypeAndIsResolved()
         {
-            var ev = ReconciliationEvent.Duplicate("game1", "tx2", 2000L);
+            var ev = ReconciliationEvent.Duplicate("Coral_Rescue", "tx2", 2000L);
             Assert.AreEqual("Duplicate", ev.EventType);
             Assert.IsFalse(ev.IsResolved);
         }
@@ -61,7 +61,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Resolved_Factory_CopiesAllFieldsWithIsResolvedTrue()
         {
-            var original = ReconciliationEvent.FailedGrant("game1", "tx3", 3000L);
+            var original = ReconciliationEvent.FailedGrant("Coral_Rescue", "tx3", 3000L);
             var resolved = ReconciliationEvent.Resolved(original);
             Assert.AreEqual(original.GameId, resolved.GameId);
             Assert.AreEqual(original.TransactionId, resolved.TransactionId);
@@ -92,11 +92,12 @@ namespace Match3.Engine.Tests.Editor
 
         // 10. CanRunReport: Wonder_Pop guard is Ordinal (case-sensitive) — wonder_pop is NOT blocked
         [Test]
-        public void CanRunReport_WonderPopCaseMismatch_IsEligible()
+        public void CanRunReport_WonderPopCaseMismatch_IsUnknownGame()
         {
             var policy = ReconciliationPolicy.Default;
             var result = ReconciliationGate.CanRunReport("wonder_pop", policy);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         // 11. CanRunReport: disabled owner auth blocks non-Wonder_Pop
@@ -104,7 +105,7 @@ namespace Match3.Engine.Tests.Editor
         public void CanRunReport_OwnerAuthDisabled_IsIneligible()
         {
             var policy = new ReconciliationPolicy(false, true, "No auth policy");
-            var result = ReconciliationGate.CanRunReport("game1", policy);
+            var result = ReconciliationGate.CanRunReport("Coral_Rescue", policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("OwnerAuthorizationDisabled", result.Reason);
         }
@@ -124,7 +125,7 @@ namespace Match3.Engine.Tests.Editor
         public void CanApplyCorrection_ValidGame_IsEligible()
         {
             var policy = ReconciliationPolicy.Default;
-            var result = ReconciliationGate.CanApplyCorrection("CoralRescue", policy);
+            var result = ReconciliationGate.CanApplyCorrection("Coral_Rescue", policy);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -143,7 +144,7 @@ namespace Match3.Engine.Tests.Editor
         public void ReconciliationLog_RecordAndTryGet()
         {
             var log = new ReconciliationLog();
-            var ev = ReconciliationEvent.FailedGrant("game1", "tx1", 1000L);
+            var ev = ReconciliationEvent.FailedGrant("Coral_Rescue", "tx1", 1000L);
             log.Record(ev);
             Assert.AreEqual(1, log.Count);
             Assert.IsTrue(log.TryGet("tx1", out var found));
@@ -155,8 +156,8 @@ namespace Match3.Engine.Tests.Editor
         public void ReconciliationLog_GetUnresolved_FiltersResolved()
         {
             var log = new ReconciliationLog();
-            var ev1 = ReconciliationEvent.FailedGrant("game1", "tx1", 1000L);
-            var ev2 = ReconciliationEvent.Resolved(ReconciliationEvent.Duplicate("game1", "tx2", 2000L));
+            var ev1 = ReconciliationEvent.FailedGrant("Coral_Rescue", "tx1", 1000L);
+            var ev2 = ReconciliationEvent.Resolved(ReconciliationEvent.Duplicate("Coral_Rescue", "tx2", 2000L));
             log.Record(ev1);
             log.Record(ev2);
             var unresolved = log.GetUnresolved();
@@ -169,7 +170,7 @@ namespace Match3.Engine.Tests.Editor
         public void ReconciliationLog_Clear_EmptiesLog()
         {
             var log = new ReconciliationLog();
-            log.Record(ReconciliationEvent.FailedGrant("game1", "tx1", 1000L));
+            log.Record(ReconciliationEvent.FailedGrant("Coral_Rescue", "tx1", 1000L));
             log.Clear();
             Assert.AreEqual(0, log.Count);
             Assert.IsFalse(log.TryGet("tx1", out _));
@@ -181,6 +182,51 @@ namespace Match3.Engine.Tests.Editor
         {
             Assert.Throws<ArgumentException>(() =>
                 new ReconciliationPolicy(true, true, null));
+        }
+
+
+        [Test]
+        public void CanRunReport_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = ReconciliationGate.CanRunReport(gameId, ReconciliationPolicy.Default);
+                Assert.IsFalse(result.IsEligible, gameId);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanRunReport_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = ReconciliationGate.CanRunReport(unknownId, ReconciliationPolicy.Default);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanApplyCorrection_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = ReconciliationGate.CanApplyCorrection(gameId, ReconciliationPolicy.Default);
+                Assert.IsFalse(result.IsEligible, gameId);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanApplyCorrection_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = ReconciliationGate.CanApplyCorrection(unknownId, ReconciliationPolicy.Default);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
         }
     }
 }

@@ -168,16 +168,43 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void Check_KnownAdultProfileWithConsent_EligibleAndMatchesCheckWithProfile()
+        public void Check_AgreesWithCheckWithProfile_ForAllCatalogProfiles_AllConsentValues_KidFlag()
         {
             foreach (var profile in GameBusinessProfileCatalog.All)
-            {
-                var viaId = AdEligibilityGate.Check(profile.GameId, AdConsentStatus.Granted, false);
-                var viaProfile = AdEligibilityGate.CheckWithProfile(profile, AdConsentStatus.Granted, false);
-                Assert.That(viaId.IsEligible, Is.EqualTo(viaProfile.IsEligible), profile.GameId);
-                Assert.That(viaId.IsEligible, Is.EqualTo(profile.AdsEnabled && profile.MonetizationEnabled), profile.GameId);
-            }
+                foreach (AdConsentStatus consent in Enum.GetValues(typeof(AdConsentStatus)))
+                    foreach (var isKid in new[] { false, true })
+                    {
+                        var viaId = AdEligibilityGate.Check(profile.GameId, consent, isKid);
+                        var viaProfile = AdEligibilityGate.CheckWithProfile(profile, consent, isKid);
+                        var label = profile.GameId + "/" + consent + "/kid=" + isKid;
+                        Assert.That(viaId.IsEligible, Is.EqualTo(viaProfile.IsEligible), label);
+                        var expected = profile.AdsEnabled && profile.MonetizationEnabled && !isKid &&
+                                       (consent == AdConsentStatus.Granted || consent == AdConsentStatus.NotRequired);
+                        Assert.That(viaId.IsEligible, Is.EqualTo(expected), label);
+                    }
             Assert.That(AdEligibilityGate.Check("Coral_Rescue", AdConsentStatus.Granted, false).IsEligible, Is.True);
+        }
+
+
+        [Test]
+        public void CheckWithProfile_NonCatalogInstance_ProfileNotCatalog()
+        {
+            // A profile built outside the catalog (here via reflection on the internal ctor) is not trusted.
+            var forged = (GameBusinessProfile)Activator.CreateInstance(
+                typeof(GameBusinessProfile),
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null, new object[] { "Coral_Rescue" }, null);
+            Assert.That(ReferenceEquals(forged, GameBusinessProfileCatalog.Require("Coral_Rescue")), Is.False, "Precondition");
+            var result = AdEligibilityGate.CheckWithProfile(forged, AdConsentStatus.Granted, false);
+            Assert.That(result.IsEligible, Is.False);
+            Assert.That(result.Reason, Is.EqualTo("ProfileNotCatalog"));
+        }
+
+        [Test]
+        public void CheckWithProfile_CatalogInstance_IsTrusted()
+        {
+            var result = AdEligibilityGate.CheckWithProfile(GameBusinessProfileCatalog.Require("Coral_Rescue"), AdConsentStatus.Granted, false);
+            Assert.That(result.IsEligible, Is.True);
         }
     }
 }

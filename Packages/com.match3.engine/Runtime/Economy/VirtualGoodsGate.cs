@@ -77,6 +77,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static SpendEligibility CanSpend(string gameId, SpendGrantPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return SpendEligibility.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return SpendEligibility.Ineligible("UnknownGame");
+
             // Guard 1 FIRST: Wonder_Pop is never eligible
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return SpendEligibility.Ineligible("WonderPopSpendProhibited");
@@ -90,6 +96,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static SpendEligibility CanGrant(string gameId, SpendGrantPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return SpendEligibility.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return SpendEligibility.Ineligible("UnknownGame");
+
             // Guard 1 FIRST: Wonder_Pop is never eligible
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return SpendEligibility.Ineligible("WonderPopGrantProhibited");

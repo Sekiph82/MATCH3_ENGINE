@@ -63,6 +63,26 @@ namespace Match3.Engine.Runtime.Commerce
     }
 
     /// <summary>
+    /// The only sanctioned initialization path for an <see cref="IAdMediationProvider"/>:
+    /// <see cref="IAdMediationProvider.Initialize"/> is called only when
+    /// <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> passes
+    /// (catalog game with ads approved, non-kid profile, consent granted or not required).
+    /// </summary>
+    public static class AdMediationInitializer
+    {
+        public static AdEligibilityResult TryInitialize(
+            string gameId, AdConsentStatus consent, bool isKidProfile, IAdMediationProvider provider)
+        {
+            if (provider == null) throw new ArgumentNullException(nameof(provider));
+
+            var eligibility = AdEligibilityGate.Check(gameId, consent, isKidProfile);
+            if (eligibility.IsEligible)
+                provider.Initialize(gameId);
+            return eligibility;
+        }
+    }
+
+    /// <summary>
     /// Process-wide registry for the active <see cref="IAdMediationProvider"/>.
     /// Defaults to <see cref="NullAdMediationProvider"/>; replace at startup by
     /// calling <see cref="Register"/> from the optional SDK adapter assembly.

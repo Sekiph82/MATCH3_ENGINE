@@ -259,5 +259,26 @@ namespace Match3.Engine.Tests.Editor
                 Assert.IsFalse(RestorePurchasesGate.ShouldShowRestoreButton(gameId, RestorePolicy.Enabled("enabled")));
             }
         }
+
+
+        [Test]
+        public void CanInitiateRestore_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = RestorePurchasesGate.CanInitiateRestore(unknownId, RestorePolicy.Enabled("enabled"));
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
+
+        [Test]
+        public void ShouldShowRestoreButton_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(RestorePurchasesGate.ShouldShowRestoreButton(unknownId, RestorePolicy.Enabled("enabled")), unknownId);
+            }
+        }
     }
 }

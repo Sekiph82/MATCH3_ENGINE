@@ -69,11 +69,54 @@ namespace Match3.Engine.Tests.Editor
 
         private sealed class FakeProvider : IAdMediationProvider
         {
+            public int InitializeCalls;
             public string ProviderId => "Fake";
             public bool IsAvailable => false;
-            public void Initialize(string gameId) { }
+            public void Initialize(string gameId) { InitializeCalls++; }
             public void RequestRewardedAd(string placementId, RewardedAdLifecycle lifecycle) { }
             public void ShowRewardedAd(string placementId, RewardedAdLifecycle lifecycle) { }
+        }
+
+
+        // ---- AdMediationInitializer (gate-enforced initialization) ----
+
+        [Test]
+        public void Initializer_EligibleAdultCatalogGame_InitializesOnce()
+        {
+            var provider = new FakeProvider();
+            var result = AdMediationInitializer.TryInitialize("Coral_Rescue", AdConsentStatus.Granted, false, provider);
+            Assert.IsTrue(result.IsEligible);
+            Assert.AreEqual(1, provider.InitializeCalls);
+        }
+
+        [Test]
+        public void Initializer_GateFails_ProviderNeverInitialized()
+        {
+            var cases = new[]
+            {
+                ("Coral_Rescue", AdConsentStatus.Granted, true, "KidProfileAdsProhibited"),
+                ("Coral_Rescue", AdConsentStatus.Denied, false, "ConsentNotGranted"),
+                ("Coral_Rescue", AdConsentStatus.Unknown, false, "ConsentNotGranted"),
+                ("Wonder_Pop", AdConsentStatus.Granted, false, "WonderPopExcluded"),
+                ("coral_rescue", AdConsentStatus.Granted, false, "UnknownGame"),
+                ((string)null, AdConsentStatus.Granted, false, "GameIdMissing"),
+                ("", AdConsentStatus.Granted, false, "GameIdMissing"),
+            };
+            foreach (var (gameId, consent, isKid, reason) in cases)
+            {
+                var provider = new FakeProvider();
+                var result = AdMediationInitializer.TryInitialize(gameId, consent, isKid, provider);
+                Assert.IsFalse(result.IsEligible, gameId);
+                Assert.AreEqual(reason, result.Reason, gameId);
+                Assert.AreEqual(0, provider.InitializeCalls, gameId);
+            }
+        }
+
+        [Test]
+        public void Initializer_NullProvider_Throws()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                AdMediationInitializer.TryInitialize("Coral_Rescue", AdConsentStatus.Granted, false, null));
         }
     }
 }

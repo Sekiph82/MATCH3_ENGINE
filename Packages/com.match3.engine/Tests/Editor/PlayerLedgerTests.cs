@@ -11,9 +11,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void LedgerEntry_Credit_ValidArgs_Succeeds()
         {
-            var e = LedgerEntry.Credit("GameA", CurrencyType.Coins, 100, "tx1");
+            var e = LedgerEntry.Credit("Garage_Legends", CurrencyType.Coins, 100, "tx1");
             Assert.AreEqual(100L, e.Amount);
-            Assert.AreEqual("GameA", e.GameId);
+            Assert.AreEqual("Garage_Legends", e.GameId);
             Assert.AreEqual(CurrencyType.Coins, e.Currency);
         }
 
@@ -26,19 +26,19 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void LedgerEntry_EmptyTransactionId_Throws()
         {
-            Assert.Throws<ArgumentException>(() => LedgerEntry.Credit("GameA", CurrencyType.Coins, 1, ""));
+            Assert.Throws<ArgumentException>(() => LedgerEntry.Credit("Garage_Legends", CurrencyType.Coins, 1, ""));
         }
 
         [Test]
         public void LedgerEntry_NegativeAmount_Throws()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => LedgerEntry.Credit("GameA", CurrencyType.Coins, -1, "tx1"));
+            Assert.Throws<ArgumentOutOfRangeException>(() => LedgerEntry.Credit("Garage_Legends", CurrencyType.Coins, -1, "tx1"));
         }
 
         [Test]
         public void LedgerEntry_Debit_ZeroAmount_Allowed()
         {
-            var e = LedgerEntry.Debit("GameA", CurrencyType.Hearts, 0, "tx2");
+            var e = LedgerEntry.Debit("Garage_Legends", CurrencyType.Hearts, 0, "tx2");
             Assert.AreEqual(0L, e.Amount);
         }
 
@@ -171,11 +171,53 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void Gate_WonderPop_CaseSensitive_OtherCasing_IsEligible()
+        public void Gate_WonderPop_OtherCasing_IsUnknownGame()
         {
-            // "wonder_pop" (lowercase) must NOT be blocked — guard is Ordinal
-            var (eligible, _) = PlayerLedgerGate.CanCreditPremium("wonder_pop", LedgerPolicy.Default);
-            Assert.IsTrue(eligible);
+            // Ordinal: "wonder_pop" is not a catalog ID, so it fails closed as UnknownGame
+            var (eligible, reason) = PlayerLedgerGate.CanCreditPremium("wonder_pop", LedgerPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
+        }
+
+
+        [Test]
+        public void CanCreditPremium_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = PlayerLedgerGate.CanCreditPremium(gameId, LedgerPolicy.Standard("std"));
+                Assert.IsFalse(eligible, gameId);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void CanCreditPremium_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var (eligible, reason) = PlayerLedgerGate.CanCreditPremium(unknownId, LedgerPolicy.Standard("std"));
+                Assert.IsFalse(eligible, unknownId);
+                Assert.AreEqual("UnknownGame", reason);
+            }
+        }
+
+        [Test]
+        public void IsOfflinePlayAllowed_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(PlayerLedgerGate.IsOfflinePlayAllowed(gameId, LedgerPolicy.Standard("std")), gameId);
+            }
+        }
+
+        [Test]
+        public void IsOfflinePlayAllowed_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(PlayerLedgerGate.IsOfflinePlayAllowed(unknownId, LedgerPolicy.Standard("std")), unknownId);
+            }
         }
     }
 }

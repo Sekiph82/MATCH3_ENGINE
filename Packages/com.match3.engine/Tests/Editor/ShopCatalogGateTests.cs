@@ -7,7 +7,7 @@ namespace Match3.Engine.Tests.Editor
     [TestFixture]
     public class ShopCatalogGateTests
     {
-        private const string GameA = "Game_A";
+        private const string GameA = "Coral_Rescue";
         private const string WonderPop = "Wonder_Pop";
 
         // --- ShopOffer ---
@@ -196,8 +196,9 @@ namespace Match3.Engine.Tests.Editor
             var policy = ShopCatalogPolicy.Enabled("on");
             var offer = ShopOffer.Active("o1", "wonder_pop", OfferType.NoAdsPermanent);
             var result = ShopCatalogGate.CanShowOffer("wonder_pop", offer, policy);
-            // Ordinal compare: "wonder_pop" != "Wonder_Pop" → eligible (not prohibited)
-            Assert.IsTrue(result.IsEligible);
+            // Ordinal: "wonder_pop" is not a catalog ID, so it fails closed as UnknownGame
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
@@ -205,6 +206,59 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = ShopCatalogPolicy.Enabled("on");
             Assert.IsFalse(ShopCatalogGate.CanShowNoAds(WonderPop, policy));
+        }
+
+
+        [Test]
+        public void CanShowOffer_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = ShopCatalogGate.CanShowOffer(gameId, ShopOffer.Active("o1", "Coral_Rescue", OfferType.CoinPack), ShopCatalogPolicy.Enabled("on"));
+                Assert.IsFalse(result.IsEligible, gameId);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanShowOffer_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = ShopCatalogGate.CanShowOffer(unknownId, ShopOffer.Active("o1", "Coral_Rescue", OfferType.CoinPack), ShopCatalogPolicy.Enabled("on"));
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanShowNoAds_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                Assert.IsFalse(ShopCatalogGate.CanShowNoAds(gameId, ShopCatalogPolicy.Enabled("on")), gameId);
+            }
+        }
+
+        [Test]
+        public void CanShowNoAds_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(ShopCatalogGate.CanShowNoAds(unknownId, ShopCatalogPolicy.Enabled("on")), unknownId);
+            }
+        }
+
+        [Test]
+        public void CanShowOffer_OfferForOtherGame_GameIdMismatch()
+        {
+            var policy = ShopCatalogPolicy.Enabled("on");
+            var r1 = ShopCatalogGate.CanShowOffer("Coral_Rescue", ShopOffer.Active("o1", "Wonder_Pop", OfferType.CoinPack), policy);
+            Assert.IsFalse(r1.IsEligible);
+            Assert.AreEqual("GameIdMismatch", r1.Reason);
+            var r2 = ShopCatalogGate.CanShowOffer("Wonder_Pop", ShopOffer.Active("o1", "Coral_Rescue", OfferType.CoinPack), policy);
+            Assert.IsFalse(r2.IsEligible);
+            Assert.AreEqual("GameIdMismatch", r2.Reason);
         }
     }
 }

@@ -66,6 +66,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static GateResult CanRunReport(string gameId, ReconciliationPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return new GateResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new GateResult(false, "UnknownGame");
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is always ineligible
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new GateResult(false, "WonderPopReconciliationProhibited");
@@ -78,6 +84,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static GateResult CanApplyCorrection(string gameId, ReconciliationPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return new GateResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new GateResult(false, "UnknownGame");
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is always ineligible
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new GateResult(false, "WonderPopReconciliationProhibited");

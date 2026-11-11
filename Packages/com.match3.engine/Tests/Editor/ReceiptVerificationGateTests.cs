@@ -192,5 +192,15 @@ namespace Match3.Engine.Tests.Editor
                 Assert.IsFalse(ReceiptVerificationGate.CanGrantAfterVerification(gameId, ReceiptVerificationStatus.VerifiedValid));
             }
         }
+
+
+        [Test]
+        public void CanGrantAfterVerification_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(ReceiptVerificationGate.CanGrantAfterVerification(unknownId, ReceiptVerificationStatus.VerifiedValid), unknownId);
+            }
+        }
     }
 }

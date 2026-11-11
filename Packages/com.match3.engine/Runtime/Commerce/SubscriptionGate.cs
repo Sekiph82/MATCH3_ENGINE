@@ -51,6 +51,10 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.IsNullOrEmpty(gameId))
                 return AdEligibilityResult.Ineligible("GameIdMissing");
 
+            // Fail closed: only catalog game IDs (Ordinal) are eligible
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return AdEligibilityResult.Ineligible("UnknownGame");
+
             // Guard 1: Wonder_Pop always prohibited, checked first
             if (Ordinal.Equals(gameId, "Wonder_Pop"))
                 return AdEligibilityResult.Ineligible("WonderPopSubscriptionProhibited");
@@ -93,6 +97,10 @@ namespace Match3.Engine.Runtime.Commerce
         {
             // Fail closed: a missing game context is never eligible
             if (string.IsNullOrEmpty(gameId))
+                return false;
+
+            // Fail closed: only catalog game IDs (Ordinal) are eligible
+            if (!GameProfileCatalog.IsKnownId(gameId))
                 return false;
 
             if (Ordinal.Equals(gameId, "Wonder_Pop"))

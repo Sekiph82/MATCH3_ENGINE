@@ -54,7 +54,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = EntitlementPolicy.Restricted("test");
             var kid = false; // non-kid profile
-            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("SomeGame", policy, kid);
+            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Coral_Rescue", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("EntitlementPurchasesRestricted", result.Reason);
         }
@@ -84,7 +84,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = EntitlementPolicy.Unrestricted("ok");
             var kid = true; // kid profile
-            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("OtherGame", policy, kid);
+            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Garage_Legends", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileEntitlementProhibited", result.Reason);
         }
@@ -94,7 +94,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = EntitlementPolicy.Unrestricted("ok");
             var kid = false; // non-kid profile
-            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("SomeGame", policy, kid);
+            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Coral_Rescue", policy, kid);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -160,14 +160,14 @@ namespace Match3.Engine.Tests.Editor
         public void CanGrantEntitlement_RestrictedPolicy_False()
         {
             Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(
-                "SomeGame", EntitlementPolicy.Restricted("test"), ReceiptVerificationStatus.VerifiedValid));
+                "Coral_Rescue", EntitlementPolicy.Restricted("test"), ReceiptVerificationStatus.VerifiedValid));
         }
 
         [Test]
         public void CanGrantEntitlement_Unrestricted_NonWonderPop_VerifiedValid_True()
         {
             Assert.IsTrue(NonConsumableEntitlementGate.CanGrantEntitlement(
-                "SomeGame", EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid));
+                "Coral_Rescue", EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid));
         }
 
         [Test]
@@ -177,7 +177,7 @@ namespace Match3.Engine.Tests.Editor
             {
                 if (status == ReceiptVerificationStatus.VerifiedValid) continue;
                 Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(
-                    "SomeGame", EntitlementPolicy.Unrestricted("ok"), status), status.ToString());
+                    "Coral_Rescue", EntitlementPolicy.Unrestricted("ok"), status), status.ToString());
             }
         }
 
@@ -185,7 +185,7 @@ namespace Match3.Engine.Tests.Editor
         public void CanGrantEntitlement_ObsoleteOverload_FailsClosed()
         {
 #pragma warning disable 0618
-            Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement("SomeGame", EntitlementPolicy.Unrestricted("ok")));
+            Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement("Coral_Rescue", EntitlementPolicy.Unrestricted("ok")));
 #pragma warning restore 0618
         }
 
@@ -199,6 +199,27 @@ namespace Match3.Engine.Tests.Editor
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
                 Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(gameId, EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid));
+            }
+        }
+
+
+        [Test]
+        public void CheckEntitlementEligibility_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = NonConsumableEntitlementGate.CheckEntitlementEligibility(unknownId, EntitlementPolicy.Unrestricted("ok"), false);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanGrantEntitlement_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(NonConsumableEntitlementGate.CanGrantEntitlement(unknownId, EntitlementPolicy.Unrestricted("ok"), ReceiptVerificationStatus.VerifiedValid), unknownId);
             }
         }
     }

@@ -69,7 +69,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = SubscriptionPolicy.Default;
             var kid = false; // non-kid profile
-            var result = SubscriptionGate.CheckSubscriptionEligibility("SomeGame", policy, kid);
+            var result = SubscriptionGate.CheckSubscriptionEligibility("Coral_Rescue", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("SubscriptionsDisabled", result.Reason);
         }
@@ -79,7 +79,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = SubscriptionPolicy.Enabled("Enabled");
             var kid = true; // kid profile
-            var result = SubscriptionGate.CheckSubscriptionEligibility("SomeGame", policy, kid);
+            var result = SubscriptionGate.CheckSubscriptionEligibility("Coral_Rescue", policy, kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileSubscriptionProhibited", result.Reason);
         }
@@ -89,7 +89,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = SubscriptionPolicy.Enabled("Enabled");
             var kid = false; // non-kid profile
-            var result = SubscriptionGate.CheckSubscriptionEligibility("SomeGame", policy, kid);
+            var result = SubscriptionGate.CheckSubscriptionEligibility("Coral_Rescue", policy, kid);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -110,7 +110,7 @@ namespace Match3.Engine.Tests.Editor
         {
 #pragma warning disable 0618
             var result = SubscriptionGate.CheckSubscriptionEligibility(
-                "SomeGame", SubscriptionPolicy.Enabled("Enabled"), KidProfilePolicy.Unrestricted("Adult"));
+                "Coral_Rescue", SubscriptionPolicy.Enabled("Enabled"), KidProfilePolicy.Unrestricted("Adult"));
 #pragma warning restore 0618
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileSubscriptionProhibited", result.Reason);
@@ -158,14 +158,14 @@ namespace Match3.Engine.Tests.Editor
         public void CanShowPromotionalTrial_TrialsDisabled_False()
         {
             var policy = SubscriptionPolicy.Enabled("Enabled but no trials");
-            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy, false));
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("Coral_Rescue", policy, false));
         }
 
         [Test]
         public void CanShowPromotionalTrial_EnabledAndAllowed_True()
         {
             var policy = new SubscriptionPolicy(true, true, "Full access");
-            Assert.IsTrue(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy, false));
+            Assert.IsTrue(SubscriptionGate.CanShowPromotionalTrial("Coral_Rescue", policy, false));
         }
 
         [Test]
@@ -180,14 +180,14 @@ namespace Match3.Engine.Tests.Editor
         public void CanShowPromotionalTrial_SubscriptionsDisabled_False()
         {
             var policy = new SubscriptionPolicy(false, true, "Trials flag on but subscriptions disabled");
-            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", policy, false));
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("Coral_Rescue", policy, false));
         }
 
         [Test]
         public void CanShowPromotionalTrial_ObsoleteOverload_FailsClosed()
         {
 #pragma warning disable 0618
-            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("SomeGame", new SubscriptionPolicy(true, true, "Full access")));
+            Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial("Coral_Rescue", new SubscriptionPolicy(true, true, "Full access")));
 #pragma warning restore 0618
         }
 
@@ -229,6 +229,27 @@ namespace Match3.Engine.Tests.Editor
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
                 Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial(gameId, policy, false));
+            }
+        }
+
+
+        [Test]
+        public void CheckSubscriptionEligibility_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = SubscriptionGate.CheckSubscriptionEligibility(unknownId, new SubscriptionPolicy(true, true, "Full access"), false);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanShowPromotionalTrial_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(SubscriptionGate.CanShowPromotionalTrial(unknownId, new SubscriptionPolicy(true, true, "Full access"), false), unknownId);
             }
         }
     }

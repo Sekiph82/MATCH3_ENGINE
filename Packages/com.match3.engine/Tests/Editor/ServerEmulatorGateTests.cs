@@ -19,13 +19,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void EmulatorScenario_AllExpectedMembersPresent()
         {
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.HappyPath; });
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.NetworkPartition; });
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.RetryOnFailure; });
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.DuplicateCallback; });
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.ConcurrentDevices; });
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.DataRecovery; });
-            Assert.DoesNotThrow(() => { var _ = EmulatorScenario.FraudRejection; });
+            foreach (var name in new[] { "HappyPath", "NetworkPartition", "RetryOnFailure", "DuplicateCallback",
+                                         "ConcurrentDevices", "DataRecovery", "FraudRejection" })
+                Assert.IsTrue(System.Enum.IsDefined(typeof(EmulatorScenario), name), name);
         }
 
         // 3. EmulatorResult.Success factory
@@ -78,12 +74,13 @@ namespace Match3.Engine.Tests.Editor
 
         // 8. Wonder_Pop check is Ordinal (case-sensitive) — different case is NOT blocked by guard 1
         [Test]
-        public void CanRunScenario_WonderPopCaseDiffers_NotBlockedByGuard1()
+        public void CanRunScenario_WonderPopCaseDiffers_IsUnknownGame()
         {
             var policy = ServerEmulatorPolicy.Default;
-            // "wonder_pop" with lowercase w should NOT hit the Wonder_Pop guard
-            var (eligible, _) = ServerEmulatorGate.CanRunScenario("wonder_pop", EmulatorScenario.HappyPath, policy);
-            Assert.IsTrue(eligible);
+            // Ordinal: "wonder_pop" is not a catalog ID, so it fails closed as UnknownGame
+            var (eligible, reason) = ServerEmulatorGate.CanRunScenario("wonder_pop", EmulatorScenario.HappyPath, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // 9. CanRunScenario real backend blocked
@@ -91,7 +88,7 @@ namespace Match3.Engine.Tests.Editor
         public void CanRunScenario_RealBackendPolicy_Ineligible()
         {
             var policy = new ServerEmulatorPolicy(true, false, "real backend policy");
-            var (eligible, reason) = ServerEmulatorGate.CanRunScenario("SomeGame", EmulatorScenario.HappyPath, policy);
+            var (eligible, reason) = ServerEmulatorGate.CanRunScenario("Coral_Rescue", EmulatorScenario.HappyPath, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("RealBackendNotPermitted", reason);
         }
@@ -152,6 +149,29 @@ namespace Match3.Engine.Tests.Editor
         {
             Assert.Throws<System.ArgumentException>(() => new ServerEmulatorPolicy(false, true, null));
             Assert.Throws<System.ArgumentException>(() => new ServerEmulatorPolicy(false, true, ""));
+        }
+
+
+        [Test]
+        public void CanRunScenario_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var (eligible, reason) = ServerEmulatorGate.CanRunScenario(gameId, EmulatorScenario.HappyPath, ServerEmulatorPolicy.Default);
+                Assert.IsFalse(eligible, gameId);
+                Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void CanRunScenario_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var (eligible, reason) = ServerEmulatorGate.CanRunScenario(unknownId, EmulatorScenario.HappyPath, ServerEmulatorPolicy.Default);
+                Assert.IsFalse(eligible, unknownId);
+                Assert.AreEqual("UnknownGame", reason);
+            }
         }
     }
 }

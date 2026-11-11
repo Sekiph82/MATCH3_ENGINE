@@ -48,42 +48,42 @@ namespace Match3.Engine.Tests.Editor
         public void CanFulfill_Pending_ReturnsFalse()
         {
             var p = PendingPurchasePolicy.Default;
-            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("GameA", PurchaseState.Pending, p));
+            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("Coral_Rescue", PurchaseState.Pending, p));
         }
 
         [Test]
         public void CanFulfill_Deferred_ReturnsFalse()
         {
             var p = PendingPurchasePolicy.Default;
-            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("GameA", PurchaseState.Deferred, p));
+            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("Coral_Rescue", PurchaseState.Deferred, p));
         }
 
         [Test]
         public void CanFulfill_Canceled_ReturnsFalse()
         {
             var p = PendingPurchasePolicy.Default;
-            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("GameA", PurchaseState.Canceled, p));
+            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("Coral_Rescue", PurchaseState.Canceled, p));
         }
 
         [Test]
         public void CanFulfill_Failed_ReturnsFalse()
         {
             var p = PendingPurchasePolicy.Default;
-            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("GameA", PurchaseState.Failed, p));
+            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("Coral_Rescue", PurchaseState.Failed, p));
         }
 
         [Test]
         public void CanFulfill_Completed_NonWonderPop_ReturnsTrue()
         {
             var p = PendingPurchasePolicy.Default;
-            Assert.IsTrue(PendingPurchaseGate.CanFulfillPurchase("GameA", PurchaseState.Completed, p));
+            Assert.IsTrue(PendingPurchaseGate.CanFulfillPurchase("Coral_Rescue", PurchaseState.Completed, p));
         }
 
         [Test]
         public void CanFulfill_Restored_NonWonderPop_ReturnsTrue()
         {
             var p = PendingPurchasePolicy.Default;
-            Assert.IsTrue(PendingPurchaseGate.CanFulfillPurchase("GameA", PurchaseState.Restored, p));
+            Assert.IsTrue(PendingPurchaseGate.CanFulfillPurchase("Coral_Rescue", PurchaseState.Restored, p));
         }
 
         [Test]
@@ -108,11 +108,11 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanFulfill_WonderPop_CaseSensitive_OrdinalCheck()
+        public void CanFulfill_WonderPop_OtherCase_UnknownGameFailsClosed()
         {
-            // "wonder_pop" (lowercase) is NOT Wonder_Pop; should not be blocked by ordinal check
+            // Ordinal: "wonder_pop" is not a catalog ID, so it fails closed
             var p = PendingPurchasePolicy.Default;
-            Assert.IsTrue(PendingPurchaseGate.CanFulfillPurchase("wonder_pop", PurchaseState.Completed, p));
+            Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase("wonder_pop", PurchaseState.Completed, p));
         }
 
         // --- RequiresUserAction ---
@@ -235,6 +235,16 @@ namespace Match3.Engine.Tests.Editor
             foreach (var gameId in new[] { null, string.Empty })
             {
                 Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase(gameId, PurchaseState.Completed, PendingPurchasePolicy.WithDeferral("deferral")));
+            }
+        }
+
+
+        [Test]
+        public void CanFulfillPurchase_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsFalse(PendingPurchaseGate.CanFulfillPurchase(unknownId, PurchaseState.Completed, PendingPurchasePolicy.WithDeferral("deferral")), unknownId);
             }
         }
     }

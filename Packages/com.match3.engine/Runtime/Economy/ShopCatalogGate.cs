@@ -67,6 +67,15 @@ namespace Match3.Engine.Runtime.Economy
 
         public static EligibilityResult CanShowOffer(string gameId, ShopOffer offer, ShopCatalogPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return EligibilityResult.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return EligibilityResult.Ineligible("UnknownGame");
+
+            if (!string.Equals(gameId, offer.GameId, StringComparison.Ordinal))
+                return EligibilityResult.Ineligible("GameIdMismatch");
+
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return EligibilityResult.Ineligible("WonderPopShopProhibited");
             if (!policy.OffersEnabled)
@@ -81,6 +90,12 @@ namespace Match3.Engine.Runtime.Economy
 
         public static bool CanShowNoAds(string gameId, ShopCatalogPolicy policy)
         {
+            // Fail closed: a missing or non-catalog game context is never eligible
+            if (string.IsNullOrEmpty(gameId))
+                return false;
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return false;
+
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return false;
             if (!policy.OffersEnabled)

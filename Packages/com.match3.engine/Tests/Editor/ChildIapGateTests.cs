@@ -65,7 +65,7 @@ namespace Match3.Engine.Tests.Editor
         public void ChildGate_PolicyRestricted_Ineligible()
         {
             var policy = IapRestrictionPolicy.Restricted("restricted");
-            var result = ChildIapGate.CheckIapEligibility("SomeGame", policy, NonChildProfile);
+            var result = ChildIapGate.CheckIapEligibility("Coral_Rescue", policy, NonChildProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("IapPurchasesRestricted", result.Reason);
         }
@@ -83,7 +83,7 @@ namespace Match3.Engine.Tests.Editor
         public void ChildGate_ChildProfile_Ineligible()
         {
             var policy = IapRestrictionPolicy.Unrestricted("approved");
-            var result = ChildIapGate.CheckIapEligibility("SomeGame", policy, ChildProfile);
+            var result = ChildIapGate.CheckIapEligibility("Coral_Rescue", policy, ChildProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileIapProhibited", result.Reason);
         }
@@ -93,8 +93,8 @@ namespace Match3.Engine.Tests.Editor
         {
             foreach (var policy in AllConstructiblePolicies)
             {
-                Assert.IsFalse(ChildIapGate.CheckIapEligibility("SomeGame", policy, ChildProfile).IsEligible);
-                Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("SomeGame", policy, ChildProfile));
+                Assert.IsFalse(ChildIapGate.CheckIapEligibility("Coral_Rescue", policy, ChildProfile).IsEligible);
+                Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("Coral_Rescue", policy, ChildProfile));
             }
         }
 
@@ -102,15 +102,15 @@ namespace Match3.Engine.Tests.Editor
         public void ChildGate_AllPass_Eligible()
         {
             var policy = IapRestrictionPolicy.Unrestricted("approved");
-            var result = ChildIapGate.CheckIapEligibility("SomeGame", policy, NonChildProfile);
+            var result = ChildIapGate.CheckIapEligibility("Coral_Rescue", policy, NonChildProfile);
             Assert.IsTrue(result.IsEligible);
         }
 
         [Test]
         public void ChildGate_DefaultStructPolicy_FailsClosed()
         {
-            var expected = ChildIapGate.CheckIapEligibility("SomeGame", IapRestrictionPolicy.Default, NonChildProfile);
-            var result = ChildIapGate.CheckIapEligibility("SomeGame", default(IapRestrictionPolicy), NonChildProfile);
+            var expected = ChildIapGate.CheckIapEligibility("Coral_Rescue", IapRestrictionPolicy.Default, NonChildProfile);
+            var result = ChildIapGate.CheckIapEligibility("Coral_Rescue", default(IapRestrictionPolicy), NonChildProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual(expected.Reason, result.Reason);
             Assert.AreEqual("IapPurchasesRestricted", result.Reason);
@@ -121,10 +121,10 @@ namespace Match3.Engine.Tests.Editor
         {
 #pragma warning disable 0618
             var kid = KidProfilePolicy.Unrestricted("ok");
-            var result = ChildIapGate.CheckIapEligibility("SomeGame", IapRestrictionPolicy.Unrestricted("approved"), kid);
+            var result = ChildIapGate.CheckIapEligibility("Coral_Rescue", IapRestrictionPolicy.Unrestricted("approved"), kid);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("KidProfileIapProhibited", result.Reason);
-            Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("SomeGame", IapRestrictionPolicy.Unrestricted("approved"), kid));
+            Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("Coral_Rescue", IapRestrictionPolicy.Unrestricted("approved"), kid));
 #pragma warning restore 0618
         }
 
@@ -141,27 +141,27 @@ namespace Match3.Engine.Tests.Editor
         public void ParentalGate_RestrictedPolicy_Required()
         {
             var policy = IapRestrictionPolicy.Restricted("restricted");
-            Assert.IsTrue(ChildIapGate.IsParentalGateRequired("SomeGame", policy, NonChildProfile));
+            Assert.IsTrue(ChildIapGate.IsParentalGateRequired("Coral_Rescue", policy, NonChildProfile));
         }
 
         [Test]
         public void ParentalGate_Unrestricted_NonWonderPop_NonChild_NotRequired()
         {
             var policy = IapRestrictionPolicy.Unrestricted("approved");
-            Assert.IsFalse(ChildIapGate.IsParentalGateRequired("SomeGame", policy, NonChildProfile));
+            Assert.IsFalse(ChildIapGate.IsParentalGateRequired("Coral_Rescue", policy, NonChildProfile));
         }
 
         [Test]
         public void ParentalGate_ChildProfile_RequiredUnderEveryPolicy()
         {
             foreach (var policy in AllConstructiblePolicies)
-                Assert.IsTrue(ChildIapGate.IsParentalGateRequired("SomeGame", policy, ChildProfile));
+                Assert.IsTrue(ChildIapGate.IsParentalGateRequired("Coral_Rescue", policy, ChildProfile));
         }
 
         [Test]
         public void ParentalGate_DefaultStructPolicy_Required()
         {
-            Assert.IsTrue(ChildIapGate.IsParentalGateRequired("SomeGame", default(IapRestrictionPolicy), NonChildProfile));
+            Assert.IsTrue(ChildIapGate.IsParentalGateRequired("Coral_Rescue", default(IapRestrictionPolicy), NonChildProfile));
         }
 
         [Test]
@@ -169,7 +169,7 @@ namespace Match3.Engine.Tests.Editor
         {
 #pragma warning disable 0618
             foreach (var policy in AllConstructiblePolicies)
-                Assert.IsTrue(ChildIapGate.IsParentalGateRequired("SomeGame", policy));
+                Assert.IsTrue(ChildIapGate.IsParentalGateRequired("Coral_Rescue", policy));
 #pragma warning restore 0618
         }
 
@@ -186,21 +186,21 @@ namespace Match3.Engine.Tests.Editor
         public void CanShowPurchaseUi_AllPass_True()
         {
             var policy = IapRestrictionPolicy.Unrestricted("approved");
-            Assert.IsTrue(ChildIapGate.CanShowPurchaseUi("SomeGame", policy, NonChildProfile));
+            Assert.IsTrue(ChildIapGate.CanShowPurchaseUi("Coral_Rescue", policy, NonChildProfile));
         }
 
         [Test]
         public void CanShowPurchaseUi_PolicyRestricted_False()
         {
             var policy = IapRestrictionPolicy.Restricted("restricted");
-            Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("SomeGame", policy, NonChildProfile));
+            Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("Coral_Rescue", policy, NonChildProfile));
         }
 
         [Test]
         public void CanShowPurchaseUi_ChildProfile_False()
         {
             var policy = IapRestrictionPolicy.Unrestricted("approved");
-            Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("SomeGame", policy, ChildProfile));
+            Assert.IsFalse(ChildIapGate.CanShowPurchaseUi("Coral_Rescue", policy, ChildProfile));
         }
 
 
@@ -214,6 +214,27 @@ namespace Match3.Engine.Tests.Editor
                 Assert.AreEqual("GameIdMissing", result.Reason);
                 Assert.IsFalse(ChildIapGate.CanShowPurchaseUi(gameId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile));
                 Assert.IsTrue(ChildIapGate.IsParentalGateRequired(gameId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile));
+            }
+        }
+
+
+        [Test]
+        public void CheckIapEligibility_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = ChildIapGate.CheckIapEligibility(unknownId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
+
+        [Test]
+        public void IsParentalGateRequired_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                Assert.IsTrue(ChildIapGate.IsParentalGateRequired(unknownId, IapRestrictionPolicy.Unrestricted("approved"), NonChildProfile), unknownId);
             }
         }
     }

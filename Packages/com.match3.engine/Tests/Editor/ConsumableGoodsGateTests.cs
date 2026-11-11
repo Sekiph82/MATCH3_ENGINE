@@ -212,5 +212,17 @@ namespace Match3.Engine.Tests.Editor
                 Assert.AreEqual("GameIdMissing", result.Reason);
             }
         }
+
+
+        [Test]
+        public void CheckPurchaseEligibility_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = ConsumableGoodsGate.CheckPurchaseEligibility(unknownId, ConsumablePolicy.Enabled("enabled"), false);
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
+        }
     }
 }

@@ -41,6 +41,10 @@ namespace Match3.Engine.Runtime.Commerce
             if (string.IsNullOrEmpty(gameId))
                 return AdEligibilityResult.Ineligible("GameIdMissing");
 
+            // Fail closed: only catalog game IDs (Ordinal) are eligible
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return AdEligibilityResult.Ineligible("UnknownGame");
+
             policy = Normalize(policy);
 
             if (!policy.PurchasesAllowed)
@@ -65,6 +69,10 @@ namespace Match3.Engine.Runtime.Commerce
         {
             // Fail closed: a missing game context is never eligible
             if (string.IsNullOrEmpty(gameId))
+                return true;
+
+            // Fail closed: a non-catalog game ID (Ordinal) always requires the parental gate
+            if (!GameProfileCatalog.IsKnownId(gameId))
                 return true;
 
             // Unconditional: every child/kid purchase path requires a parental gate

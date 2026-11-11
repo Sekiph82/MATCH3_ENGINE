@@ -72,11 +72,12 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void WonderPop_CaseSensitive_OtherCasePasses()
+        public void WonderPop_OtherCase_IsUnknownGame()
         {
-            // Guard 1 uses Ordinal; "wonder_pop" is a different game ID
+            // Ordinal: "wonder_pop" is not a catalog ID, so it fails closed as UnknownGame
             var result = OfflineEconomyGate.CanSpendOffline("wonder_pop", ResourceTier.Free, OfflinePolicy.Default);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         // OfflineEconomyGate — Premium guard (Guard 2)
@@ -84,7 +85,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void PremiumTier_DefaultPolicy_IsIneligible()
         {
-            var result = OfflineEconomyGate.CanSpendOffline("SomeGame", ResourceTier.Premium, OfflinePolicy.Default);
+            var result = OfflineEconomyGate.CanSpendOffline("Coral_Rescue", ResourceTier.Premium, OfflinePolicy.Default);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("PremiumRequiresServerSync", result.Reason);
         }
@@ -93,7 +94,7 @@ namespace Match3.Engine.Tests.Editor
         public void PremiumTier_PermissivePolicy_IsEligible()
         {
             var policy = new OfflinePolicy(true, true, "allow both");
-            var result = OfflineEconomyGate.CanSpendOffline("SomeGame", ResourceTier.Premium, policy);
+            var result = OfflineEconomyGate.CanSpendOffline("Coral_Rescue", ResourceTier.Premium, policy);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -102,7 +103,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void FreeTier_DefaultPolicy_IsEligible()
         {
-            var result = OfflineEconomyGate.CanSpendOffline("SomeGame", ResourceTier.Free, OfflinePolicy.Default);
+            var result = OfflineEconomyGate.CanSpendOffline("Coral_Rescue", ResourceTier.Free, OfflinePolicy.Default);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -110,7 +111,7 @@ namespace Match3.Engine.Tests.Editor
         public void FreeTier_DisabledFreePolicy_IsIneligible()
         {
             var policy = new OfflinePolicy(false, false, "nothing offline");
-            var result = OfflineEconomyGate.CanSpendOffline("SomeGame", ResourceTier.Free, policy);
+            var result = OfflineEconomyGate.CanSpendOffline("Coral_Rescue", ResourceTier.Free, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("FreeSpendDisabled", result.Reason);
         }
@@ -193,6 +194,29 @@ namespace Match3.Engine.Tests.Editor
             q.Enqueue("tx-y");
             // drained should still have only tx-x
             Assert.AreEqual(1, drained.Count);
+        }
+
+
+        [Test]
+        public void CanSpendOffline_NullOrEmptyGameId_FailsClosed()
+        {
+            foreach (var gameId in new[] { null, string.Empty })
+            {
+                var result = OfflineEconomyGate.CanSpendOffline(gameId, ResourceTier.Free, new OfflinePolicy(true, true, "all offline"));
+                Assert.IsFalse(result.IsEligible, gameId);
+                Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanSpendOffline_NonCatalogGameId_UnknownGame()
+        {
+            foreach (var unknownId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue " })
+            {
+                var result = OfflineEconomyGate.CanSpendOffline(unknownId, ResourceTier.Free, new OfflinePolicy(true, true, "all offline"));
+                Assert.IsFalse(result.IsEligible, unknownId);
+                Assert.AreEqual("UnknownGame", result.Reason);
+            }
         }
     }
 }
