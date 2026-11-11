@@ -130,18 +130,17 @@ namespace Match3.Engine.Tests.Editor
         {
             var record = DenialRecord.Create("GameA", DenialReason.PolicyDefault, false);
             var policy = DenialPolicy.Safe("block all");
-            // Guard 2 only blocks non-PolicyDefault, so PolicyDefault passes Guard 2
-            // Guard 3: PolicyDefault is not network denied
+            // BlockOnAnyDenial does not apply to PolicyDefault records, and PolicyDefault is not a network denial.
             var result = TrackingDenialGate.CanTrack("GameA", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
-        public void CanTrack_NetworkDenied_AttDenied_Blocked_ByGuard3()
+        public void CanTrack_AttDenied_NoBlockPolicy_NetworkDenied()
         {
             var record = DenialRecord.Create("GameA", DenialReason.AttDenied, false);
-            // BlockOnAnyDenial=false so Guard 2 doesn't trigger; Guard 3 triggers
+            // With BlockOnAnyDenial=false the policy rule does not fire; the network-denial rule still blocks.
             var policyNoBlock = NoBlock;
             var result = TrackingDenialGate.CanTrack("GameA", record, policyNoBlock, out var reason);
             Assert.IsFalse(result);
@@ -149,7 +148,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanTrack_NetworkDenied_OfflineMode_Blocked_ByGuard3()
+        public void CanTrack_OfflineMode_NoBlockPolicy_NetworkDenied()
         {
             var record = DenialRecord.Create("GameA", DenialReason.OfflineMode, false);
             var policyNoBlock = NoBlock;
@@ -248,6 +247,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("GameA", "reason1");
             Assert.IsFalse(log.HasEntry("gamea"));
             Assert.IsFalse(log.HasEntry("Game"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            var softHyphenLog = new DenialLog();
+            softHyphenLog.Record("Game\u00ADA", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
 
         [Test]

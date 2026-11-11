@@ -44,32 +44,26 @@ namespace Match3.Engine.Runtime.Analytics
 
     public readonly struct PresentationAnalyticsPolicy
     {
+        // Only test-session inclusion is relaxable; consent-denied players are always excluded (core invariant).
         public bool AllowTestSessionEvents { get; }
-        public bool AllowConsentDeniedEvents { get; }
         public string PolicyDescription { get; }
 
-        private PresentationAnalyticsPolicy(bool allowTestSessionEvents, bool allowConsentDeniedEvents, string policyDescription)
+        private PresentationAnalyticsPolicy(bool allowTestSessionEvents, string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription cannot be null or empty.", nameof(policyDescription));
             AllowTestSessionEvents = allowTestSessionEvents;
-            AllowConsentDeniedEvents = allowConsentDeniedEvents;
             PolicyDescription = policyDescription;
         }
 
         public static PresentationAnalyticsPolicy Safe(string desc)
         {
-            return new PresentationAnalyticsPolicy(false, false, desc);
+            return new PresentationAnalyticsPolicy(false, desc);
         }
 
         public static PresentationAnalyticsPolicy AllowTest(string desc)
         {
-            return new PresentationAnalyticsPolicy(true, false, desc);
-        }
-
-        public static PresentationAnalyticsPolicy AllowConsentDenied(string desc)
-        {
-            return new PresentationAnalyticsPolicy(false, true, desc);
+            return new PresentationAnalyticsPolicy(true, desc);
         }
 
         public static readonly PresentationAnalyticsPolicy Default =
@@ -100,7 +94,8 @@ namespace Match3.Engine.Runtime.Analytics
                 return false;
             }
 
-            if (!policy.AllowConsentDeniedEvents && record.IsConsentDenied)
+            // Unconditional: consent-denied players are never recorded, under any policy
+            if (record.IsConsentDenied)
             {
                 reason = "ConsentDeniedExcluded";
                 return false;

@@ -43,7 +43,11 @@ namespace Match3.Engine.Runtime.Privacy
     {
         public bool AllowCrossAppTracking { get; }
         // Retained for API compatibility only; the gate blocks child profiles unconditionally (not policy-relaxable).
-        public bool BlockChildProfiles { get; }
+        private readonly bool _blockChildProfiles;
+
+        [Obsolete("Ignored: child profiles are always blocked")]
+        public bool BlockChildProfiles => _blockChildProfiles;
+
         public string PolicyDescription { get; }
 
         public AttPolicy(bool allowCrossAppTracking, bool blockChildProfiles, string policyDescription)
@@ -51,7 +55,7 @@ namespace Match3.Engine.Runtime.Privacy
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
             AllowCrossAppTracking = allowCrossAppTracking;
-            BlockChildProfiles = blockChildProfiles;
+            _blockChildProfiles = blockChildProfiles;
             PolicyDescription = policyDescription;
         }
 

@@ -57,8 +57,9 @@ namespace Match3.Engine.Runtime.LiveOps
         public int MinSchemaVersion { get; }
         public string PolicyDescription { get; }
 
-        // An unsigned config without a fallback is always rejected (core invariant), so there is no
-        // RequireFallback flag; MinSchemaVersion may only be raised above the v1 floor.
+        // Core invariants independent of policy: non-gameplay keys must be signed, and an unsigned
+        // gameplay-safe config must ship a fallback. RequireSignature=false therefore only admits
+        // unsigned gameplay-safe keys that have a fallback. MinSchemaVersion may only be raised above v1.
         public RemoteConfigPolicy(bool requireSignature, int minSchemaVersion, string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
@@ -72,7 +73,7 @@ namespace Match3.Engine.Runtime.LiveOps
 
         public static RemoteConfigPolicy Safe(string desc) => new RemoteConfigPolicy(true, 1, desc);
 
-        public static readonly RemoteConfigPolicy Default = Safe("Default remote config policy - require signed configs with fallback, min schema v1");
+        public static readonly RemoteConfigPolicy Default = Safe("Default remote config policy - require a signature for every key, min schema v1");
     }
 
     public static class RemoteConfigVersionGate
@@ -90,6 +91,13 @@ namespace Match3.Engine.Runtime.LiveOps
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && !record.IsSigned)
             {
                 reason = "WonderPopUnsignedConfigProhibited";
+                return false;
+            }
+
+            // Unconditional (ENG-M20-001 decision 5): non-gameplay keys always require a signature
+            if (!record.IsGameplaySafe && !record.IsSigned)
+            {
+                reason = "SignatureRequiredForKey";
                 return false;
             }
 

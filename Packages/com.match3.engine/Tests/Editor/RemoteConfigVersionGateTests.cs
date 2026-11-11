@@ -111,7 +111,7 @@ namespace Match3.Engine.Tests.Editor
         // CanApplyConfig tests
 
         [Test]
-        public void CanApplyConfig_WonderPop_Unsigned_Blocked_Guard1()
+        public void CanApplyConfig_WonderPop_Unsigned_WonderPopUnsignedConfigProhibited()
         {
             var record = RemoteConfigRecord.Create("Wonder_Pop", RemoteConfigKey.GameplayDifficulty, "v", 1, false, true);
             var policy = RemoteConfigPolicy.Default;
@@ -121,7 +121,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanApplyConfig_WonderPop_Signed_OldSchema_Blocked_Guard3()
+        public void CanApplyConfig_WonderPop_Signed_OldSchema_SchemaVersionTooOld()
         {
             var record = RemoteConfigRecord.Create("Wonder_Pop", RemoteConfigKey.GameplayDifficulty, "v", 0, true, true);
             var policy = RemoteConfigPolicy.Default;
@@ -141,10 +141,10 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanApplyConfig_WonderPop_Lowercase_Unsigned_NotBlocked()
+        public void CanApplyConfig_LowercaseWonderPop_NotWonderPopGuard_UnsignedConfigRejected()
         {
-            // "wonder_pop" (lowercase) does NOT match "Wonder_Pop" with Ordinal comparison
-            // Falls through Guard 1, hits Guard 2 (RequireSignature=true, !IsSigned)
+            // "wonder_pop" does not Ordinal-match "Wonder_Pop", so the Wonder_Pop rule does not fire;
+            // the policy signature rule (RequireSignature=true) rejects the unsigned config instead.
             var record = RemoteConfigRecord.Create("wonder_pop", RemoteConfigKey.GameplayDifficulty, "v", 1, false, true);
             var policy = RemoteConfigPolicy.Default;
             var result = RemoteConfigVersionGate.CanApplyConfig("wonder_pop", record, policy, out string reason);
@@ -282,6 +282,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("GameA", "key1");
             Assert.IsFalse(log.HasEntry("gamea"));
             Assert.IsFalse(log.HasEntry("Game"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            var softHyphenLog = new RemoteConfigVersionLog();
+            softHyphenLog.Record("Game\u00ADA", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
 
         [Test]
@@ -375,6 +379,76 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => new RemoteConfigPolicy(true, 1, null));
             Assert.Throws<ArgumentException>(() => new RemoteConfigPolicy(true, 1, ""));
             Assert.Throws<ArgumentOutOfRangeException>(() => new RemoteConfigPolicy(true, 0, "below floor"));
+        }
+
+        // ENG-M20-001 decision 5: non-gameplay keys always require a signature, regardless of policy.
+        private static readonly RemoteConfigKey[] NonGameplayKeys =
+            { RemoteConfigKey.EventCalendarId, RemoteConfigKey.OfferPresentation, RemoteConfigKey.GateFeatureFlag };
+
+        private static readonly RemoteConfigKey[] GameplaySafeKeys =
+            { RemoteConfigKey.GameplayDifficulty, RemoteConfigKey.CoinRewardAmount, RemoteConfigKey.SessionTimeLimit };
+
+        [Test]
+        public void CanApplyConfig_EventCalendarId_Unsigned_NoSignaturePolicy_SignatureRequiredForKey()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.EventCalendarId, "v", 1, false, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual("SignatureRequiredForKey", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_OfferPresentation_Unsigned_NoSignaturePolicy_SignatureRequiredForKey()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.OfferPresentation, "v", 1, false, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual("SignatureRequiredForKey", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_GateFeatureFlag_Unsigned_NoSignaturePolicy_SignatureRequiredForKey()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GateFeatureFlag, "v", 1, false, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual("SignatureRequiredForKey", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_NonGameplayKeys_Unsigned_AnyPolicy_SignatureRequiredForKey()
+        {
+            foreach (var key in NonGameplayKeys)
+            {
+                var record = RemoteConfigRecord.Create("GameC", key, "v", 1, false, true);
+                foreach (var policy in new[] { NoSignature, RemoteConfigPolicy.Default, default(RemoteConfigPolicy) })
+                {
+                    Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, policy, out string reason), key.ToString());
+                    Assert.AreEqual("SignatureRequiredForKey", reason, key.ToString());
+                }
+            }
+        }
+
+        [Test]
+        public void CanApplyConfig_NonGameplayKeys_Signed_NoSignaturePolicy_Eligible()
+        {
+            foreach (var key in NonGameplayKeys)
+            {
+                var record = RemoteConfigRecord.Create("GameC", key, "v", 1, true, false);
+                Assert.IsTrue(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason), key.ToString());
+                Assert.AreEqual(string.Empty, reason, key.ToString());
+            }
+        }
+
+        [Test]
+        public void CanApplyConfig_GameplaySafeKeys_Unsigned_NoSignaturePolicy_RequireFallback()
+        {
+            foreach (var key in GameplaySafeKeys)
+            {
+                var withFallback = RemoteConfigRecord.Create("GameC", key, "v", 1, false, true);
+                Assert.IsTrue(RemoteConfigVersionGate.CanApplyConfig("GameC", withFallback, NoSignature, out string reason), key.ToString());
+                Assert.AreEqual(string.Empty, reason, key.ToString());
+                var noFallback = RemoteConfigRecord.Create("GameC", key, "v", 1, false, false);
+                Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", noFallback, NoSignature, out reason), key.ToString());
+                Assert.AreEqual("FallbackRequired", reason, key.ToString());
+            }
         }
     }
 }

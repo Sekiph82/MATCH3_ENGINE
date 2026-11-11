@@ -55,39 +55,23 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(result, "Validate() must return true on success.");
         }
 
-        // Test 3: Validate() logic is isolatable — the mismatch branch throws InvalidOperationException.
-        // This test checks the guard logic in isolation using reflection to call the private check,
-        // bypassing Application.unityVersion by testing the exception message format.
+        // Test 3: Validate() mismatch branch throws InvalidOperationException naming both versions and the policy.
+        // Validate takes the running version as a parameter, so a mismatch is exercised directly.
         // The rule: a mismatch must be LOUD (exception), not silent (return false or log-only).
         [Test]
         public void Validate_MismatchBranch_ThrowsInvalidOperationException_WithPolicyReference()
         {
-            // We cannot force Application.unityVersion to mismatch in a live editor test without
-            // shimming. We verify the contract by confirming the exception type and that the
-            // pinned version string and policy doc reference appear in the error message.
-            // Construct the expected message text the way SdkVersionPolicy does it.
-            string fakeRunning = "0.0.0f0"; // guaranteed mismatch
-            string expectedFragment = $"Pinned: '{SdkVersionPolicy.UnityVersion}', running: '{fakeRunning}'";
-            string expectedDocRef  = "ENG-M13-009";
+            const string fakeRunning = "0000.0.0x"; // guaranteed mismatch
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            var ex = Assert.Throws<InvalidOperationException>(() => SdkVersionPolicy.Validate(fakeRunning));
 
-            // Simulate the check inline (mirrors the UNITY_EDITOR branch of Validate()).
-            var ex = Assert.Throws<InvalidOperationException>(() =>
-            {
-                if (!string.Equals(fakeRunning, SdkVersionPolicy.UnityVersion,
-                        StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException(
-                        $"[SdkVersionPolicy] Unity version mismatch. " +
-                        $"Pinned: '{SdkVersionPolicy.UnityVersion}', running: '{fakeRunning}'. " +
-                        $"Revert to the pinned version or follow ENG-M13-009 change-control " +
-                        $"(Documentation~/ENG-M13-009-sdk-upgrade-policy.md, Section 8).");
-                }
-            });
-
-            StringAssert.Contains(expectedFragment, ex.Message,
+            StringAssert.Contains($"Pinned: '{SdkVersionPolicy.UnityVersion}', running: '{fakeRunning}'", ex.Message,
                 "Exception must name both pinned and running version.");
-            StringAssert.Contains(expectedDocRef, ex.Message,
+            StringAssert.Contains("ENG-M13-009", ex.Message,
                 "Exception must reference ENG-M13-009 so the developer finds the policy.");
+#else
+            Assert.IsTrue(SdkVersionPolicy.Validate(fakeRunning), "Production builds treat Validate as a no-op.");
+#endif
         }
 
         // Test 4: Android SDK constants satisfy the Play Store 64-bit and submission requirements.

@@ -58,39 +58,45 @@ namespace Match3.Engine.Runtime.LiveOps
         public static ChallengeEventPolicy Safe(string desc) => new ChallengeEventPolicy(desc);
 
         public static readonly ChallengeEventPolicy Default = Safe(
-            "Default challenge event policy - require fallback on expiry, block permanent progress modification");
+            "Default challenge event policy - no relaxable rules: permanent-progress changes always blocked, expired packs never activate (last-known-good fallback signalled)");
     }
 
     public static class LimitedTimeChallengeGate
     {
+        public const string GameIdMismatchReason = "GameIdMismatch";
+        public const string WonderPopPermanentProgressReason = "WonderPopPermanentProgressModificationProhibited";
+        public const string PermanentProgressBlockedReason = "PermanentProgressModificationBlocked";
+        public const string UseLastKnownGoodReason = "UseLastKnownGood";
+        public const string ExpiredEventRequiresFallbackReason = "ExpiredEventRequiresFallback";
+
         public static bool CanActivateEvent(string gameId, ChallengeEventRecord record, ChallengeEventPolicy policy, out string reason)
         {
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
-                reason = "GameIdMismatch";
+                reason = GameIdMismatchReason;
                 return false;
             }
 
             // Guard 1: Wonder Pop events may never modify permanent progress (not policy-overridable)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) && record.AffectsPermanentProgress)
             {
-                reason = "WonderPopPermanentProgressModificationProhibited";
+                reason = WonderPopPermanentProgressReason;
                 return false;
             }
 
             // Guard 2 (unconditional): event content must not alter permanent progress for any game
             if (record.AffectsPermanentProgress)
             {
-                reason = "PermanentProgressModificationBlocked";
+                reason = PermanentProgressBlockedReason;
                 return false;
             }
 
             // Guard 3 (unconditional): an expired pack is never activated. Contract: returns false with
-            // reason "UseLastKnownGood" when a fallback exists (caller must load last-known-good content),
-            // or "ExpiredEventRequiresFallback" when none exists.
+            // UseLastKnownGoodReason when a fallback exists (caller must load last-known-good content),
+            // or ExpiredEventRequiresFallbackReason when none exists.
             if (record.IsExpired)
             {
-                reason = record.HasFallback ? "UseLastKnownGood" : "ExpiredEventRequiresFallback";
+                reason = record.HasFallback ? UseLastKnownGoodReason : ExpiredEventRequiresFallbackReason;
                 return false;
             }
 

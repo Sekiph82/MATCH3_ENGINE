@@ -62,7 +62,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = PresentationAnalyticsPolicy.Safe("Test policy");
             Assert.IsFalse(policy.AllowTestSessionEvents);
-            Assert.IsFalse(policy.AllowConsentDeniedEvents);
             Assert.AreEqual("Test policy", policy.PolicyDescription);
         }
 
@@ -72,7 +71,6 @@ namespace Match3.Engine.Tests.Editor
             var policy = PresentationAnalyticsPolicy.Default;
             Assert.IsNotNull(policy.PolicyDescription);
             Assert.IsFalse(policy.AllowTestSessionEvents);
-            Assert.IsFalse(policy.AllowConsentDeniedEvents);
         }
 
         [Test]
@@ -132,13 +130,23 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRecordEvent_ConsentDenied_AllowPolicy_Eligible()
+        public void CanRecordEvent_ConsentDenied_MostRelaxedPolicy_StillBlocked()
         {
             var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, true);
-            var policy = PresentationAnalyticsPolicy.AllowConsentDenied("Allow consent-denied");
-            var result = PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            var policy = PresentationAnalyticsPolicy.AllowTest("Most relaxed constructible policy");
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, default(PresentationAnalyticsPolicy), out reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
+        }
+
+        [Test]
+        public void CanRecordEvent_AllowTestSessions_DoesNotAdmitConsentDeniedTestSession()
+        {
+            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, true);
+            var policy = PresentationAnalyticsPolicy.AllowTest("Allow test sessions");
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
@@ -251,6 +259,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("GameA", "BannerDisplayed");
             Assert.IsFalse(log.HasEntry("gamea"));
             Assert.IsFalse(log.HasEntry("Game"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            var softHyphenLog = new PresentationEventLog();
+            softHyphenLog.Record("Game\u00ADA", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
 
         [Test]

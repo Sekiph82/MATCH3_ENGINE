@@ -44,27 +44,26 @@ namespace Match3.Engine.Runtime.Analytics
 
     public readonly struct ExperienceFairnessPolicy
     {
+        // Only test-bot inclusion is relaxable; consent-denied players are always excluded (core invariant).
         public bool AllowTestBotEvents { get; }
-        public bool AllowConsentDeniedEvents { get; }
         public string PolicyDescription { get; }
 
-        private ExperienceFairnessPolicy(bool allowTestBotEvents, bool allowConsentDeniedEvents, string policyDescription)
+        private ExperienceFairnessPolicy(bool allowTestBotEvents, string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
             AllowTestBotEvents = allowTestBotEvents;
-            AllowConsentDeniedEvents = allowConsentDeniedEvents;
             PolicyDescription = policyDescription;
         }
 
         public static ExperienceFairnessPolicy Safe(string desc)
         {
-            return new ExperienceFairnessPolicy(false, false, desc);
+            return new ExperienceFairnessPolicy(false, desc);
         }
 
-        public static ExperienceFairnessPolicy Allow(string desc)
+        public static ExperienceFairnessPolicy AllowTestBots(string desc)
         {
-            return new ExperienceFairnessPolicy(true, true, desc);
+            return new ExperienceFairnessPolicy(true, desc);
         }
 
         public static readonly ExperienceFairnessPolicy Default =
@@ -95,7 +94,8 @@ namespace Match3.Engine.Runtime.Analytics
                 return false;
             }
 
-            if (!policy.AllowConsentDeniedEvents && record.IsConsentDenied)
+            // Unconditional: consent-denied players are never recorded, under any policy
+            if (record.IsConsentDenied)
             {
                 reason = "ConsentDeniedExcluded";
                 return false;

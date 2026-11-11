@@ -62,7 +62,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = ExperienceFairnessPolicy.Safe("Test policy");
             Assert.IsFalse(policy.AllowTestBotEvents);
-            Assert.IsFalse(policy.AllowConsentDeniedEvents);
+            Assert.AreEqual("Test policy", policy.PolicyDescription);
         }
 
         [Test]
@@ -110,12 +110,26 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRecordEvent_TestBot_AllowPolicy_Eligible()
+        public void CanRecordEvent_TestBot_AllowTestBotsPolicy_Eligible()
         {
             var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
-            var policy = ExperienceFairnessPolicy.Allow("Allow all");
+            var policy = ExperienceFairnessPolicy.AllowTestBots("Allow test bots");
+            Assert.IsTrue(policy.AllowTestBotEvents);
             bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
             Assert.IsTrue(result);
+            Assert.AreEqual(string.Empty, reason);
+        }
+
+        [Test]
+        public void CanRecordEvent_AllowTestBots_DoesNotAdmitConsentDeniedPlayer()
+        {
+            var policy = ExperienceFairnessPolicy.AllowTestBots("Allow test bots");
+            var consentDeniedBot = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, true);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", consentDeniedBot, policy, out string reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
+            var consentDeniedPlayer = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", consentDeniedPlayer, policy, out reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
@@ -129,12 +143,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRecordEvent_ConsentDenied_AllowPolicy_Eligible()
+        public void CanRecordEvent_ConsentDenied_MostRelaxedPolicy_StillBlocked()
         {
             var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
-            var policy = ExperienceFairnessPolicy.Allow("Allow all");
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
-            Assert.IsTrue(result);
+            var policy = ExperienceFairnessPolicy.AllowTestBots("Most relaxed constructible policy");
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, default(ExperienceFairnessPolicy), out reason));
+            Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
@@ -157,6 +173,7 @@ namespace Match3.Engine.Tests.Editor
                 var record = ExperienceRecord.Create("GameA", kind, false, false);
                 bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
                 Assert.IsTrue(result, "Expected eligible for " + kind);
+                Assert.AreEqual(string.Empty, reason);
             }
         }
 
@@ -167,6 +184,7 @@ namespace Match3.Engine.Tests.Editor
             var policy = ExperienceFairnessPolicy.Default;
             bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
             Assert.IsTrue(result);
+            Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
@@ -176,6 +194,7 @@ namespace Match3.Engine.Tests.Editor
             var policy = ExperienceFairnessPolicy.Default;
             bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
             Assert.IsTrue(result);
+            Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
@@ -254,6 +273,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("GameA", "HintShown");
             Assert.IsFalse(log.HasEntry("gamea"));
             Assert.IsFalse(log.HasEntry("Game"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            var softHyphenLog = new ExperienceEventLog();
+            softHyphenLog.Record("Game\u00ADA", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
 
         [Test]

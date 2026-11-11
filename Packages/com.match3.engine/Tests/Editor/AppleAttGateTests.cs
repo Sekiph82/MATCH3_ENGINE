@@ -76,7 +76,9 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = AttPolicy.Safe("Test policy");
             Assert.IsFalse(p.AllowCrossAppTracking);
+#pragma warning disable CS0618 // BlockChildProfiles is obsolete (ignored); asserting the retained value only
             Assert.IsTrue(p.BlockChildProfiles);
+#pragma warning restore CS0618
         }
 
         [Test]

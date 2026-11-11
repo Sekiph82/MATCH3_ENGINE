@@ -333,6 +333,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("game1", "StarterBundle");
             Assert.IsFalse(log.HasEntry("GAME1"));
             Assert.IsFalse(log.HasEntry("game"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            var softHyphenLog = new OfferLog();
+            softHyphenLog.Record("Game\u00ADA", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
 
         [Test]

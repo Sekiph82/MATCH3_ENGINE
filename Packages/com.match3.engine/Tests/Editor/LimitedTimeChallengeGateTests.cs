@@ -106,12 +106,22 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => new ChallengeEventPolicy(""));
         }
 
+        [Test]
+        public void ReasonConstants_HaveContractValues()
+        {
+            Assert.AreEqual("GameIdMismatch", LimitedTimeChallengeGate.GameIdMismatchReason);
+            Assert.AreEqual("WonderPopPermanentProgressModificationProhibited", LimitedTimeChallengeGate.WonderPopPermanentProgressReason);
+            Assert.AreEqual("PermanentProgressModificationBlocked", LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            Assert.AreEqual("UseLastKnownGood", LimitedTimeChallengeGate.UseLastKnownGoodReason);
+            Assert.AreEqual("ExpiredEventRequiresFallback", LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
+        }
+
         // CanActivateEvent — Wonder_Pop
         [Test]
         public void CanActivateEvent_WonderPop_AffectsPermanentProgress_Guard1()
         {
             var r = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, "WonderPopPermanentProgressModificationProhibited");
+            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.WonderPopPermanentProgressReason);
         }
 
         [Test]
@@ -119,9 +129,9 @@ namespace Match3.Engine.Tests.Editor
         {
             // Neither a custom policy nor an expired/no-fallback state changes which guard fires first.
             var r = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.SeasonalContent, true, true, true);
-            AssertBlocked("Wonder_Pop", r, Custom, "WonderPopPermanentProgressModificationProhibited");
+            AssertBlocked("Wonder_Pop", r, Custom, LimitedTimeChallengeGate.WonderPopPermanentProgressReason);
             var expired = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.SeasonalContent, false, false, true);
-            AssertBlocked("Wonder_Pop", expired, ChallengeEventPolicy.Default, "WonderPopPermanentProgressModificationProhibited");
+            AssertBlocked("Wonder_Pop", expired, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.WonderPopPermanentProgressReason);
         }
 
         [Test]
@@ -135,21 +145,21 @@ namespace Match3.Engine.Tests.Editor
         public void CanActivateEvent_WonderPop_NoPermanentMod_Expired_NoFallback_Blocked()
         {
             var r = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.ScheduledGoal, false, false, false);
-            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, "ExpiredEventRequiresFallback");
+            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
         }
 
         [Test]
         public void CanActivateEvent_WonderPop_NoPermanentMod_Expired_HasFallback_UseLastKnownGood()
         {
             var r = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.LastKnownGoodFallback, false, true, false);
-            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, "UseLastKnownGood");
+            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.UseLastKnownGoodReason);
         }
 
         [Test]
         public void CanActivateEvent_WonderPop_Lowercase_PermanentMod_NotBlockedByGuard1()
         {
             var r = ChallengeEventRecord.Create("wonder_pop", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("wonder_pop", r, ChallengeEventPolicy.Default, "PermanentProgressModificationBlocked");
+            AssertBlocked("wonder_pop", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         // CanActivateEvent — other games
@@ -157,14 +167,14 @@ namespace Match3.Engine.Tests.Editor
         public void CanActivateEvent_NonWonderPop_PermanentMod_Guard2()
         {
             var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, "PermanentProgressModificationBlocked");
+            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
         public void CanActivateEvent_NonWonderPop_PermanentMod_Expired_Guard2BeforeExpiry()
         {
             var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.SeasonalContent, false, false, true);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, "PermanentProgressModificationBlocked");
+            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
@@ -178,55 +188,55 @@ namespace Match3.Engine.Tests.Editor
         public void CanActivateEvent_NonWonderPop_Expired_HasFallback_UseLastKnownGood()
         {
             var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.SeasonalContent, false, true, false);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, "UseLastKnownGood");
+            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.UseLastKnownGoodReason);
         }
 
         [Test]
         public void CanActivateEvent_NonWonderPop_Expired_NoFallback_Blocked()
         {
             var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.SeasonalContent, false, false, false);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, "ExpiredEventRequiresFallback");
+            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
         }
 
         [Test]
         public void CanActivateEvent_AnyPolicy_PermanentMod_AlwaysBlocked()
         {
             var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, false, true);
-            AssertBlocked("OtherGame", r, Custom, "PermanentProgressModificationBlocked");
-            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), "PermanentProgressModificationBlocked");
+            AssertBlocked("OtherGame", r, Custom, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
         public void CanActivateEvent_AnyPolicy_Expired_NeverActivates()
         {
             var withFallback = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.ScheduledGoal, false, true, false);
-            AssertBlocked("OtherGame", withFallback, Custom, "UseLastKnownGood");
-            AssertBlocked("OtherGame", withFallback, default(ChallengeEventPolicy), "UseLastKnownGood");
+            AssertBlocked("OtherGame", withFallback, Custom, LimitedTimeChallengeGate.UseLastKnownGoodReason);
+            AssertBlocked("OtherGame", withFallback, default(ChallengeEventPolicy), LimitedTimeChallengeGate.UseLastKnownGoodReason);
             var noFallback = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.ScheduledGoal, false, false, false);
-            AssertBlocked("OtherGame", noFallback, Custom, "ExpiredEventRequiresFallback");
-            AssertBlocked("OtherGame", noFallback, default(ChallengeEventPolicy), "ExpiredEventRequiresFallback");
+            AssertBlocked("OtherGame", noFallback, Custom, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
+            AssertBlocked("OtherGame", noFallback, default(ChallengeEventPolicy), LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
         }
 
         [Test]
         public void CanActivateEvent_DefaultStructPolicy_FailsClosed()
         {
             var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, "PermanentProgressModificationBlocked");
-            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), "PermanentProgressModificationBlocked");
+            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
         public void CanActivateEvent_GameIdMismatch_Blocked()
         {
             var r = ChallengeEventRecord.Create("Wonder_Pop", ChallengeEventType.ThemeCollection, true, false, false);
-            AssertBlocked("Coral_Rescue", r, ChallengeEventPolicy.Default, "GameIdMismatch");
+            AssertBlocked("Coral_Rescue", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.GameIdMismatchReason);
         }
 
         [Test]
         public void CanActivateEvent_WonderPopParam_RecordDiffers_GameIdMismatch()
         {
             var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, "GameIdMismatch");
+            AssertBlocked("Wonder_Pop", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.GameIdMismatchReason);
         }
 
         // Helpers
@@ -309,6 +319,10 @@ namespace Match3.Engine.Tests.Editor
             log.Record("GameA", "ScheduledGoal");
             Assert.IsFalse(log.HasEntry("gamea"));
             Assert.IsFalse(log.HasEntry("Game"));
+            // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
+            var softHyphenLog = new ChallengeEventLog();
+            softHyphenLog.Record("Game\u00ADA", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
         }
     }
 }

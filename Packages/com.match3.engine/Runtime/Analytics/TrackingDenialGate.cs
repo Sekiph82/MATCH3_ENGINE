@@ -50,7 +50,7 @@ namespace Match3.Engine.Runtime.Analytics
 
         public static DenialPolicy Safe(string desc) => new DenialPolicy(true, desc);
 
-        public static readonly DenialPolicy Default = Safe("Default denial policy - block all tracking on any denial");
+        public static readonly DenialPolicy Default = Safe("Default denial policy - block tracking for every explicit denial (opt-out, ATT denied, offline); PolicyDefault records are not blocked by policy");
     }
 
     public static class TrackingDenialGate
