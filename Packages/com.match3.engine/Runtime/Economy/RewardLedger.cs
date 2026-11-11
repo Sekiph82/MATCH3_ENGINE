@@ -52,16 +52,18 @@ namespace Match3.Engine.Runtime.Economy
         public const string CatchUp = "catch_up";
         public const string Purchase = "iap";
         public const string AdServerSideVerified = "ad_ssv";
+        /// <summary>ENG-M20-015 Time Attack / Endless / Challenge rewards (windowed: one UTC day).</summary>
+        public const string AltMode = "alt_mode";
 
         public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
         {
             FirstClear, LevelWin, Streak, Chest, EarnedPack, Daily, Weekly, WeeklyPersonalBest,
-            SeasonalCollection, Tournament, CatchUp, Purchase, AdServerSideVerified
+            SeasonalCollection, Tournament, CatchUp, Purchase, AdServerSideVerified, AltMode
         });
 
         public static IReadOnlyList<string> Windowed { get; } = Array.AsReadOnly(new[]
         {
-            Daily, Weekly, WeeklyPersonalBest, SeasonalCollection, Tournament, CatchUp
+            Daily, Weekly, WeeklyPersonalBest, SeasonalCollection, Tournament, CatchUp, AltMode
         });
 
         public static bool IsKnown(string source) => source != null && All.Contains(source, StringComparer.Ordinal);

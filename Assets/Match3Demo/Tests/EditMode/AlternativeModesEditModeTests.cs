@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Match3.Engine.Runtime;
+using Match3.Engine.Runtime.Economy;
 using Match3.Engine.Runtime.LiveOps;
 using NUnit.Framework;
 
@@ -22,7 +23,7 @@ namespace Match3.Engine.Demo.Tests
             "\"startColors\":" + startColors + ",\"rampEveryTurns\":" + ramp + ",\"timeLimitMs\":" + timeLimitMs +
             ",\"moveLimit\":" + moveLimit + ",\"shuffleLives\":" + lives + ",\"backgroundGraceMs\":3000," +
             "\"pointsPerCell\":10,\"maxTurns\":" + maxTurns + ",\"targetScore\":" + target + "," +
-            "\"rewardId\":\"coins\",\"rewardTiers\":[{\"score\":100,\"amount\":5},{\"score\":300,\"amount\":10}," +
+            "\"rewardId\":\"Coins\",\"rewardTiers\":[{\"score\":100,\"amount\":5},{\"score\":300,\"amount\":10}," +
             "{\"score\":600,\"amount\":20}],\"perRunRewardCap\":25,\"perDayRewardCap\":40" + extra + "}";
 
         internal static ModeTemplate TimeAttack() =>
@@ -34,8 +35,11 @@ namespace Match3.Engine.Demo.Tests
         private static ModeTemplate Classic() =>
             ModeTemplate.FromJson(Json("classic.score20", "classic", 6, 6, 4, 0, 0, 20, 1, 500, 0));
 
-        internal static Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> Sdk(
-            ModeTemplate t) => new NeutralSdkSnapshotValidator(new BoardTopology(t.Rows, t.Columns)).GetSdkMatchRuns;
+        /// <summary>The pinned LibraStack SDK commit (Packages/manifest.json) is the matcher ID.</summary>
+        internal const string SdkPin = "libra-match3-sdk@771e62908056c2c5fa69937a52ca52ab589f19ea";
+
+        internal static ModeMatcher Sdk(ModeTemplate t, string pin = SdkPin) =>
+            new ModeMatcher(pin, new NeutralSdkSnapshotValidator(new BoardTopology(t.Rows, t.Columns)).GetSdkMatchRuns);
 
         internal static FeatureFlagRecord Flag(GameModeKind kind, bool enabled = true, string game = Game) =>
             FeatureFlagRecord.Create(game, kind == GameModeKind.Endless ? LiveOpsFeature.EndlessMode : LiveOpsFeature.TimedMode,
@@ -177,11 +181,11 @@ namespace Match3.Engine.Demo.Tests
         internal const int GoldenTimeAttackScore = 2840;
         internal const int GoldenTimeAttackTurns = 39;
         internal const string GoldenTimeAttackHash =
-            "d60ef31bb77efb37761c37ae97f9c6a3a966f4b70ef8acdb6fbafb69317cf23b";
+            "a97279024c39bed91ab3a296e7066e5785a9ea5bb1254b06249c71295887930d";
         internal const int GoldenEndlessScore = 3277;
         internal const int GoldenEndlessTurns = 60;
         internal const string GoldenEndlessHash =
-            "91ec9d9b7b77fc06a9c1f83956a881ecdfaace5960d3732b39192001b00ff9b6";
+            "5dfbb8c869b0ebc706b10f11108ffa6f7617b8038d6cfa2cb94ea3764c0fa52a";
 
         // ---------- timer ----------
 
@@ -189,11 +193,11 @@ namespace Match3.Engine.Demo.Tests
         public void TimeAttack_ExpiresExactlyAtTheLimit()
         {
             var s = New(TimeAttack(), 12345);
+            var move = FirstLegal(s);
+            Assert.AreEqual(ModeInputStatus.Applied, s.Apply(ModeInput.Swap(Start + 59850, move.Source, move.Target)));
+            Assert.AreEqual(1, s.Turns);
             Assert.AreEqual(ModeInputStatus.Applied, s.Apply(ModeInput.Of(ModeInputKind.Tick, Start + 59999)));
             Assert.AreEqual(1L, s.RemainingMs);
-            var move = FirstLegal(s);
-            Assert.AreEqual(ModeInputStatus.Applied, s.Apply(ModeInput.Swap(Start + 59999, move.Source, move.Target)));
-            Assert.AreEqual(1, s.Turns);
 
             move = FirstLegal(s);
             Assert.AreEqual(ModeInputStatus.Ignored, s.Apply(ModeInput.Swap(Start + 60000, move.Source, move.Target)));
@@ -342,7 +346,7 @@ namespace Match3.Engine.Demo.Tests
         {
             var tiny = ModeTemplate.FromJson(Json("endless.tiny", "endless", 4, 4, 4, 0, 0, 0, 1, 300, 0));
             var s = New(tiny, GoldenTinySeed);
-            Play(s, Start, 100, 300);
+            Play(s, Start, 200, 300);
             Assert.AreEqual(ModePhase.Ended, s.Phase);
             Assert.AreEqual(ModeEndReason.NoValidMoves, s.EndReason);
             Assert.AreEqual(0, s.ShuffleLivesRemaining, "the one life was spent on a reshuffle first");
@@ -352,7 +356,7 @@ namespace Match3.Engine.Demo.Tests
 
             var capped = ModeTemplate.FromJson(Json("endless.cap", "endless", 6, 6, 4, 0, 0, 0, 1, 7, 0));
             var c = New(capped, 777);
-            Play(c, Start, 100, 50);
+            Play(c, Start, 200, 50);
             Assert.AreEqual(ModeEndReason.TurnCap, c.EndReason);
             Assert.AreEqual(7, c.Turns);
         }
@@ -365,7 +369,7 @@ namespace Match3.Engine.Demo.Tests
         {
             var s = ModeSession.Start(Game, Classic(), 99, Start, Sdk(Classic()), default(FeatureFlagRecord),
                 FeatureFlagPolicy.Default);
-            Play(s, Start, 100, 100);
+            Play(s, Start, 200, 100);
             Assert.AreEqual(ModeEndReason.MovesExhausted, s.EndReason);
             Assert.AreEqual(20, s.Turns);
             Assert.AreEqual(0, s.MovesRemaining);
@@ -398,7 +402,7 @@ namespace Match3.Engine.Demo.Tests
             Assert.AreEqual(ta.TimeToTargetMs, taRecord.BestTimeMs);
             Assert.IsTrue(ta.TimeToTargetMs > 0 && ta.TimeToTargetMs <= 60000);
             Assert.AreEqual(en.Score, enRecord.BestScore);
-            Assert.AreEqual(en.ElapsedMs, enRecord.BestTimeMs);
+            Assert.AreEqual(en.ElapsedAtLastSwapMs, enRecord.BestTimeMs, "Endless best time = active ms at the last swap");
             Assert.IsNull(book.Get(GameModeKind.Endless, "ta.sprint60"));
             Assert.IsNull(book.Get(GameModeKind.Classic, "endless.cap"));
             Assert.Throws<InvalidOperationException>(() => New(TimeAttack(), 5).Result());
@@ -406,41 +410,166 @@ namespace Match3.Engine.Demo.Tests
         }
 
         [Test]
-        public void Rewards_AreCappedPerRunAndPerDay_AndCannotBeReEarnedByReplay()
+        public void Rewards_GoThroughTheLedger_CappedPerRunAndPerDay_RestartSafe_AndNotReEarnable()
         {
             var t = TimeAttack();
             var run1 = Finished(t, 12345);
             Assert.IsTrue(run1.Score >= 600, "fixture run reaches all three tiers");
-            var issuer = new ModeRewardIssuer(Game, "player-1");
+            var ledger = new RewardLedger(Game, "player-1");
+            var issuer = new ModeRewardIssuer(ledger);
             var day = new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc);
 
-            var first = issuer.Issue(run1, t, day);
+            var first = issuer.Issue(run1, t, TrustedUtcAnchor.Server(day));
             Assert.AreEqual(ModeRewardStatus.Granted, first.Status);
-            Assert.AreEqual(25, first.Grants.Sum(g => g.Amount), "5+10+20 capped to 25 per run");
             Assert.AreEqual(3, first.Grants.Count);
-            Assert.AreEqual("mode|Coral_Rescue|player-1|TimeAttack|" + run1.RunId + "|t1", first.Grants[0].IdempotencyKey);
-            Assert.AreEqual(first.Grants.Count, first.Grants.Select(g => g.IdempotencyKey).Distinct().Count());
+            Assert.AreEqual(25L, ledger.Balance(CurrencyType.Coins), "5+10+20 capped to 25 per run");
+            Assert.AreEqual(RewardLedgerKey.Derive(Game, "player-1", RewardSources.AltMode, "TimeAttack|2026-11-11|t1"),
+                first.Grants[0].Key);
+            var endOfDay = new DateTime(2026, 11, 12, 0, 0, 0, DateTimeKind.Utc).AddTicks(-1);
+            Assert.IsTrue(first.Grants.All(g => g.Source == RewardSources.AltMode && g.ExpiresUtc == endOfDay));
 
-            // Same seed + same log -> same run ID -> nothing.
+            // The device clock never decides the reward day.
+            var device = issuer.Issue(Finished(t, 70000), t, TrustedUtcAnchor.DeviceClock(day));
+            Assert.AreEqual(ModeRewardStatus.Rejected, device.Status);
+            Assert.AreEqual(RewardLedgerReasons.TrustedTimeAnchorRequired, device.Reason);
+
+            // Restart: all local state is gone; the restored ledger alone blocks replays and holds the day cap.
+            var restored = RewardLedger.FromSnapshot(ledger.ToSnapshot()).Ledger;
+            var issuer2 = new ModeRewardIssuer(restored);
             var replayed = Replay(New(t, 12345).Also(s => Play(s, Start, 1500, 1000))).Result();
             Assert.AreEqual(run1.RunId, replayed.RunId);
-            Assert.AreEqual(ModeRewardStatus.DuplicateRun, issuer.Issue(replayed, t, day).Status);
-            // Same seed, different log -> still the same seed for this template -> nothing.
-            Assert.AreEqual(ModeRewardStatus.SeedReplayed, issuer.Issue(Finished(t, 12345, 1400), t, day).Status);
+            Assert.AreEqual(ModeRewardStatus.DuplicateRun, issuer2.Issue(replayed, t, TrustedUtcAnchor.Server(day)).Status);
+            Assert.AreEqual(ModeRewardStatus.SeedReplayed,
+                issuer2.Issue(Finished(t, 12345, 1400), t, TrustedUtcAnchor.Server(day)).Status, "same seed, other log");
+            var second = issuer2.Issue(Finished(t, 22222), t, TrustedUtcAnchor.Server(day.AddHours(1)));
+            Assert.AreEqual(15L, second.Grants.Sum(g => g.Amounts.Values.Sum()), "per-day cap 40 per mode");
+            Assert.AreEqual(ModeRewardStatus.DailyCapReached,
+                issuer2.Issue(Finished(t, 33333), t, TrustedUtcAnchor.Server(day.AddHours(2))).Status);
+            Assert.AreEqual(40L, issuer2.GrantedOn(GameModeKind.TimeAttack, day));
+            Assert.AreEqual(0L, issuer2.GrantedOn(GameModeKind.Endless, day), "caps are per mode");
 
-            // Per-day cap (40) per mode: second run gets only 15, third gets nothing.
-            var second = issuer.Issue(Finished(t, 22222), t, day.AddHours(1));
-            Assert.AreEqual(15, second.Grants.Sum(g => g.Amount));
-            var third = issuer.Issue(Finished(t, 33333), t, day.AddHours(2));
-            Assert.AreEqual(ModeRewardStatus.DailyCapReached, third.Status);
-            Assert.AreEqual(40, issuer.GrantedOn(GameModeKind.TimeAttack, day));
-            Assert.AreEqual(0, issuer.GrantedOn(GameModeKind.Endless, day), "caps are per mode");
-            // Next UTC day the cap resets.
-            Assert.AreEqual(ModeRewardStatus.Granted, issuer.Issue(Finished(t, 44444), t, day.AddDays(1)).Status);
-
-            Assert.AreEqual(ModeRewardStatus.Rejected, issuer.Issue(Finished(t, 55555), Endless(), day).Status);
+            var issuer3 = new ModeRewardIssuer(RewardLedger.FromSnapshot(restored.ToSnapshot()).Ledger);
+            Assert.AreEqual(ModeRewardStatus.DailyCapReached,
+                issuer3.Issue(Finished(t, 33334), t, TrustedUtcAnchor.Server(day.AddHours(3))).Status, "second restart");
+            Assert.AreEqual(ModeRewardStatus.Granted,
+                issuer3.Issue(Finished(t, 44444), t, TrustedUtcAnchor.Server(day.AddDays(1))).Status, "next UTC day");
             Assert.AreEqual(ModeRewardStatus.Rejected,
-                issuer.Issue(Finished(t, 66666), t, new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Local)).Status);
+                issuer3.Issue(Finished(t, 55555), Endless(), TrustedUtcAnchor.Server(day.AddDays(1))).Status, "template mismatch");
+        }
+
+        [Test]
+        public void Rewards_AreNeverPremium_AndWonderPopUsesTheSameCappedLedgerPath()
+        {
+            Assert.Throws<FormatException>(() => ModeTemplate.FromJson(
+                Json("ta.gems", "timeAttack", 6, 6, 4, 0, 60000, 0, 3, 500, 300).Replace("\"Coins\"", "\"PremiumGems\"")));
+            Assert.Throws<FormatException>(() => ModeTemplate.FromJson(
+                Json("ta.gems", "timeAttack", 6, 6, 4, 0, 60000, 0, 3, 500, 300).Replace("\"Coins\"", "\"cash\"")));
+
+            var t = TimeAttack();
+            var s = New(t, 12345, "Wonder_Pop");
+            Play(s, Start, 1500, 1000);
+            var ledger = new RewardLedger("Wonder_Pop", "family-player");
+            var outcome = new ModeRewardIssuer(ledger).Issue(s.Result(), t,
+                TrustedUtcAnchor.Server(new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc)));
+            Assert.AreEqual(ModeRewardStatus.Granted, outcome.Status);
+            Assert.AreEqual(25L, ledger.Balance(CurrencyType.Coins));
+            Assert.AreEqual(0L, ledger.Balance(CurrencyType.PremiumGems));
+        }
+
+        // ---------- run identity, swap pacing, challenge, defaults ----------
+
+        [Test]
+        public void RunId_IsCanonical_AppliedSwapsOnly_AndBoundToTheMatcher()
+        {
+            var t = TimeAttack();
+            var a = New(t, 12345);
+            Play(a, Start, 1500, 10);
+            // Same swaps, every timestamp shifted by 1 ms, plus a pause, an ignored swap and an extra tick.
+            var log = new List<ModeInput>
+            {
+                ModeInput.Of(ModeInputKind.Tick, Start + 1),
+                ModeInput.Of(ModeInputKind.Pause, Start + 1),
+                ModeInput.Swap(Start + 1, new BoardPosition(0, 0), new BoardPosition(0, 1)),
+                ModeInput.Of(ModeInputKind.Resume, Start + 1)
+            };
+            log.AddRange(a.Inputs.Select(i => i.Kind == ModeInputKind.Swap
+                ? ModeInput.Swap(i.AtMs + 1, i.From, i.To)
+                : ModeInput.Of(i.Kind, i.AtMs + 1)));
+            var b = ModeSession.Replay(Game, t, 12345, Start, log, Sdk(t));
+            Assert.AreEqual(a.Turns, b.Turns);
+            Assert.AreEqual(a.Score, b.Score);
+            Assert.AreEqual(a.RunId, b.RunId, "timestamps, ticks, pauses and ignored inputs are not identity");
+
+            var otherPin = ModeSession.Replay(Game, t, 12345, Start, a.Inputs, Sdk(t, "libra-match3-sdk@other"));
+            Assert.AreEqual(a.Score, otherPin.Score);
+            Assert.AreNotEqual(a.RunId, otherPin.RunId);
+            Assert.AreNotEqual(a.StateHash(), otherPin.StateHash());
+            Assert.AreNotEqual(Sdk(t).TemplateHash(t), Sdk(t, "libra-match3-sdk@other").TemplateHash(t));
+            Assert.AreNotEqual(a.RunId, Play2(New(t, 12346)).RunId);
+            Assert.Throws<ArgumentException>(() => new ModeMatcher("", Sdk(t).MatchRuns));
+        }
+
+        [Test]
+        public void Swaps_CloserThanTheMinimumInterval_AreRejected()
+        {
+            var s = New(TimeAttack(), 12345);
+            Assert.AreEqual(ModeTemplate.DefaultMinSwapIntervalMs, s.Template.MinSwapIntervalMs);
+            var m = FirstLegal(s);
+            Assert.AreEqual(ModeInputStatus.Applied, s.Apply(ModeInput.Swap(Start + 1000, m.Source, m.Target)));
+            m = FirstLegal(s);
+            Assert.AreEqual(ModeInputStatus.Rejected, s.Apply(ModeInput.Swap(Start + 1149, m.Source, m.Target)));
+            Assert.AreEqual(1, s.Turns);
+            Assert.AreEqual(ModeInputStatus.Applied, s.Apply(ModeInput.Swap(Start + 1150, m.Source, m.Target)));
+
+            var noPacing = ModeTemplate.FromJson(Json("ta.free", "timeAttack", 6, 6, 4, 0, 60000, 0, 3, 500, 300,
+                ",\"minSwapIntervalMs\":0"));
+            var f = New(noPacing, 12345);
+            m = FirstLegal(f);
+            f.Apply(ModeInput.Swap(Start, m.Source, m.Target));
+            m = FirstLegal(f);
+            Assert.AreEqual(ModeInputStatus.Applied, f.Apply(ModeInput.Swap(Start, m.Source, m.Target)));
+            Assert.Throws<FormatException>(() => ModeTemplate.FromJson(Json("ta.bad", "timeAttack", 6, 6, 4, 0, 60000,
+                0, 3, 500, 300, ",\"minSwapIntervalMs\":6000")));
+        }
+
+        [Test]
+        public void Challenge_WinsOnTarget_LosesOnMoves_AndUsesTheTimedFlag()
+        {
+            var ch = ModeTemplate.FromJson(Json("challenge.t300", "challenge", 6, 6, 4, 0, 0, 10, 1, 500, 300));
+            Assert.AreEqual(GameModeKind.Challenge, ch.Kind);
+            var win = New(ch, 12345);
+            Play(win, Start, 200, 100);
+            Assert.AreEqual(ModeEndReason.TargetReached, win.EndReason);
+            Assert.IsTrue(win.Score >= 300 && win.Turns <= 10);
+            Assert.AreEqual(win.StateHash(), Replay(win).StateHash());
+
+            var hard = ModeTemplate.FromJson(Json("challenge.hard", "challenge", 6, 6, 4, 0, 0, 3, 1, 500, 100000));
+            var lose = New(hard, 12345);
+            Play(lose, Start, 200, 100);
+            Assert.AreEqual(ModeEndReason.MovesExhausted, lose.EndReason);
+            Assert.AreEqual(3, lose.Turns);
+
+            Assert.Throws<FormatException>(() => ModeTemplate.FromJson(Json("challenge.bad", "challenge", 6, 6, 4, 0, 0, 10, 1, 500, 0)));
+            Assert.Throws<FormatException>(() => ModeTemplate.FromJson(Json("challenge.bad", "challenge", 6, 6, 4, 0, 60000, 10, 1, 500, 300)));
+            Assert.IsFalse(AlternativeModeGate.CanStart(Game, GameModeKind.Challenge, Flag(GameModeKind.Endless),
+                FeatureFlagPolicy.Default, out var reason));
+            Assert.AreEqual("WrongFeatureFlag", reason);
+            Assert.IsFalse(AlternativeModeGate.CanStart(Game, GameModeKind.Challenge, Flag(GameModeKind.TimeAttack, false),
+                FeatureFlagPolicy.Default, out reason));
+            Assert.AreEqual("FeatureFlagDisabled", reason);
+        }
+
+        [Test]
+        public void TimedAndEndless_AreOffByDefault_InEveryTitleProfile()
+        {
+            var profiles = GameProfileCatalog.LoadPlaceholders();
+            Assert.AreEqual(5, profiles.Count);
+            foreach (var p in profiles)
+            {
+                Assert.IsFalse(p.IsEnabled("timed", EngineCompatibility.MinimumCapability), p.Id);
+                Assert.IsFalse(p.IsEnabled("endless", EngineCompatibility.MinimumCapability), p.Id);
+            }
+            Assert.IsTrue(FeatureFlagRecord.Create(Game, LiveOpsFeature.TimedMode, 1, false, false).IsDefaultOff);
         }
     }
 

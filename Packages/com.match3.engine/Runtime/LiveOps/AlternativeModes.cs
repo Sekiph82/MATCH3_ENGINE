@@ -4,31 +4,39 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using Match3.Engine.Runtime.Economy;
 
 namespace Match3.Engine.Runtime.LiveOps
 {
-    // ENG-M20-015: optional alternative modes (Time Attack, Endless) on the existing engine board pipeline.
+    // ENG-M20-015: optional alternative modes (Time Attack, Endless, Challenge) on the existing engine board pipeline.
     //
     // - Templates are declarative JSON (schema "alt-mode/1"), strictly validated, content-hashed with
-    //   CanonicalJson. Unknown keys are rejected, so no price/entry-fee/IAP field can ride along.
+    //   CanonicalJson. Unknown keys are rejected, so no price/entry-fee/IAP field can ride along. Reward assets
+    //   must be registered, non-premium ledger assets (CurrencyType names except PremiumGems).
     // - ModeSession composes the EXISTING engine pieces; it adds no match rules of its own:
-    //   pinned-SDK match runs (injected, as for CanonicalMoveCandidates / DeterministicBoardPlanning),
     //   SeededRandom, DeterministicBoardPlanning.TrySpawn/TryShuffle, GravityPlanner.PlanCardinal,
-    //   WeightedRefillPlanner.Plan, CanonicalMoveCandidates.Find and DeterministicScorePlanner.
-    // - Time is an injected monotonic millisecond value carried on every input (no wall clock). The whole
-    //   run is a pure function of (gameId, template, seed, startMs, input log); Replay() rebuilds it exactly,
-    //   which is also the save/restore path and the tournament verifier.
+    //   WeightedRefillPlanner.Plan, CanonicalMoveCandidates.Find and DeterministicScorePlanner. Match detection is a
+    //   ModeMatcher the GAME must inject: the pinned LibraStack SDK solver plus its pin ID (MatcherId). There is
+    //   deliberately no engine default matcher. MatcherId is part of TemplateHash, StateHash and RunId, so a run
+    //   verified with a different matcher can never be confused with the original.
+    // - Time is an injected monotonic millisecond value carried on every input (no wall clock). A run is a pure
+    //   function of (gameId, template, matcher, seed, startMs, input log). Replay() rebuilds it exactly; it is the
+    //   save/restore path and the tournament verifier and intentionally BYPASSES AlternativeModeGate (verification
+    //   must work even after a kill switch; only Start() opens new runs).
     // - Pause freezes the timer. Background keeps charging up to BackgroundGraceMs, then auto-pauses at
     //   exactly that point; an explicit Resume is always required after an auto-pause. Reconnect (new
     //   process / new monotonic base) charges whatever is left of the grace as if the app never returned,
-    //   then auto-pauses: it can never give time back.
-    // - Records and rewards are separate per mode. Rewards are grant requests with deterministic keys
-    //   (mode|runId|tier). Nothing is credited here: wiring into the ENG-M16-011 RewardLedger (which landed
-    //   after this task started and has no alternative-mode RewardSource yet) is a follow-up.
+    //   then auto-pauses: it can never give time back. Swaps closer than MinSwapIntervalMs (monotonic) are
+    //   protocol violations, so a log cannot compress many moves into no time.
+    // - RunId is the canonical run identity: game, template content hash, matcher, seed and the ordered APPLIED
+    //   swaps only (no timestamps, ticks, pauses or ignored inputs). Shifting a log by a tick does not change it.
+    // - Records and rewards are separate per mode. Rewards go through the ENG-M16-011 RewardLedger (source
+    //   "alt_mode", strict TryGrant with a server TrustedUtcAnchor); the per-day cap lives in ledger slots, so a
+    //   restart cannot reset it.
     //
     // ponytail: Classic levels keep their goal-based runner; Classic here is only a move-limited score run so
     // records/caps stay keyed per mode. No special pieces are spawned in alternative modes.
-    public enum GameModeKind { Classic = 0, TimeAttack = 1, Endless = 2 }
+    public enum GameModeKind { Classic = 0, TimeAttack = 1, Endless = 2, Challenge = 3 }
 
     public sealed class ModeRewardTier
     {
@@ -45,6 +53,7 @@ namespace Match3.Engine.Runtime.LiveOps
     public sealed class ModeTemplate
     {
         public const string Schema = "alt-mode/1";
+        public const int DefaultMinSwapIntervalMs = 150;
 
         private static readonly string[] Keys =
         {
@@ -52,6 +61,8 @@ namespace Match3.Engine.Runtime.LiveOps
             "rampEveryTurns", "timeLimitMs", "moveLimit", "shuffleLives", "backgroundGraceMs", "pointsPerCell",
             "maxTurns", "targetScore", "rewardId", "rewardTiers", "perRunRewardCap", "perDayRewardCap"
         };
+
+        private static readonly string[] OptionalKeys = { "minSwapIntervalMs" };
 
         public string TemplateId { get; }
         public int Version { get; }
@@ -68,6 +79,8 @@ namespace Match3.Engine.Runtime.LiveOps
         public int PointsPerCell { get; }
         public int MaxTurns { get; }
         public int TargetScore { get; }
+        public int MinSwapIntervalMs { get; }
+        /// <summary>Ledger asset name (CurrencyType, never PremiumGems).</summary>
         public string RewardId { get; }
         public IReadOnlyList<ModeRewardTier> RewardTiers { get; }
         public int PerRunRewardCap { get; }
@@ -77,7 +90,8 @@ namespace Match3.Engine.Runtime.LiveOps
         private ModeTemplate(Dictionary<string, object> d)
         {
             foreach (var key in d.Keys)
-                if (Array.IndexOf(Keys, key) < 0) throw new FormatException("Unknown template key: " + key);
+                if (Array.IndexOf(Keys, key) < 0 && Array.IndexOf(OptionalKeys, key) < 0)
+                    throw new FormatException("Unknown template key: " + key);
             foreach (var key in Keys)
                 if (!d.ContainsKey(key)) throw new FormatException("Missing template key: " + key);
             if (!(d["schema"] is string schema) || schema != Schema) throw new FormatException("Unsupported schema.");
@@ -89,6 +103,7 @@ namespace Match3.Engine.Runtime.LiveOps
                 case "classic": Kind = GameModeKind.Classic; break;
                 case "timeAttack": Kind = GameModeKind.TimeAttack; break;
                 case "endless": Kind = GameModeKind.Endless; break;
+                case "challenge": Kind = GameModeKind.Challenge; break;
                 default: throw new FormatException("Unknown mode kind.");
             }
             Rows = Int(d, "rows", 3, 16);
@@ -109,6 +124,9 @@ namespace Match3.Engine.Runtime.LiveOps
             PointsPerCell = Int(d, "pointsPerCell", 1, 1000);
             MaxTurns = Int(d, "maxTurns", 1, ReplayTrace.MaxSteps);
             TargetScore = Int(d, "targetScore", 0, 100000000);
+            MinSwapIntervalMs = d.ContainsKey("minSwapIntervalMs")
+                ? Int(d, "minSwapIntervalMs", 0, 5000)
+                : DefaultMinSwapIntervalMs;
 
             // Mode-specific rules: each mode is distinct, not a relabelled Classic level.
             if (Kind == GameModeKind.Classic && (MoveLimit < 1 || TimeLimitMs != 0 || RampEveryTurns != 0))
@@ -117,10 +135,15 @@ namespace Match3.Engine.Runtime.LiveOps
                 throw new FormatException("Time Attack needs a 1s..1h countdown and no ramp.");
             if (Kind == GameModeKind.Endless && (TimeLimitMs != 0 || MoveLimit != 0 || TargetScore != 0))
                 throw new FormatException("Endless has no timer, move limit or target.");
+            if (Kind == GameModeKind.Challenge &&
+                (MoveLimit < 1 || TargetScore < 1 || TimeLimitMs != 0 || RampEveryTurns != 0))
+                throw new FormatException("Challenge needs a target score within a move limit and no timer/ramp.");
             if (RampEveryTurns == 0 && StartColors != colors.Length && Kind == GameModeKind.Endless)
                 throw new FormatException("Endless without a ramp must start with the whole palette.");
 
-            RewardId = Id(d, "rewardId");
+            RewardId = d["rewardId"] as string;
+            if (!RewardLedger.IsKnownAsset(RewardId) || RewardId == RewardLedger.PaidAssetId)
+                throw new FormatException("rewardId must be a registered non-premium ledger asset.");
             if (!(d["rewardTiers"] is List<object> tiers) || tiers.Count < 1 || tiers.Count > 10)
                 throw new FormatException("1..10 reward tiers required.");
             var parsed = new List<ModeRewardTier>();
@@ -161,16 +184,39 @@ namespace Match3.Engine.Runtime.LiveOps
         }
     }
 
+    /// <summary>The game-injected match authority: the pinned SDK solver and its pin ID. No engine default.</summary>
+    public sealed class ModeMatcher
+    {
+        public string MatcherId { get; }
+        public Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> MatchRuns { get; }
+
+        public ModeMatcher(string matcherId,
+            Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> matchRuns)
+        {
+            if (string.IsNullOrWhiteSpace(matcherId) || matcherId.Length > 128 || matcherId.Contains("|"))
+                throw new ArgumentException("Matcher ID (SDK pin) required.", nameof(matcherId));
+            MatcherId = matcherId;
+            MatchRuns = matchRuns ?? throw new ArgumentNullException(nameof(matchRuns));
+        }
+
+        /// <summary>Template content hash bound to the matcher that verifies it.</summary>
+        public string TemplateHash(ModeTemplate template) =>
+            ReplayCodec.BoardHash("M3MODETPL1|" + (template ?? throw new ArgumentNullException(nameof(template))).ContentHash +
+                                  "|" + MatcherId);
+    }
+
     public static class AlternativeModeGate
     {
-        /// <summary>Classic is always available. Time Attack / Endless need their own enabled flag
-        /// (TimedMode / EndlessMode) through FeatureFlagGate, so the per-title kill switch applies.</summary>
+        /// <summary>Classic is always available. Time Attack and Challenge need the TimedMode flag, Endless the
+        /// EndlessMode flag, through FeatureFlagGate (per-title kill switch). Both flags default OFF per title.
+        /// LiveOpsFeature has no Challenge member yet (FeatureFlagGate.cs is outside ENG-M20-015), so Challenge rides
+        /// the TimedMode ("limited-time alternative mode") flag.</summary>
         public static bool CanStart(string gameId, GameModeKind kind, FeatureFlagRecord flag,
             FeatureFlagPolicy policy, out string reason)
         {
             if (!GameProfileCatalog.IsKnownId(gameId)) { reason = "UnknownGame"; return false; }
             if (kind == GameModeKind.Classic) { reason = string.Empty; return true; }
-            var expected = kind == GameModeKind.TimeAttack ? LiveOpsFeature.TimedMode : LiveOpsFeature.EndlessMode;
+            var expected = kind == GameModeKind.Endless ? LiveOpsFeature.EndlessMode : LiveOpsFeature.TimedMode;
             if (flag.Feature != expected) { reason = "WrongFeatureFlag"; return false; }
             return FeatureFlagGate.CanEnableFlag(gameId, flag, policy, out reason);
         }
@@ -206,15 +252,16 @@ namespace Match3.Engine.Runtime.LiveOps
             kind == ModeInputKind.Swap
                 ? throw new ArgumentException("Use ModeInput.Swap.", nameof(kind))
                 : new ModeInput(kind, atMs, default(BoardPosition), default(BoardPosition));
-
-        internal string Canonical =>
-            ((int)Kind).ToString(CultureInfo.InvariantCulture) + ":" + AtMs.ToString(CultureInfo.InvariantCulture) +
-            (Kind == ModeInputKind.Swap ? ":" + From + ">" + To : string.Empty);
     }
 
     public enum ModePhase { Running = 0, Paused = 1, Ended = 2 }
 
-    public enum ModeEndReason { None = 0, TimeExpired = 1, MovesExhausted = 2, NoValidMoves = 3, TurnCap = 4 }
+    public enum ModeEndReason
+    {
+        None = 0, TimeExpired = 1, MovesExhausted = 2, NoValidMoves = 3, TurnCap = 4,
+        /// <summary>Challenge won: target score reached within the move limit.</summary>
+        TargetReached = 5
+    }
 
     public enum ModeInputStatus
     {
@@ -223,7 +270,7 @@ namespace Match3.Engine.Runtime.LiveOps
         NoMatch = 1,
         /// <summary>Not applicable in the current phase (e.g. swap while paused or after the end).</summary>
         Ignored = 2,
-        /// <summary>Protocol violation (time moved backwards, non-adjacent swap). Never logged.</summary>
+        /// <summary>Protocol violation (time moved backwards, non-adjacent or too-fast swap). Never logged.</summary>
         Rejected = 3
     }
 
@@ -233,11 +280,16 @@ namespace Match3.Engine.Runtime.LiveOps
         public string GameId { get; }
         public GameModeKind Kind { get; }
         public string TemplateId { get; }
+        public string TemplateContentHash { get; }
+        public string MatcherId { get; }
+        /// <summary>Template content hash bound to MatcherId.</summary>
         public string TemplateHash { get; }
         public uint Seed { get; }
         public int Score { get; }
         public int Turns { get; }
         public long ElapsedMs { get; }
+        /// <summary>Active ms at the last applied swap (idle time after it does not count).</summary>
+        public long ElapsedAtLastSwapMs { get; }
         /// <summary>Active ms at which TargetScore was first reached, or -1.</summary>
         public long TimeToTargetMs { get; }
         public ModeEndReason EndReason { get; }
@@ -248,11 +300,14 @@ namespace Match3.Engine.Runtime.LiveOps
             GameId = s.GameId;
             Kind = s.Template.Kind;
             TemplateId = s.Template.TemplateId;
-            TemplateHash = s.Template.ContentHash;
+            TemplateContentHash = s.Template.ContentHash;
+            MatcherId = s.Matcher.MatcherId;
+            TemplateHash = s.Matcher.TemplateHash(s.Template);
             Seed = s.Seed;
             Score = s.Score;
             Turns = s.Turns;
             ElapsedMs = s.ElapsedMs;
+            ElapsedAtLastSwapMs = s.ElapsedAtLastSwapMs;
             TimeToTargetMs = s.TimeToTargetMs;
             EndReason = s.EndReason;
         }
@@ -263,16 +318,18 @@ namespace Match3.Engine.Runtime.LiveOps
         private const int MaxCascadeWaves = 64;
         private const int MaxReshuffles = 8;
 
-        private readonly Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> _sdkMatchRuns;
         private readonly SeededRandom _rng;
         private readonly BoardTopology _empty;
         private readonly List<ModeInput> _inputs = new List<ModeInput>();
+        private readonly List<string> _appliedSwaps = new List<string>();
         private Dictionary<BoardPosition, string> _board;
         private long _lastMs;
         private long _backgroundSinceMs;
+        private long _lastSwapAtMs;
 
         public string GameId { get; }
         public ModeTemplate Template { get; }
+        public ModeMatcher Matcher { get; }
         public uint Seed { get; }
         public long StartMs { get; }
         public ModePhase Phase { get; private set; }
@@ -282,6 +339,7 @@ namespace Match3.Engine.Runtime.LiveOps
         public int Score { get; private set; }
         public int Turns { get; private set; }
         public long ElapsedMs { get; private set; }
+        public long ElapsedAtLastSwapMs { get; private set; }
         public long TimeToTargetMs { get; private set; } = -1;
         public int ShuffleLivesRemaining { get; private set; }
         public int ActiveColors { get; private set; }
@@ -290,18 +348,18 @@ namespace Match3.Engine.Runtime.LiveOps
         public IReadOnlyList<ModeInput> Inputs => _inputs.AsReadOnly();
         public IReadOnlyDictionary<BoardPosition, string> Board => new ReadOnlyDictionary<BoardPosition, string>(_board);
 
-        private ModeSession(string gameId, ModeTemplate template, uint seed, long startMs,
-            Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> sdkMatchRuns)
+        private ModeSession(string gameId, ModeTemplate template, ModeMatcher matcher, uint seed, long startMs)
         {
             if (!GameProfileCatalog.IsKnownId(gameId)) throw new ArgumentException("Unknown game ID.", nameof(gameId));
-            if (startMs < 0) throw new ArgumentOutOfRangeException(nameof(startMs));
+            if (startMs < 0 || startMs > ModeInput.MaxMs) throw new ArgumentOutOfRangeException(nameof(startMs));
             GameId = gameId;
             Template = template ?? throw new ArgumentNullException(nameof(template));
-            _sdkMatchRuns = sdkMatchRuns ?? throw new ArgumentNullException(nameof(sdkMatchRuns));
+            Matcher = matcher ?? throw new ArgumentNullException(nameof(matcher));
             _rng = new SeededRandom(seed); // rejects seed 0
             Seed = seed;
             StartMs = startMs;
             _lastMs = startMs;
+            _lastSwapAtMs = startMs - template.MinSwapIntervalMs;
             _empty = new BoardTopology(template.Rows, template.Columns);
             ActiveColors = template.StartColors;
             ShuffleLivesRemaining = template.ShuffleLives;
@@ -318,23 +376,22 @@ namespace Match3.Engine.Runtime.LiveOps
 
         /// <summary>Starts a new run after the per-title mode gate (feature flag / kill switch).</summary>
         public static ModeSession Start(string gameId, ModeTemplate template, uint seed, long startMs,
-            Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> sdkMatchRuns,
-            FeatureFlagRecord modeFlag, FeatureFlagPolicy flagPolicy)
+            ModeMatcher matcher, FeatureFlagRecord modeFlag, FeatureFlagPolicy flagPolicy)
         {
             if (template == null) throw new ArgumentNullException(nameof(template));
             if (!AlternativeModeGate.CanStart(gameId, template.Kind, modeFlag, flagPolicy, out var reason))
                 throw new InvalidOperationException("Mode not available: " + reason);
-            return new ModeSession(gameId, template, seed, startMs, sdkMatchRuns);
+            return new ModeSession(gameId, template, matcher, seed, startMs);
         }
 
         /// <summary>Rebuilds a run from its log (restore after reconnect, or server-side verification).
+        /// Deliberately bypasses AlternativeModeGate: it opens no new run, it only re-derives an existing one.
         /// Any protocol violation in the log fails the whole replay.</summary>
         public static ModeSession Replay(string gameId, ModeTemplate template, uint seed, long startMs,
-            IEnumerable<ModeInput> inputs,
-            Func<IReadOnlyDictionary<BoardPosition, string>, IReadOnlyList<MatchRunProjection>> sdkMatchRuns)
+            IEnumerable<ModeInput> inputs, ModeMatcher matcher)
         {
             if (inputs == null) throw new ArgumentNullException(nameof(inputs));
-            var session = new ModeSession(gameId, template, seed, startMs, sdkMatchRuns);
+            var session = new ModeSession(gameId, template, matcher, seed, startMs);
             var count = 0;
             foreach (var input in inputs)
             {
@@ -357,7 +414,8 @@ namespace Match3.Engine.Runtime.LiveOps
             var t = input.AtMs;
             if (input.Kind == ModeInputKind.Reconnect) return Reconnect(t);
             if (t < _lastMs) return ModeInputStatus.Rejected;
-            if (input.Kind == ModeInputKind.Swap && !IsAdjacentOnBoard(input.From, input.To))
+            if (input.Kind == ModeInputKind.Swap &&
+                (!IsAdjacentOnBoard(input.From, input.To) || t - _lastSwapAtMs < Template.MinSwapIntervalMs))
                 return ModeInputStatus.Rejected;
             Advance(t);
             switch (input.Kind)
@@ -384,7 +442,7 @@ namespace Match3.Engine.Runtime.LiveOps
                     IsBackgrounded = false; // an auto-pause stays until an explicit Resume
                     return ModeInputStatus.Applied;
                 default:
-                    return Swap(input.From, input.To);
+                    return Swap(input.From, input.To, t);
             }
         }
 
@@ -426,6 +484,7 @@ namespace Match3.Engine.Runtime.LiveOps
                 Charge(left);
             }
             _lastMs = newBaseMs;
+            _lastSwapAtMs = newBaseMs; // first swap on the new base still waits MinSwapIntervalMs
             IsBackgrounded = false;
             if (Phase == ModePhase.Ended) return ModeInputStatus.Ignored;
             Phase = ModePhase.Paused;
@@ -433,7 +492,7 @@ namespace Match3.Engine.Runtime.LiveOps
             return ModeInputStatus.Applied;
         }
 
-        private ModeInputStatus Swap(BoardPosition from, BoardPosition to)
+        private ModeInputStatus Swap(BoardPosition from, BoardPosition to, long t)
         {
             if (Phase != ModePhase.Running) return ModeInputStatus.Ignored;
             var swapped = new Dictionary<BoardPosition, string>(_board);
@@ -442,6 +501,9 @@ namespace Match3.Engine.Runtime.LiveOps
             if (Runs(swapped).Count == 0) return ModeInputStatus.NoMatch;
 
             _board = swapped;
+            _lastSwapAtMs = t;
+            _appliedSwaps.Add(from + ">" + to);
+            ElapsedAtLastSwapMs = ElapsedMs;
             Score = DeterministicScorePlanner.AddScore(Score, Cascade(true));
             Turns++;
             if (Template.TargetScore > 0 && TimeToTargetMs < 0 && Score >= Template.TargetScore)
@@ -449,7 +511,8 @@ namespace Match3.Engine.Runtime.LiveOps
             if (Template.RampEveryTurns > 0)
                 ActiveColors = Math.Min(Template.Palette.Count, Template.StartColors + Turns / Template.RampEveryTurns);
 
-            if (Template.MoveLimit > 0 && Turns >= Template.MoveLimit) End(ModeEndReason.MovesExhausted);
+            if (Template.Kind == GameModeKind.Challenge && Score >= Template.TargetScore) End(ModeEndReason.TargetReached);
+            else if (Template.MoveLimit > 0 && Turns >= Template.MoveLimit) End(ModeEndReason.MovesExhausted);
             else if (Turns >= Template.MaxTurns) End(ModeEndReason.TurnCap);
             else if (!HasLegalMove())
             {
@@ -520,7 +583,7 @@ namespace Match3.Engine.Runtime.LiveOps
             }).HasMoves;
 
         private IReadOnlyList<MatchRunProjection> Runs(IDictionary<BoardPosition, string> board) =>
-            _sdkMatchRuns(new ReadOnlyDictionary<BoardPosition, string>(board)) ??
+            Matcher.MatchRuns(new ReadOnlyDictionary<BoardPosition, string>(board)) ??
             throw new InvalidOperationException("SDK match adapter returned null.");
 
         private BoardTopology Occupied(IEnumerable<KeyValuePair<BoardPosition, string>> board) =>
@@ -546,9 +609,9 @@ namespace Match3.Engine.Runtime.LiveOps
             return b.ToString();
         }
 
-        /// <summary>Hash of the complete logical state, including the RNG stream position.</summary>
+        /// <summary>Hash of the complete logical state, including the RNG stream position and the matcher.</summary>
         public string StateHash() => ReplayCodec.BoardHash(string.Join("|",
-            "M3MODESTATE1", GameId, Template.ContentHash, Seed.ToString(CultureInfo.InvariantCulture),
+            "M3MODESTATE2", GameId, Matcher.TemplateHash(Template), Seed.ToString(CultureInfo.InvariantCulture),
             ((int)Phase).ToString(CultureInfo.InvariantCulture), ((int)EndReason).ToString(CultureInfo.InvariantCulture),
             Score.ToString(CultureInfo.InvariantCulture), Turns.ToString(CultureInfo.InvariantCulture),
             ElapsedMs.ToString(CultureInfo.InvariantCulture), TimeToTargetMs.ToString(CultureInfo.InvariantCulture),
@@ -556,10 +619,11 @@ namespace Match3.Engine.Runtime.LiveOps
             IsBackgrounded ? "1" : "0", IsAutoPaused ? "1" : "0", _rng.State.ToString(CultureInfo.InvariantCulture),
             BoardSnapshot()));
 
-        /// <summary>Content address of the run: same game/template/seed/start/inputs => same ID.</summary>
+        /// <summary>Canonical run identity: game, template, matcher, seed and the ordered applied swaps only.
+        /// Timestamps, ticks, pauses and ignored/no-match inputs do not change it.</summary>
         public string RunId => ReplayCodec.BoardHash(string.Join("|",
-            "M3MODERUN1", GameId, Template.ContentHash, Seed.ToString(CultureInfo.InvariantCulture),
-            StartMs.ToString(CultureInfo.InvariantCulture), string.Join(";", _inputs.Select(i => i.Canonical))));
+            "M3MODERUN2", GameId, Template.ContentHash, Matcher.MatcherId, Seed.ToString(CultureInfo.InvariantCulture),
+            string.Join(";", _appliedSwaps)));
 
         public ModeRunResult Result() =>
             Phase == ModePhase.Ended
@@ -572,7 +636,8 @@ namespace Match3.Engine.Runtime.LiveOps
         public GameModeKind Kind { get; }
         public string TemplateId { get; }
         public int BestScore { get; internal set; }
-        /// <summary>Time Attack: fastest ms to TargetScore. Endless: longest active ms survived. -1 = none.</summary>
+        /// <summary>Time Attack: fastest ms to TargetScore. Endless: longest active ms up to the last applied
+        /// swap (idle time after it never counts). -1 = none.</summary>
         public long BestTimeMs { get; internal set; } = -1;
         public int Runs { get; internal set; }
 
@@ -612,40 +677,13 @@ namespace Match3.Engine.Runtime.LiveOps
             if (result.Kind == GameModeKind.TimeAttack && result.TimeToTargetMs >= 0 &&
                 (record.BestTimeMs < 0 || result.TimeToTargetMs < record.BestTimeMs))
                 record.BestTimeMs = result.TimeToTargetMs;
-            if (result.Kind == GameModeKind.Endless && result.ElapsedMs > record.BestTimeMs)
-                record.BestTimeMs = result.ElapsedMs;
+            if (result.Kind == GameModeKind.Endless && result.ElapsedAtLastSwapMs > record.BestTimeMs)
+                record.BestTimeMs = result.ElapsedAtLastSwapMs;
             return true;
         }
 
         public ModeRecord Get(GameModeKind kind, string templateId) =>
             _records.TryGetValue(((int)kind).ToString(CultureInfo.InvariantCulture) + "|" + templateId, out var r) ? r : null;
-    }
-
-    /// <summary>Grant request for the ENG-M16-011 exactly-once ledger (not credited here).</summary>
-    public sealed class ModeGrantRequest
-    {
-        public string IdempotencyKey { get; }
-        public string GameId { get; }
-        public string ProfileId { get; }
-        public GameModeKind Kind { get; }
-        public string RunId { get; }
-        public int Tier { get; }
-        public string RewardId { get; }
-        public int Amount { get; }
-
-        internal ModeGrantRequest(string gameId, string profileId, GameModeKind kind, string runId, int tier,
-            string rewardId, int amount)
-        {
-            IdempotencyKey = "mode|" + gameId + "|" + profileId + "|" + kind + "|" + runId + "|t" +
-                             tier.ToString(CultureInfo.InvariantCulture);
-            GameId = gameId;
-            ProfileId = profileId;
-            Kind = kind;
-            RunId = runId;
-            Tier = tier;
-            RewardId = rewardId;
-            Amount = amount;
-        }
     }
 
     public enum ModeRewardStatus { Granted, NothingEarned, DuplicateRun, SeedReplayed, DailyCapReached, Rejected }
@@ -654,82 +692,123 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public ModeRewardStatus Status { get; }
         public string Reason { get; }
-        public IReadOnlyList<ModeGrantRequest> Grants { get; }
+        /// <summary>Ledger records applied by this call.</summary>
+        public IReadOnlyList<RewardLedgerRecord> Grants { get; }
 
-        internal ModeRewardOutcome(ModeRewardStatus status, string reason, IList<ModeGrantRequest> grants = null)
+        internal ModeRewardOutcome(ModeRewardStatus status, string reason, IList<RewardLedgerRecord> grants = null)
         {
             Status = status;
             Reason = reason ?? string.Empty;
-            Grants = new ReadOnlyCollection<ModeGrantRequest>(grants ?? new List<ModeGrantRequest>());
+            Grants = new ReadOnlyCollection<RewardLedgerRecord>(grants ?? new List<RewardLedgerRecord>());
         }
     }
 
-    /// <summary>Per-player reward issuer: bounded per run and per UTC day per mode; a run ID or a
-    /// (template, seed) pair earns at most once, so replaying a log or reusing a seed cannot farm.</summary>
+    /// <summary>
+    /// Mode rewards through the ENG-M16-011 RewardLedger (source "alt_mode"). Everything that limits a reward is
+    /// re-derived from the ledger, so losing local state (restart, reinstall) cannot re-open it:
+    /// - per-day cap per mode: slots "kind|yyyy-MM-dd|t&lt;k&gt;", ExpiresUtc = end of that UTC day (server anchor);
+    ///   today's total = sum of today's slots;
+    /// - per-run cap: tiers of one run add up to at most PerRunRewardCap;
+    /// - replay: each grant's Reference = "r" + RunId + "s" + seed key + "t" + tier; a run ID or (template, seed)
+    ///   already present in live alt_mode records never earns again (settled tombstones drop references after
+    ///   expiry + retention; the day cap still holds).
+    /// Only a server-anchored TrustedUtcAnchor decides the day. The ledger rejects premium assets for every
+    /// family-safe / non-monetized title.
+    /// </summary>
     public sealed class ModeRewardIssuer
     {
-        private readonly HashSet<string> _runIds = new HashSet<string>(StringComparer.Ordinal);
-        private readonly HashSet<string> _seeds = new HashSet<string>(StringComparer.Ordinal);
-        private readonly Dictionary<string, int> _grantedPerDay = new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly RewardLedger _ledger;
 
-        public string GameId { get; }
-        public string ProfileId { get; }
+        public string GameId => _ledger.GameId;
+        public string ProfileId => _ledger.PlayerId;
 
-        public ModeRewardIssuer(string gameId, string profileId)
+        public ModeRewardIssuer(RewardLedger ledger)
         {
-            if (!GameProfileCatalog.IsKnownId(gameId)) throw new ArgumentException("Unknown game ID.", nameof(gameId));
-            if (string.IsNullOrWhiteSpace(profileId) || profileId.Contains("|"))
-                throw new ArgumentException("Profile ID required and cannot contain '|'.", nameof(profileId));
-            GameId = gameId;
-            ProfileId = profileId;
+            _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
         }
 
-        public int GrantedOn(GameModeKind kind, DateTime utcDay) =>
-            _grantedPerDay.TryGetValue(DayKey(kind, utcDay), out var n) ? n : 0;
+        public static string SlotInstanceId(GameModeKind kind, DateTime utcDay, int slot) =>
+            kind + "|" + utcDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + "|t" +
+            slot.ToString(CultureInfo.InvariantCulture);
 
-        public ModeRewardOutcome Issue(ModeRunResult result, ModeTemplate template, DateTime serverNowUtc)
+        /// <summary>Total granted for (mode, UTC day), read from the ledger.</summary>
+        public long GrantedOn(GameModeKind kind, DateTime utcDay)
+        {
+            var prefix = kind + "|" + utcDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + "|t";
+            long total = 0;
+            foreach (var instance in _ledger.InstanceIds(RewardSources.AltMode))
+            {
+                if (!instance.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                var key = RewardLedgerKey.Derive(GameId, ProfileId, RewardSources.AltMode, instance);
+                if (_ledger.TryGetRecord(key, out var r)) total += r.Amounts.Values.Sum();
+                else if (_ledger.TryGetTombstone(key, out var t)) total += t.Amounts.Values.Sum();
+            }
+            return total;
+        }
+
+        public ModeRewardOutcome Issue(ModeRunResult result, ModeTemplate template, TrustedUtcAnchor anchor)
         {
             if (result == null) throw new ArgumentNullException(nameof(result));
             if (template == null) throw new ArgumentNullException(nameof(template));
-            if (serverNowUtc.Kind != DateTimeKind.Utc)
-                return new ModeRewardOutcome(ModeRewardStatus.Rejected, "NonUtcInstant");
+            if (!anchor.IsServerAnchored || anchor.UtcNow.Kind != DateTimeKind.Utc)
+                return new ModeRewardOutcome(ModeRewardStatus.Rejected, RewardLedgerReasons.TrustedTimeAnchorRequired);
             if (!StringComparer.Ordinal.Equals(result.GameId, GameId))
                 return new ModeRewardOutcome(ModeRewardStatus.Rejected, "GameMismatch");
-            if (!StringComparer.Ordinal.Equals(result.TemplateHash, template.ContentHash))
+            if (!StringComparer.Ordinal.Equals(result.TemplateContentHash, template.ContentHash))
                 return new ModeRewardOutcome(ModeRewardStatus.Rejected, "TemplateMismatch");
-            if (_runIds.Contains(result.RunId))
-                return new ModeRewardOutcome(ModeRewardStatus.DuplicateRun, "RunAlreadyRewarded");
-            var seedKey = template.TemplateId + "|" + result.Seed.ToString(CultureInfo.InvariantCulture);
-            if (_seeds.Contains(seedKey))
-                return new ModeRewardOutcome(ModeRewardStatus.SeedReplayed, "SeedAlreadyRewarded");
-            _runIds.Add(result.RunId);
-            _seeds.Add(seedKey);
 
-            var dayKey = DayKey(result.Kind, serverNowUtc);
-            _grantedPerDay.TryGetValue(dayKey, out var today);
-            var runLeft = template.PerRunRewardCap;
-            var grants = new List<ModeGrantRequest>();
+            var seedKey = ReplayCodec.BoardHash(template.TemplateId + "|" + result.Seed.ToString(CultureInfo.InvariantCulture))
+                .Substring(0, 32);
+            var runTag = "r" + result.RunId;
+            var seedTag = "s" + seedKey;
+            foreach (var instance in _ledger.InstanceIds(RewardSources.AltMode))
+            {
+                if (!_ledger.TryGetRecord(RewardLedgerKey.Derive(GameId, ProfileId, RewardSources.AltMode, instance), out var r) ||
+                    r.Reference == null) continue;
+                if (r.Reference.StartsWith(runTag, StringComparison.Ordinal))
+                    return new ModeRewardOutcome(ModeRewardStatus.DuplicateRun, "RunAlreadyRewarded");
+                if (r.Reference.IndexOf(seedTag, StringComparison.Ordinal) >= 0)
+                    return new ModeRewardOutcome(ModeRewardStatus.SeedReplayed, "SeedAlreadyRewarded");
+            }
+
+            var day = anchor.UtcNow.Date;
+            var expires = DateTime.SpecifyKind(day.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+            var today = GrantedOn(result.Kind, day);
+            var runLeft = (long)template.PerRunRewardCap;
+            var grants = new List<RewardLedgerRecord>();
             var capped = false;
+            var slot = 1;
             for (var i = 0; i < template.RewardTiers.Count; i++)
             {
                 var tier = template.RewardTiers[i];
                 if (result.Score < tier.Score) break;
                 var amount = Math.Min(tier.Amount, Math.Min(runLeft, template.PerDayRewardCap - today));
                 if (amount <= 0) { capped = true; break; }
-                grants.Add(new ModeGrantRequest(GameId, ProfileId, result.Kind, result.RunId, i + 1,
-                    template.RewardId, amount));
+                // Next free day slot; the ledger key is the cap's durable proof.
+                RewardLedgerGrantResult granted;
+                do
+                {
+                    if (slot > template.PerDayRewardCap)
+                        return new ModeRewardOutcome(grants.Count > 0 ? ModeRewardStatus.Granted : ModeRewardStatus.DailyCapReached,
+                            "NoFreeSlot", grants);
+                    var instance = SlotInstanceId(result.Kind, day, slot++);
+                    granted = _ledger.TryGrant(new RewardLedgerRequest(GameId, ProfileId, RewardSources.AltMode, instance,
+                        new Dictionary<string, long> { [template.RewardId] = amount }, anchor.UtcNow, expires,
+                        runTag + seedTag + "t" + (i + 1).ToString(CultureInfo.InvariantCulture)), anchor);
+                } while (granted.Outcome != RewardLedgerOutcome.Applied &&
+                         (granted.Outcome == RewardLedgerOutcome.Duplicate ||
+                          granted.Reason == RewardLedgerReasons.IdempotencyConflict));
+                if (granted.Outcome != RewardLedgerOutcome.Applied)
+                    return new ModeRewardOutcome(grants.Count > 0 ? ModeRewardStatus.Granted : ModeRewardStatus.Rejected,
+                        granted.Reason, grants);
+                grants.Add(granted.Record);
                 runLeft -= amount;
                 today += amount;
             }
-            _grantedPerDay[dayKey] = today;
             if (grants.Count > 0) return new ModeRewardOutcome(ModeRewardStatus.Granted, capped ? "Capped" : "", grants);
             return capped && template.PerDayRewardCap - today <= 0
                 ? new ModeRewardOutcome(ModeRewardStatus.DailyCapReached, "DailyCapReached")
                 : new ModeRewardOutcome(ModeRewardStatus.NothingEarned, "BelowFirstTier");
         }
-
-        private static string DayKey(GameModeKind kind, DateTime utc) =>
-            ((int)kind).ToString(CultureInfo.InvariantCulture) + "|" +
-            utc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 }
