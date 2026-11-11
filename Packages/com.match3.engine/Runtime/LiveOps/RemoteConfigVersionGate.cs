@@ -54,24 +54,23 @@ namespace Match3.Engine.Runtime.LiveOps
     public readonly struct RemoteConfigPolicy
     {
         public bool RequireSignature { get; }
-        public bool RequireFallback { get; }
         public int MinSchemaVersion { get; }
         public string PolicyDescription { get; }
 
-        private RemoteConfigPolicy(bool requireSignature, bool requireFallback, int minSchemaVersion, string policyDescription)
+        // An unsigned config without a fallback is always rejected (core invariant), so there is no
+        // RequireFallback flag; MinSchemaVersion may only be raised above the v1 floor.
+        public RemoteConfigPolicy(bool requireSignature, int minSchemaVersion, string policyDescription)
         {
+            if (string.IsNullOrEmpty(policyDescription))
+                throw new ArgumentException("PolicyDescription cannot be null or empty", nameof(policyDescription));
+            if (minSchemaVersion < 1)
+                throw new ArgumentOutOfRangeException(nameof(minSchemaVersion), "minSchemaVersion must be at least 1");
             RequireSignature = requireSignature;
-            RequireFallback = requireFallback;
             MinSchemaVersion = minSchemaVersion;
             PolicyDescription = policyDescription;
         }
 
-        public static RemoteConfigPolicy Safe(string desc)
-        {
-            if (string.IsNullOrEmpty(desc))
-                throw new ArgumentException("PolicyDescription cannot be null or empty", nameof(desc));
-            return new RemoteConfigPolicy(true, true, 1, desc);
-        }
+        public static RemoteConfigPolicy Safe(string desc) => new RemoteConfigPolicy(true, 1, desc);
 
         public static readonly RemoteConfigPolicy Default = Safe("Default remote config policy - require signed configs with fallback, min schema v1");
     }
@@ -97,6 +96,13 @@ namespace Match3.Engine.Runtime.LiveOps
             if (policy.RequireSignature && !record.IsSigned)
             {
                 reason = "UnsignedConfigRejected";
+                return false;
+            }
+
+            // Unconditional: an unsigned config must ship with a fallback
+            if (record.RequiresFallback)
+            {
+                reason = "FallbackRequired";
                 return false;
             }
 

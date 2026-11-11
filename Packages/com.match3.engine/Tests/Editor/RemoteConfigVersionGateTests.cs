@@ -90,7 +90,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = RemoteConfigPolicy.Safe("test policy");
             Assert.IsTrue(p.RequireSignature);
-            Assert.IsTrue(p.RequireFallback);
             Assert.AreEqual(1, p.MinSchemaVersion);
             Assert.AreEqual("test policy", p.PolicyDescription);
         }
@@ -184,26 +183,17 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanApplyConfig_NoSignatureRequired_Unsigned_OldSchema_Blocked()
+        public void CanApplyConfig_SafePolicy_Signed_SchemaV0_Blocked()
         {
-            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 0, false, true);
-            var policy = RemoteConfigPolicy.Safe("no sig policy");
-            // Override to no signature required by using a custom policy
-            // We need RequireSignature=false, MinSchemaVersion=1
-            // RemoteConfigPolicy.Safe always sets RequireSignature=true, so create via reflection isn't possible.
-            // Instead, use a policy where RequireSignature=false: not directly constructable since ctor is private.
-            // The only factory is Safe() which sets RequireSignature=true.
-            // The spec says RequireSignature=false — we'll test with Guard 2 bypassed naturally.
-            // Since we cannot create a policy with RequireSignature=false from the public API (Safe always sets it true),
-            // we test Guard 3 path: signed, old schema, no signature requirement check needed.
-            var record2 = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 0, true, true);
-            var result = RemoteConfigVersionGate.CanApplyConfig("GameC", record2, policy, out string reason);
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 0, true, true);
+            var policy = RemoteConfigPolicy.Safe("safe policy");
+            var result = RemoteConfigVersionGate.CanApplyConfig("GameC", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("SchemaVersionTooOld", reason);
         }
 
         [Test]
-        public void CanApplyConfig_NoSignatureRequired_Signed_ValidSchema_Eligible()
+        public void CanApplyConfig_SafePolicy_Signed_SchemaV2_Eligible()
         {
             var record = RemoteConfigRecord.Create("GameD", RemoteConfigKey.CoinRewardAmount, "50", 2, true, true);
             var policy = RemoteConfigPolicy.Safe("custom policy");
@@ -317,6 +307,74 @@ namespace Match3.Engine.Tests.Editor
             var record = RemoteConfigRecord.Create("Wonder_Pop", RemoteConfigKey.GameplayDifficulty, "v", 1, true, true);
             Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("Coral_Rescue", record, RemoteConfigPolicy.Default, out string reason));
             Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigKey.GameplayDifficulty, "v", 1, false, false);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("Wonder_Pop", record, RemoteConfigPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        // Signature-optional policy: fallback for unsigned configs is still mandatory.
+        private static readonly RemoteConfigPolicy NoSignature = new RemoteConfigPolicy(false, 1, "signature-optional test policy");
+
+        [Test]
+        public void CanApplyConfig_NoSignatureRequired_Unsigned_NoFallback_FallbackRequired()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 1, false, false);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual("FallbackRequired", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_NoSignatureRequired_Unsigned_WithFallback_Eligible()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 1, false, true);
+            Assert.IsTrue(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual(string.Empty, reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_NoSignatureRequired_Signed_NoFallback_Eligible()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 1, true, false);
+            Assert.IsTrue(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual(string.Empty, reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_NoSignatureRequired_Unsigned_WithFallback_OldSchema_Blocked()
+        {
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 0, false, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, NoSignature, out string reason));
+            Assert.AreEqual("SchemaVersionTooOld", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_WonderPop_Unsigned_SignatureOptionalPolicy_StillBlocked()
+        {
+            var record = RemoteConfigRecord.Create("Wonder_Pop", RemoteConfigKey.GameplayDifficulty, "v", 1, false, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("Wonder_Pop", record, NoSignature, out string reason));
+            Assert.AreEqual("WonderPopUnsignedConfigProhibited", reason);
+        }
+
+        [Test]
+        public void CanApplyConfig_RaisedMinSchema_Blocked()
+        {
+            var policy = new RemoteConfigPolicy(true, 3, "min schema v3");
+            var record = RemoteConfigRecord.Create("GameC", RemoteConfigKey.GameplayDifficulty, "v", 2, true, true);
+            Assert.IsFalse(RemoteConfigVersionGate.CanApplyConfig("GameC", record, policy, out string reason));
+            Assert.AreEqual("SchemaVersionTooOld", reason);
+        }
+
+        [Test]
+        public void RemoteConfigPolicy_Ctor_InvalidArgs_Throw()
+        {
+            Assert.Throws<ArgumentException>(() => new RemoteConfigPolicy(true, 1, null));
+            Assert.Throws<ArgumentException>(() => new RemoteConfigPolicy(true, 1, ""));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new RemoteConfigPolicy(true, 0, "below floor"));
         }
     }
 }

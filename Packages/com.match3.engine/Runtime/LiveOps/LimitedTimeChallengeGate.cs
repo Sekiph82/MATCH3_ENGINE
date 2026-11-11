@@ -42,22 +42,20 @@ namespace Match3.Engine.Runtime.LiveOps
         public bool IsExpired => !IsWithinWindow;
     }
 
+    // Permanent-progress protection and never activating an expired pack are unconditional core invariants,
+    // so the policy carries no relaxing flags; default(ChallengeEventPolicy) therefore cannot fail open.
     public readonly struct ChallengeEventPolicy
     {
-        public bool RequireFallbackOnExpiry { get; }
-        public bool BlockPermanentProgressModification { get; }
         public string PolicyDescription { get; }
 
-        public ChallengeEventPolicy(bool requireFallbackOnExpiry, bool blockPermanentProgressModification, string policyDescription)
+        public ChallengeEventPolicy(string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
-            RequireFallbackOnExpiry = requireFallbackOnExpiry;
-            BlockPermanentProgressModification = blockPermanentProgressModification;
             PolicyDescription = policyDescription;
         }
 
-        public static ChallengeEventPolicy Safe(string desc) => new ChallengeEventPolicy(true, true, desc);
+        public static ChallengeEventPolicy Safe(string desc) => new ChallengeEventPolicy(desc);
 
         public static readonly ChallengeEventPolicy Default = Safe(
             "Default challenge event policy - require fallback on expiry, block permanent progress modification");
@@ -67,8 +65,6 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public static bool CanActivateEvent(string gameId, ChallengeEventRecord record, ChallengeEventPolicy policy, out string reason)
         {
-            if (policy.PolicyDescription == null) policy = ChallengeEventPolicy.Default;
-
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = "GameIdMismatch";
@@ -82,17 +78,19 @@ namespace Match3.Engine.Runtime.LiveOps
                 return false;
             }
 
-            // Guard 2: event content must not alter permanent progress
-            if (policy.BlockPermanentProgressModification && record.AffectsPermanentProgress)
+            // Guard 2 (unconditional): event content must not alter permanent progress for any game
+            if (record.AffectsPermanentProgress)
             {
                 reason = "PermanentProgressModificationBlocked";
                 return false;
             }
 
-            // Guard 3: expired/bad pack must have a last-known-good fallback
-            if (policy.RequireFallbackOnExpiry && record.IsExpired && !record.HasFallback)
+            // Guard 3 (unconditional): an expired pack is never activated. Contract: returns false with
+            // reason "UseLastKnownGood" when a fallback exists (caller must load last-known-good content),
+            // or "ExpiredEventRequiresFallback" when none exists.
+            if (record.IsExpired)
             {
-                reason = "ExpiredEventRequiresFallback";
+                reason = record.HasFallback ? "UseLastKnownGood" : "ExpiredEventRequiresFallback";
                 return false;
             }
 

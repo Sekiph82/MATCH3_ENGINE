@@ -38,24 +38,17 @@ namespace Match3.Engine.Runtime.Analytics
     public readonly struct DenialPolicy
     {
         public bool BlockOnAnyDenial { get; }
-        public bool RequireExplicitUnblock { get; }
         public string PolicyDescription { get; }
 
-        public DenialPolicy(bool blockOnAnyDenial, bool requireExplicitUnblock, string policyDescription)
+        public DenialPolicy(bool blockOnAnyDenial, string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription cannot be null or empty.", nameof(policyDescription));
             BlockOnAnyDenial = blockOnAnyDenial;
-            RequireExplicitUnblock = requireExplicitUnblock;
             PolicyDescription = policyDescription;
         }
 
-        public static DenialPolicy Safe(string desc)
-        {
-            if (string.IsNullOrEmpty(desc))
-                throw new ArgumentException("PolicyDescription cannot be null or empty.", nameof(desc));
-            return new DenialPolicy(true, true, desc);
-        }
+        public static DenialPolicy Safe(string desc) => new DenialPolicy(true, desc);
 
         public static readonly DenialPolicy Default = Safe("Default denial policy - block all tracking on any denial");
     }
@@ -78,6 +71,13 @@ namespace Match3.Engine.Runtime.Analytics
                 return false;
             }
 
+            // Core invariant: a user opt-out always blocks tracking; no policy can relax it.
+            if (record.Reason == DenialReason.UserOptOut)
+            {
+                reason = "UserOptedOut";
+                return false;
+            }
+
             if (policy.BlockOnAnyDenial && record.Reason != DenialReason.PolicyDefault)
             {
                 reason = "TrackingDeniedByPolicy";
@@ -95,7 +95,6 @@ namespace Match3.Engine.Runtime.Analytics
         }
 
         public static bool IsNetworkDenied(DenialRecord record) => record.IsNetworkDenied;
-        public static bool RequiresExplicitUnblock(DenialPolicy policy) => policy.RequireExplicitUnblock;
     }
 
     public sealed class DenialLog

@@ -42,22 +42,20 @@ namespace Match3.Engine.Runtime.LiveOps
         public bool IsEligibleForPresentation => IsOwnerApproved && (!IsRealMoneyOffer || HasStoreAuthorization);
     }
 
+    // Owner approval and store authorization for real-money offers are unconditional core invariants,
+    // so the policy carries no relaxing flags; default(OfferPolicy) therefore cannot fail open.
     public readonly struct OfferPolicy
     {
-        public bool RequireOwnerApproval { get; }
-        public bool BlockUnapprovedRealMoney { get; }
         public string PolicyDescription { get; }
 
-        public OfferPolicy(bool requireOwnerApproval, bool blockUnapprovedRealMoney, string policyDescription)
+        public OfferPolicy(string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
-            RequireOwnerApproval = requireOwnerApproval;
-            BlockUnapprovedRealMoney = blockUnapprovedRealMoney;
             PolicyDescription = policyDescription;
         }
 
-        public static OfferPolicy Safe(string desc) => new OfferPolicy(true, true, desc);
+        public static OfferPolicy Safe(string desc) => new OfferPolicy(desc);
 
         public static readonly OfferPolicy Default = Safe("Default offer policy - require owner approval, block unapproved real-money offers");
     }
@@ -66,8 +64,6 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public static bool CanPresentOffer(string gameId, OfferRecord record, OfferPolicy policy, out string reason)
         {
-            if (policy.PolicyDescription == null) policy = OfferPolicy.Default;
-
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = "GameIdMismatch";
@@ -81,15 +77,15 @@ namespace Match3.Engine.Runtime.LiveOps
                 return false;
             }
 
-            // Guard 2: policy blocks unapproved real-money offers
-            if (policy.BlockUnapprovedRealMoney && record.IsRealMoneyOffer && !record.HasStoreAuthorization)
+            // Guard 2 (unconditional): real-money offers require store authorization
+            if (record.IsRealMoneyOffer && !record.HasStoreAuthorization)
             {
                 reason = "RealMoneyOfferRequiresStoreAuth";
                 return false;
             }
 
-            // Guard 3: policy requires owner approval
-            if (policy.RequireOwnerApproval && !record.IsOwnerApproved)
+            // Guard 3 (unconditional): every offer requires owner approval
+            if (!record.IsOwnerApproved)
             {
                 reason = "OfferRequiresOwnerApproval";
                 return false;

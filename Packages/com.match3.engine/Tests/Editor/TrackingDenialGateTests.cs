@@ -7,7 +7,7 @@ namespace Match3.Engine.Tests.Editor
     [TestFixture]
     public class TrackingDenialGateTests
     {
-        private static readonly DenialPolicy NoBlock = new DenialPolicy(false, false, "No-block test policy");
+        private static readonly DenialPolicy NoBlock = new DenialPolicy(false, "No-block test policy");
 
         [Test]
         public void DenialRecord_Create_NullGameId_Throws()
@@ -68,7 +68,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var p = DenialPolicy.Safe("test");
             Assert.IsTrue(p.BlockOnAnyDenial);
-            Assert.IsTrue(p.RequireExplicitUnblock);
             Assert.AreEqual("test", p.PolicyDescription);
         }
 
@@ -107,13 +106,13 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanTrack_BlockOnAnyDenial_UserOptOut_Blocked()
+        public void CanTrack_UserOptOut_SafePolicy_Blocked()
         {
             var record = DenialRecord.Create("GameA", DenialReason.UserOptOut, false);
             var policy = DenialPolicy.Safe("block all");
             var result = TrackingDenialGate.CanTrack("GameA", record, policy, out var reason);
             Assert.IsFalse(result);
-            Assert.AreEqual("TrackingDeniedByPolicy", reason);
+            Assert.AreEqual("UserOptedOut", reason);
         }
 
         [Test]
@@ -160,13 +159,32 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanTrack_UserOptOut_BlockOnAnyDenialFalse_NetworkDeniedFalse_Eligible()
+        public void CanTrack_UserOptOut_RelaxedPolicy_StillBlocked()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.UserOptOut, false);
-            var policyNoBlock = NoBlock;
-            var result = TrackingDenialGate.CanTrack("GameA", record, policyNoBlock, out var reason);
-            Assert.IsTrue(result);
+            // Most relaxed constructible policy (BlockOnAnyDenial=false) cannot override an opt-out,
+            // permanent or temporary.
+            var permanent = DenialRecord.Create("GameA", DenialReason.UserOptOut, false);
+            Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", permanent, NoBlock, out var reason));
+            Assert.AreEqual("UserOptedOut", reason);
+            var temporary = DenialRecord.Create("GameA", DenialReason.UserOptOut, true);
+            Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", temporary, NoBlock, out reason));
+            Assert.AreEqual("UserOptedOut", reason);
+        }
+
+        [Test]
+        public void CanTrack_PolicyDefault_RelaxedPolicy_Eligible()
+        {
+            var record = DenialRecord.Create("GameA", DenialReason.PolicyDefault, false);
+            Assert.IsTrue(TrackingDenialGate.CanTrack("GameA", record, NoBlock, out var reason));
             Assert.AreEqual(string.Empty, reason);
+        }
+
+        [Test]
+        public void CanTrack_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.PolicyDefault, false);
+            Assert.IsFalse(TrackingDenialGate.CanTrack("Wonder_Pop", record, DenialPolicy.Default, out var reason));
+            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         [Test]
@@ -181,13 +199,6 @@ namespace Match3.Engine.Tests.Editor
         {
             var r = DenialRecord.Create("G", DenialReason.UserOptOut, false);
             Assert.IsFalse(TrackingDenialGate.IsNetworkDenied(r));
-        }
-
-        [Test]
-        public void RequiresExplicitUnblock_Helper_Safe_True()
-        {
-            var p = DenialPolicy.Safe("desc");
-            Assert.IsTrue(TrackingDenialGate.RequiresExplicitUnblock(p));
         }
 
         [Test]
@@ -242,14 +253,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DenialPolicy_Ctor_NullOrEmptyDescription_Throws()
         {
-            Assert.Throws<ArgumentException>(() => new DenialPolicy(false, false, null));
-            Assert.Throws<ArgumentException>(() => new DenialPolicy(false, false, ""));
+            Assert.Throws<ArgumentException>(() => new DenialPolicy(false, null));
+            Assert.Throws<ArgumentException>(() => new DenialPolicy(false, ""));
         }
 
         [Test]
         public void CanTrack_DefaultStructPolicy_FailsClosed()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.UserOptOut, false);
+            var record = DenialRecord.Create("GameA", DenialReason.AttDenied, false);
             Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", record, DenialPolicy.Default, out var expected));
             Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", record, default(DenialPolicy), out var reason));
             Assert.AreEqual(expected, reason);

@@ -270,5 +270,13 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, PresentationAnalyticsPolicy.Default, out string reason));
             Assert.AreEqual("GameIdMismatch", reason);
         }
+
+        [Test]
+        public void CanRecordEvent_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, false);
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Wonder_Pop", record, PresentationAnalyticsPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

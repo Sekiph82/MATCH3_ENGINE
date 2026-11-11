@@ -43,30 +43,24 @@ namespace Match3.Engine.Runtime.LiveOps
 
         public bool IsDuplicateClaim => IsAlreadyClaimed;
 
-        public bool RequiresUtcAnchor => !HasUtcAnchor && !IsOfflineRecovery;
+        // Offline recovery does not waive the anchor: offline claims wait for anchored reconciliation.
+        public bool RequiresUtcAnchor => !HasUtcAnchor;
     }
 
+    // Duplicate-claim prevention and the UTC anchor are unconditional core invariants, so the policy
+    // carries no relaxing flags; default(CalendarEventPolicy) therefore cannot fail open.
     public readonly struct CalendarEventPolicy
     {
-        public bool PreventDuplicateClaims { get; }
-        public bool RequireUtcAnchor { get; }
         public string PolicyDescription { get; }
 
-        public CalendarEventPolicy(bool preventDuplicateClaims, bool requireUtcAnchor, string policyDescription)
+        public CalendarEventPolicy(string policyDescription)
         {
             if (string.IsNullOrEmpty(policyDescription))
                 throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(policyDescription));
-            PreventDuplicateClaims = preventDuplicateClaims;
-            RequireUtcAnchor = requireUtcAnchor;
             PolicyDescription = policyDescription;
         }
 
-        public static CalendarEventPolicy Safe(string desc)
-        {
-            if (string.IsNullOrEmpty(desc))
-                throw new ArgumentException("PolicyDescription must not be null or empty.", nameof(desc));
-            return new CalendarEventPolicy(true, true, desc);
-        }
+        public static CalendarEventPolicy Safe(string desc) => new CalendarEventPolicy(desc);
 
         public static readonly CalendarEventPolicy Default = Safe(
             "Default calendar policy - prevent duplicate claims, require UTC anchor for week IDs");
@@ -76,8 +70,6 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public static bool CanClaimReward(string gameId, CalendarEventRecord record, CalendarEventPolicy policy, out string reason)
         {
-            if (policy.PolicyDescription == null) policy = CalendarEventPolicy.Default;
-
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
                 reason = "GameIdMismatch";
@@ -91,15 +83,15 @@ namespace Match3.Engine.Runtime.LiveOps
                 return false;
             }
 
-            // Guard 2: policy prevents duplicate claims
-            if (policy.PreventDuplicateClaims && record.IsAlreadyClaimed)
+            // Guard 2 (unconditional): duplicate claims are always blocked
+            if (record.IsAlreadyClaimed)
             {
                 reason = "DuplicateClaimDetected";
                 return false;
             }
 
-            // Guard 3: UTC anchor required but absent
-            if (policy.RequireUtcAnchor && record.RequiresUtcAnchor)
+            // Guard 3 (unconditional): UTC anchor required, including for offline recovery
+            if (record.RequiresUtcAnchor)
             {
                 reason = "UtcAnchorRequired";
                 return false;
@@ -132,5 +124,23 @@ namespace Match3.Engine.Runtime.LiveOps
         public void Clear() => _entries.Clear();
 
         public bool HasEntry(string gameId) => _entries.Exists(e => e.StartsWith(gameId + ":", StringComparison.Ordinal));
+    }
+
+    // Engine-side idempotency ledger: one reward claim per (game, player, week).
+    public sealed class WeeklyClaimLedger
+    {
+        private readonly HashSet<string> _claims = new HashSet<string>(StringComparer.Ordinal);
+
+        public bool TryClaim(string gameId, string playerId, string weekId)
+        {
+            if (string.IsNullOrEmpty(gameId))
+                throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (string.IsNullOrEmpty(playerId))
+                throw new ArgumentException("playerId must not be null or empty.", nameof(playerId));
+            if (string.IsNullOrEmpty(weekId))
+                throw new ArgumentException("weekId must not be null or empty.", nameof(weekId));
+            // Length-prefixed components keep keys unambiguous even if an id contains '|'.
+            return _claims.Add(gameId.Length + ":" + gameId + "|" + playerId.Length + ":" + playerId + "|" + weekId);
+        }
     }
 }

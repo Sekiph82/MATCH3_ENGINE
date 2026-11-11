@@ -81,8 +81,6 @@ namespace Match3.Engine.Tests.Editor
         public void OfferPolicy_Safe_Values_Correct()
         {
             var p = OfferPolicy.Safe("test policy");
-            Assert.IsTrue(p.RequireOwnerApproval);
-            Assert.IsTrue(p.BlockUnapprovedRealMoney);
             Assert.AreEqual("test policy", p.PolicyDescription);
         }
 
@@ -90,8 +88,6 @@ namespace Match3.Engine.Tests.Editor
         public void OfferPolicy_Default_NotNull()
         {
             var p = OfferPolicy.Default;
-            Assert.IsTrue(p.RequireOwnerApproval);
-            Assert.IsTrue(p.BlockUnapprovedRealMoney);
             Assert.IsNotEmpty(p.PolicyDescription);
         }
 
@@ -204,14 +200,33 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanPresentOffer_NoPolicyRequirements_Eligible()
+        public void CanPresentOffer_AnyPolicy_RealMoneyNoAuth_AlwaysBlocked()
         {
-            // Non-Wonder_Pop, real-money, no auth, not approved: only policy guards could block it.
-            var record = OfferRecord.Create("SomeGame", OfferType.StarterBundle, false, true, false);
-            var policy = new OfferPolicy(false, false, "open policy");
-            var result = OffersAndPricingGate.CanPresentOffer("SomeGame", record, policy, out string reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            var record = OfferRecord.Create("SomeGame", OfferType.StarterBundle, true, true, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, new OfferPolicy("custom policy"), out string reason));
+            Assert.AreEqual("RealMoneyOfferRequiresStoreAuth", reason);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, default(OfferPolicy), out reason));
+            Assert.AreEqual("RealMoneyOfferRequiresStoreAuth", reason);
+        }
+
+        [Test]
+        public void CanPresentOffer_AnyPolicy_NotOwnerApproved_AlwaysBlocked()
+        {
+            var record = OfferRecord.Create("SomeGame", OfferType.ShopPromotion, false, false, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, new OfferPolicy("custom policy"), out string reason));
+            Assert.AreEqual("OfferRequiresOwnerApproval", reason);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, default(OfferPolicy), out reason));
+            Assert.AreEqual("OfferRequiresOwnerApproval", reason);
+        }
+
+        [Test]
+        public void CanPresentOffer_WonderPop_RealMoneyNoAuth_MostRelaxedPolicy_Blocked()
+        {
+            var record = OfferRecord.Create("Wonder_Pop", OfferType.StarterBundle, true, true, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Wonder_Pop", record, new OfferPolicy("most relaxed constructible policy"), out string reason));
+            Assert.AreEqual("WonderPopRealMoneyRequiresStoreAuth", reason);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Wonder_Pop", record, default(OfferPolicy), out reason));
+            Assert.AreEqual("WonderPopRealMoneyRequiresStoreAuth", reason);
         }
 
         // Helper method tests
@@ -301,6 +316,30 @@ namespace Match3.Engine.Tests.Editor
             var record = OfferRecord.Create("Wonder_Pop", OfferType.ContentAvailability, true, false, false);
             Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, OfferPolicy.Default, out string reason));
             Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void CanPresentOffer_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = OfferRecord.Create("Coral_Rescue", OfferType.StarterBundle, true, true, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Wonder_Pop", record, OfferPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void OfferLog_HasEntry_IsOrdinal()
+        {
+            var log = new OfferLog();
+            log.Record("game1", "StarterBundle");
+            Assert.IsFalse(log.HasEntry("GAME1"));
+            Assert.IsFalse(log.HasEntry("game"));
+        }
+
+        [Test]
+        public void OfferPolicy_Ctor_NullOrEmptyDescription_Throws()
+        {
+            Assert.Throws<ArgumentException>(() => new OfferPolicy(null));
+            Assert.Throws<ArgumentException>(() => new OfferPolicy(""));
         }
     }
 }

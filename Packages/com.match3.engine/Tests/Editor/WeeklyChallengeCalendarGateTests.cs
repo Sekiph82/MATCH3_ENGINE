@@ -6,11 +6,24 @@ namespace Match3.Engine.Tests.Editor
 {
     public class WeeklyChallengeCalendarGateTests
     {
-        private static readonly CalendarEventPolicy NoRestrictions =
-            new CalendarEventPolicy(false, false, "No restrictions test policy");
+        // Most relaxed constructible policy: carries no flags, so it must behave exactly like Default.
+        private static readonly CalendarEventPolicy Custom =
+            new CalendarEventPolicy("Custom test policy");
 
         private static CalendarEventRecord Rec(string gameId, bool claimed, bool offline, bool anchor) =>
             CalendarEventRecord.Create(gameId, CalendarEventType.WeeklyChallenge, "2026-W45", claimed, offline, anchor);
+
+        private static void AssertBlocked(string gameId, CalendarEventRecord record, CalendarEventPolicy policy, string expected)
+        {
+            Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward(gameId, record, policy, out var reason));
+            Assert.AreEqual(expected, reason);
+        }
+
+        private static void AssertEligible(string gameId, CalendarEventRecord record, CalendarEventPolicy policy)
+        {
+            Assert.IsTrue(WeeklyChallengeCalendarGate.CanClaimReward(gameId, record, policy, out var reason));
+            Assert.AreEqual(string.Empty, reason);
+        }
 
         // CalendarEventRecord
         [Test]
@@ -78,27 +91,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CalendarEventRecord_RequiresUtcAnchor_IsOfflineRecovery_False()
+        public void CalendarEventRecord_RequiresUtcAnchor_OfflineRecoveryWithoutAnchor_True()
         {
-            Assert.IsFalse(Rec("G", false, true, false).RequiresUtcAnchor);
+            Assert.IsTrue(Rec("G", false, true, false).RequiresUtcAnchor);
         }
 
         // CalendarEventPolicy
         [Test]
         public void CalendarEventPolicy_Safe_Values_Correct()
         {
-            var p = CalendarEventPolicy.Safe("desc");
-            Assert.IsTrue(p.PreventDuplicateClaims);
-            Assert.IsTrue(p.RequireUtcAnchor);
-            Assert.AreEqual("desc", p.PolicyDescription);
+            Assert.AreEqual("desc", CalendarEventPolicy.Safe("desc").PolicyDescription);
         }
 
         [Test]
         public void CalendarEventPolicy_Default_NotNull()
         {
-            Assert.IsNotNull(CalendarEventPolicy.Default.PolicyDescription);
-            Assert.IsTrue(CalendarEventPolicy.Default.PreventDuplicateClaims);
-            Assert.IsTrue(CalendarEventPolicy.Default.RequireUtcAnchor);
+            Assert.IsNotEmpty(CalendarEventPolicy.Default.PolicyDescription);
         }
 
         [Test]
@@ -113,97 +121,115 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => CalendarEventPolicy.Safe(""));
         }
 
+        [Test]
+        public void CalendarEventPolicy_Ctor_NullOrEmptyDescription_Throws()
+        {
+            Assert.Throws<ArgumentException>(() => new CalendarEventPolicy(null));
+            Assert.Throws<ArgumentException>(() => new CalendarEventPolicy(""));
+        }
+
         // CanClaimReward — Wonder_Pop
         [Test]
         public void CanClaimReward_WonderPop_AlreadyClaimed_Guard1()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Wonder_Pop", Rec("Wonder_Pop", true, false, true), CalendarEventPolicy.Default, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("WonderPopDuplicateClaimProhibited", reason);
+            AssertBlocked("Wonder_Pop", Rec("Wonder_Pop", true, false, true), CalendarEventPolicy.Default, "WonderPopDuplicateClaimProhibited");
         }
 
         [Test]
-        public void CanClaimReward_WonderPop_AlreadyClaimed_NoPolicyRestrictions_StillGuard1()
+        public void CanClaimReward_WonderPop_AlreadyClaimed_CustomPolicy_StillGuard1()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Wonder_Pop", Rec("Wonder_Pop", true, false, true), NoRestrictions, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("WonderPopDuplicateClaimProhibited", reason);
+            AssertBlocked("Wonder_Pop", Rec("Wonder_Pop", true, false, true), Custom, "WonderPopDuplicateClaimProhibited");
         }
 
         [Test]
         public void CanClaimReward_WonderPop_NotClaimed_HasUtcAnchor_Eligible()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Wonder_Pop", Rec("Wonder_Pop", false, false, true), CalendarEventPolicy.Default, out var reason);
-            Assert.IsTrue(ok);
-            Assert.AreEqual(string.Empty, reason);
+            AssertEligible("Wonder_Pop", Rec("Wonder_Pop", false, false, true), CalendarEventPolicy.Default);
         }
 
         [Test]
         public void CanClaimReward_WonderPop_NotClaimed_NoUtcAnchor_NotOffline_Guard3()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Wonder_Pop", Rec("Wonder_Pop", false, false, false), CalendarEventPolicy.Default, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("UtcAnchorRequired", reason);
+            AssertBlocked("Wonder_Pop", Rec("Wonder_Pop", false, false, false), CalendarEventPolicy.Default, "UtcAnchorRequired");
         }
 
         [Test]
-        public void CanClaimReward_WonderPop_NotClaimed_IsOfflineRecovery_Eligible()
+        public void CanClaimReward_WonderPop_OfflineRecovery_NoUtcAnchor_Blocked()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Wonder_Pop", Rec("Wonder_Pop", false, true, false), CalendarEventPolicy.Default, out var reason);
-            Assert.IsTrue(ok);
-            Assert.AreEqual(string.Empty, reason);
+            AssertBlocked("Wonder_Pop", Rec("Wonder_Pop", false, true, false), CalendarEventPolicy.Default, "UtcAnchorRequired");
+        }
+
+        [Test]
+        public void CanClaimReward_WonderPop_OfflineRecovery_WithUtcAnchor_Eligible()
+        {
+            AssertEligible("Wonder_Pop", Rec("Wonder_Pop", false, true, true), CalendarEventPolicy.Default);
         }
 
         [Test]
         public void CanClaimReward_WonderPop_Lowercase_AlreadyClaimed_Guard2()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("wonder_pop", Rec("wonder_pop", true, false, true), CalendarEventPolicy.Default, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("DuplicateClaimDetected", reason);
+            AssertBlocked("wonder_pop", Rec("wonder_pop", true, false, true), CalendarEventPolicy.Default, "DuplicateClaimDetected");
         }
 
         // CanClaimReward — other games
         [Test]
         public void CanClaimReward_NonWonderPop_AlreadyClaimed_Guard2()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", Rec("Coral_Rescue", true, false, true), CalendarEventPolicy.Default, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("DuplicateClaimDetected", reason);
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", true, false, true), CalendarEventPolicy.Default, "DuplicateClaimDetected");
         }
 
         [Test]
         public void CanClaimReward_NonWonderPop_NotClaimed_NoUtcAnchor_Guard3()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", Rec("Coral_Rescue", false, false, false), CalendarEventPolicy.Default, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("UtcAnchorRequired", reason);
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", false, false, false), CalendarEventPolicy.Default, "UtcAnchorRequired");
         }
 
         [Test]
         public void CanClaimReward_NonWonderPop_NotClaimed_HasUtcAnchor_Eligible()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", Rec("Coral_Rescue", false, false, true), CalendarEventPolicy.Default, out var reason);
-            Assert.IsTrue(ok);
-            Assert.AreEqual(string.Empty, reason);
+            AssertEligible("Coral_Rescue", Rec("Coral_Rescue", false, false, true), CalendarEventPolicy.Default);
         }
 
         [Test]
-        public void CanClaimReward_NonWonderPop_NotClaimed_IsOfflineRecovery_Eligible()
+        public void CanClaimReward_NonWonderPop_OfflineRecovery_NoUtcAnchor_Blocked()
         {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", Rec("Coral_Rescue", false, true, false), CalendarEventPolicy.Default, out var reason);
-            Assert.IsTrue(ok);
-            Assert.AreEqual(string.Empty, reason);
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", false, true, false), CalendarEventPolicy.Default, "UtcAnchorRequired");
         }
 
         [Test]
-        public void CanClaimReward_NoPolicyRestrictions_AlreadyClaimed_Eligible()
+        public void CanClaimReward_AnyPolicy_AlreadyClaimed_AlwaysBlocked()
         {
-            var policy = NoRestrictions;
-            Assert.IsFalse(policy.PreventDuplicateClaims);
-            Assert.IsFalse(policy.RequireUtcAnchor);
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", Rec("Coral_Rescue", true, false, false), policy, out var reason);
-            Assert.IsTrue(ok);
-            Assert.AreEqual(string.Empty, reason);
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", true, false, false), Custom, "DuplicateClaimDetected");
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", true, false, false), default(CalendarEventPolicy), "DuplicateClaimDetected");
+        }
+
+        [Test]
+        public void CanClaimReward_AnyPolicy_OfflineRecoveryWithoutAnchor_AlwaysBlocked()
+        {
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", false, true, false), Custom, "UtcAnchorRequired");
+            AssertBlocked("Coral_Rescue", Rec("Coral_Rescue", false, true, false), default(CalendarEventPolicy), "UtcAnchorRequired");
+        }
+
+        [Test]
+        public void CanClaimReward_DefaultStructPolicy_FailsClosed()
+        {
+            var r = Rec("Coral_Rescue", true, false, true);
+            Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", r, CalendarEventPolicy.Default, out var expected));
+            Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", r, default(CalendarEventPolicy), out var reason));
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("DuplicateClaimDetected", reason);
+        }
+
+        [Test]
+        public void CanClaimReward_GameIdMismatch_Blocked()
+        {
+            AssertBlocked("Coral_Rescue", Rec("Wonder_Pop", false, false, true), CalendarEventPolicy.Default, "GameIdMismatch");
+        }
+
+        [Test]
+        public void CanClaimReward_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            AssertBlocked("Wonder_Pop", Rec("Coral_Rescue", true, false, true), CalendarEventPolicy.Default, "GameIdMismatch");
         }
 
         // Helpers
@@ -229,6 +255,75 @@ namespace Match3.Engine.Tests.Editor
         public void RequiresUtcAnchor_Helper_False()
         {
             Assert.IsFalse(WeeklyChallengeCalendarGate.RequiresUtcAnchor(Rec("G", false, false, true)));
+        }
+
+        // WeeklyClaimLedger
+        [Test]
+        public void WeeklyClaimLedger_FirstClaim_True()
+        {
+            Assert.IsTrue(new WeeklyClaimLedger().TryClaim("Coral_Rescue", "p1", "2026-W45"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_RepeatClaim_False()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+            Assert.IsFalse(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+            Assert.IsFalse(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_DifferentWeek_True()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W46"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_DifferentPlayer_True()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p2", "2026-W45"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_DifferentGame_True()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+            Assert.IsTrue(ledger.TryClaim("Dino_Islands", "p1", "2026-W45"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_IsOrdinal()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
+            Assert.IsTrue(ledger.TryClaim("coral_rescue", "p1", "2026-W45"));
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "P1", "2026-W45"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_SeparatorInIds_NoKeyCollision()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.IsTrue(ledger.TryClaim("a|b", "c", "W1"));
+            Assert.IsTrue(ledger.TryClaim("a", "b|c", "W1"));
+        }
+
+        [Test]
+        public void WeeklyClaimLedger_NullOrEmptyArgs_Throw()
+        {
+            var ledger = new WeeklyClaimLedger();
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim(null, "p1", "W1"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("", "p1", "W1"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", null, "W1"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", "", "W1"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", "p1", null));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", "p1", ""));
         }
 
         // CalendarEventLog
@@ -281,31 +376,6 @@ namespace Match3.Engine.Tests.Editor
             log.Record("Coral_Rescue", "ClaimReset");
             Assert.IsFalse(log.HasEntry("coral_rescue"));
             Assert.IsFalse(log.HasEntry("Coral"));
-        }
-
-        [Test]
-        public void CalendarEventPolicy_Ctor_NullOrEmptyDescription_Throws()
-        {
-            Assert.Throws<ArgumentException>(() => new CalendarEventPolicy(false, false, null));
-            Assert.Throws<ArgumentException>(() => new CalendarEventPolicy(false, false, ""));
-        }
-
-        [Test]
-        public void CanClaimReward_DefaultStructPolicy_FailsClosed()
-        {
-            var r = Rec("Coral_Rescue", true, false, true);
-            Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", r, CalendarEventPolicy.Default, out var expected));
-            Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", r, default(CalendarEventPolicy), out var reason));
-            Assert.AreEqual(expected, reason);
-            Assert.AreEqual("DuplicateClaimDetected", reason);
-        }
-
-        [Test]
-        public void CanClaimReward_GameIdMismatch_Blocked()
-        {
-            bool ok = WeeklyChallengeCalendarGate.CanClaimReward("Coral_Rescue", Rec("Wonder_Pop", false, false, true), CalendarEventPolicy.Default, out var reason);
-            Assert.IsFalse(ok);
-            Assert.AreEqual("GameIdMismatch", reason);
         }
 
         [Test]

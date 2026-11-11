@@ -273,5 +273,13 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, ExperienceFairnessPolicy.Default, out string reason));
             Assert.AreEqual("GameIdMismatch", reason);
         }
+
+        [Test]
+        public void CanRecordEvent_WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, false);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Wonder_Pop", record, ExperienceFairnessPolicy.Default, out string reason));
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }
