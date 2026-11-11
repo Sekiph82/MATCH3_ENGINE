@@ -50,19 +50,19 @@ namespace Match3.Engine.Tests.Editor
         // ---- valid canonical fixtures --------------------------------------------
 
         [Test]
-        public void ValidWorldFixture_AcceptsAndRecordsSignedAndUnsigned()
+        public void ValidWorldFixture_AcceptsAndRecordsIntegrityVerifiedAndNoDigest()
         {
             var rx = Coral();
             var result = rx.Receive(Fixture("valid_world.json"));
 
             Assert.That(result.Accepted, Is.True, result.Summary);
             Assert.That(result.Reason, Is.EqualTo(R.Accepted));
-            Assert.That(result.Items[0].Integrity, Is.EqualTo(ContentIntegrity.Verified));
-            Assert.That(result.Items[1].Integrity, Is.EqualTo(ContentIntegrity.Unsigned));
+            Assert.That(result.Items[0].Integrity, Is.EqualTo(ContentIntegrity.DigestVerified));
+            Assert.That(result.Items[1].Integrity, Is.EqualTo(ContentIntegrity.NoDigest));
             Assert.That(rx.Applied.Keys, Is.EquivalentTo(new[] { "cr.world.reef", "cr.world.kelp" }));
             Assert.That(rx.Applied["cr.world.kelp"].Order, Is.EqualTo(2));
             Assert.That(rx.Applied["cr.world.reef"].ProducerId, Is.EqualTo("fixture-producer/py"));
-            Assert.That(result.Summary, Does.Contain("unsigned=1"));
+            Assert.That(result.Summary, Does.Contain("noDigest=1"));
         }
 
         [Test]
@@ -80,7 +80,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(level.Objectives.Select(o => o.Kind), Is.EqualTo(new[] { GoalKind.CollectPiece, GoalKind.ClearObstacle }));
             Assert.That(level.Objectives[1].Count, Is.EqualTo(12));
             Assert.That(level.ObstacleIds, Is.EqualTo(new[] { "obstacle.ice" }));
-            Assert.That(level.Integrity, Is.EqualTo(ContentIntegrity.Verified));
+            Assert.That(level.Integrity, Is.EqualTo(ContentIntegrity.DigestVerified));
             // Digest produced by Python json.dumps(sort_keys, compact) over the payload incl. the x- field.
             Assert.That(level.PayloadSha256, Is.EqualTo("9f0fbd8a6e0ef538c59eb63d1b0be191697c27867841e91be7d6e645d2bd994b"));
         }
@@ -109,11 +109,11 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(ev.StartUtc.Kind, Is.EqualTo(DateTimeKind.Utc));
             Assert.That(ev.LevelIds, Is.EqualTo(new[] { "cr.level.0001", "cr.level.0002" }));
             Assert.That(result.Summary, Is.EqualTo(
-                "ACCEPTED reason=Accepted game=Coral_Rescue producer=fixture-producer/py items=4 rejected=0 unsigned=0\n" +
-                "[0] World/cr.world.reef Accepted Verified\n" +
-                "[1] Level/cr.level.0001 Accepted Verified\n" +
-                "[2] Level/cr.level.0002 Accepted Verified\n" +
-                "[3] Event/cr.event.winter Accepted Verified"));
+                "ACCEPTED reason=Accepted game=Coral_Rescue producer=fixture-producer/py items=4 rejected=0 noDigest=0\n" +
+                "[0] World/cr.world.reef Accepted DigestVerified\n" +
+                "[1] Level/cr.level.0001 Accepted DigestVerified\n" +
+                "[2] Level/cr.level.0002 Accepted DigestVerified\n" +
+                "[3] Event/cr.event.winter Accepted DigestVerified"));
             Assert.That(Coral().Receive(Fixture("valid_event.json")).Summary, Is.EqualTo(result.Summary));
         }
 
@@ -121,22 +121,22 @@ namespace Match3.Engine.Tests.Editor
 
         private static IEnumerable<TestCaseData> MalformedFixtures()
         {
-            yield return new TestCaseData("wrong_game.json", R.GameMismatch, -1, null);
-            yield return new TestCaseData("unknown_kind.json", R.ItemRejected, 1, R.UnknownContentKind);
-            yield return new TestCaseData("bad_schema_major.json", R.SchemaMajorUnsupported, -1, null);
-            yield return new TestCaseData("digest_mismatch.json", R.ItemRejected, 0, R.DigestMismatch);
-            yield return new TestCaseData("dangling_level_ref.json", R.ItemRejected, 2, R.DanglingReference);
-            yield return new TestCaseData("inverted_window.json", R.ItemRejected, 2, R.EventWindowInverted);
-            yield return new TestCaseData("forbidden_price_field.json", R.ItemRejected, 0, R.ForbiddenMonetizationField);
-            yield return new TestCaseData("unknown_top_level_field.json", R.UnknownField, -1, null);
-            yield return new TestCaseData("duplicate_content_id.json", R.ItemRejected, 1, R.DuplicateContentId);
-            yield return new TestCaseData("unknown_payload_field.json", R.ItemRejected, 0, R.UnknownPayloadField);
-            yield return new TestCaseData("non_integer_number.json", R.MalformedDocument, -1, null);
-            yield return new TestCaseData("duplicate_json_key.json", R.MalformedDocument, -1, null);
+            yield return new TestCaseData("wrong_game.json", R.GameMismatch, -1, null, "expected Coral_Rescue");
+            yield return new TestCaseData("unknown_kind.json", R.ItemRejected, 1, R.UnknownContentKind, "Offer");
+            yield return new TestCaseData("bad_schema_major.json", R.SchemaMajorUnsupported, -1, null, "2.0");
+            yield return new TestCaseData("digest_mismatch.json", R.ItemRejected, 0, R.DigestMismatch, "computed ");
+            yield return new TestCaseData("dangling_level_ref.json", R.ItemRejected, 2, R.DanglingReference, "levelId cr.level.9999");
+            yield return new TestCaseData("inverted_window.json", R.ItemRejected, 2, R.EventWindowInverted, "startUtc >= endUtc");
+            yield return new TestCaseData("forbidden_price_field.json", R.ItemRejected, 0, R.ForbiddenMonetizationField, "x-priceUsd");
+            yield return new TestCaseData("unknown_top_level_field.json", R.UnknownField, -1, null, "signedBy");
+            yield return new TestCaseData("duplicate_content_id.json", R.ItemRejected, 1, R.DuplicateContentId, "cr.world.reef");
+            yield return new TestCaseData("unknown_payload_field.json", R.ItemRejected, 0, R.UnknownPayloadField, "difficulty");
+            yield return new TestCaseData("non_integer_number.json", R.MalformedDocument, -1, null, "non-integer number");
+            yield return new TestCaseData("duplicate_json_key.json", R.MalformedDocument, -1, null, "duplicate key order");
         }
 
         [TestCaseSource(nameof(MalformedFixtures))]
-        public void MalformedFixture_RejectsWholeBatchWithReason(string file, string batchReason, int itemIndex, string itemReason)
+        public void MalformedFixture_RejectsWholeBatchWithReason(string file, string batchReason, int itemIndex, string itemReason, string detail)
         {
             var rx = Coral();
             var result = rx.Receive(Fixture(file));
@@ -147,10 +147,12 @@ namespace Match3.Engine.Tests.Editor
             if (itemIndex >= 0)
             {
                 Assert.That(result.Items[itemIndex].Reason, Is.EqualTo(itemReason), result.Summary);
+                Assert.That(result.Items[itemIndex].Detail, Does.Contain(detail), result.Summary);
                 Assert.That(result.Items.Count(i => !i.Accepted), Is.EqualTo(1), result.Summary);
             }
             else
             {
+                Assert.That(result.Detail, Does.Contain(detail), result.Summary);
                 Assert.That(result.Items, Is.Empty);
             }
             Assert.That(rx.Applied, Is.Empty, "atomic batch: nothing applied");
@@ -222,7 +224,26 @@ namespace Match3.Engine.Tests.Editor
         [TestCase("apiKey", true)]
         [TestCase("receiptData", true)]
         [TestCase("authToken", true)]
+        [TestCase("SKUs", true)]
+        [TestCase("IAPs", true)]
+        [TestCase("iaps", true)]
+        [TestCase("storeSKUs", true)]
+        [TestCase("productIds", true)]
+        [TestCase("inAppItem", true)]
+        [TestCase("paymentRef", true)]
+        [TestCase("billingId", true)]
+        [TestCase("transactionId", true)]
+        [TestCase("paid", true)]
+        [TestCase("bearerToken", true)]
+        [TestCase("authHeader", true)]
+        [TestCase("authorization", true)]
+        [TestCase("storeproductid", true)]
+        [TestCase("tokenCount", true)] // documented conservative rejection (fail closed)
         [TestCase("x-mediaPath", false)]
+        [TestCase("x-coinCost", false)]
+        [TestCase("gems", false)]
+        [TestCase("authorId", false)]
+        [TestCase("producerId", false)]
         [TestCase("obstacleIds", false)]
         [TestCase("targetId", false)]
         [TestCase("objectives", false)]
@@ -362,7 +383,92 @@ namespace Match3.Engine.Tests.Editor
                 Is.EqualTo(R.ProducerIdInvalid));
         }
 
+        [Test]
+        public void WorldIdLiterallyWorld_DoesNotCollideWithWorldOrderSlots()
+        {
+            var items = World("world", 1, 1) + "," + Level("cr.level.0001", "world", 1);
+            var result = Coral().Receive(Doc(items));
+            Assert.That(result.Accepted, Is.True, result.Summary);
+        }
+
+        [Test]
+        public void DuplicateWorldOrder_Rejected()
+        {
+            var result = Coral().Receive(Doc(World("cr.world.one", 1, 1) + "," + World("cr.world.two", 1, 1)));
+            Assert.That(result.Items[1].Reason, Is.EqualTo(R.DuplicateOrder), result.Summary);
+            Assert.That(result.Items[1].Detail, Does.Contain("cr.world.one"));
+        }
+
+        [Test]
+        public void UnchangedRedelivery_KeepsStoredRecordProducerAndIntegrity()
+        {
+            var rx = Coral();
+            Assert.That(rx.Receive(Fixture("valid_world.json")).Accepted, Is.True);
+            var stored = rx.Applied["cr.world.reef"];
+            Assert.That(stored.Integrity, Is.EqualTo(ContentIntegrity.DigestVerified));
+
+            // Same id/version/payload, sent without a digest by a different producer.
+            var again = rx.Receive(Doc(World("cr.world.reef", 1, 1)));
+            Assert.That(again.Accepted, Is.True, again.Summary);
+            Assert.That(again.Items[0].Reason, Is.EqualTo(R.Unchanged));
+            Assert.That(rx.Applied["cr.world.reef"], Is.SameAs(stored));
+            Assert.That(rx.Applied["cr.world.reef"].Integrity, Is.EqualTo(ContentIntegrity.DigestVerified));
+            Assert.That(rx.Applied["cr.world.reef"].ProducerId, Is.EqualTo("fixture-producer/py"));
+        }
+
+        [Test]
+        public void KindChangeForAppliedId_IsConflict()
+        {
+            var rx = Coral();
+            Assert.That(rx.Receive(Doc(World("cr.thing.one", 1, 1))).Accepted, Is.True);
+            var result = rx.Receive(Doc(Level("cr.thing.one", "cr.thing.one", 1)));
+            Assert.That(result.Items[0].Reason, Is.EqualTo(R.ContentVersionConflict), result.Summary);
+            Assert.That(rx.Applied["cr.thing.one"].Kind, Is.EqualTo(ContentKind.World));
+        }
+
+        [Test]
+        public void UppercaseHexDigest_IsMalformed()
+        {
+            var world = World("cr.world.reef", 1, 1);
+            var item = world.Substring(0, world.Length - 1) +
+                ",\"payloadSha256\":\"A781679E01308CFEF90983A4C1350319A7E3993C3A3F5A8C8439781A326D7C8D\"}";
+            Assert.That(Coral().Receive(Doc(item)).Items[0].Reason, Is.EqualTo(R.DigestMalformed));
+        }
+
         // ---- canonical JSON (cross-producer golden) --------------------------------
+
+        [Test]
+        public void SizeLimit_IsEnforcedInUtf8Bytes()
+        {
+            const int limit = CanonicalJson.MaxUtf8Bytes;
+            var asciiAtLimit = "{\"a\":\"" + new string('a', limit - 8) + "\"}";
+            Assert.That(asciiAtLimit.Length, Is.EqualTo(limit));
+            Assert.That(CanonicalJson.Parse(asciiAtLimit), Is.InstanceOf<Dictionary<string, object>>());
+            Assert.Throws<FormatException>(() => CanonicalJson.Parse("{\"a\":\"" + new string('a', limit - 7) + "\"}"));
+            // About half the limit in chars, but 2 UTF-8 bytes per char: over the byte limit.
+            var multiByte = "{\"a\":\"" + new string('é', limit / 2) + "\"}";
+            Assert.That(multiByte.Length, Is.LessThan(limit));
+            var ex = Assert.Throws<FormatException>(() => CanonicalJson.Parse(multiByte));
+            Assert.That(ex.Message, Does.Contain("UTF-8 bytes"));
+        }
+
+        [Test]
+        public void SurrogatePair_RoundTripsAsPythonEscapes()
+        {
+            // Python: json.dumps({"a": "\U0001F600"}, sort_keys=True, separators=(",", ":"))
+            const string expected = "{\"a\":\"\\ud83d\\ude00\"}";
+            Assert.That(CanonicalJson.Serialize(CanonicalJson.Parse("{\"a\":\"\\ud83d\\ude00\"}")), Is.EqualTo(expected));
+            Assert.That(CanonicalJson.Serialize(CanonicalJson.Parse("{\"a\":\"\U0001F600\"}")), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void Writer_EscapesControlCharsDelAndSlashLikePython()
+        {
+            // Python: json.dumps({"a": "\x01\x7f/\b\f\n\r\t\"\\"}, sort_keys=True, separators=(",", ":"))
+            //       -> {"a":"\u0001\u007f/\b\f\n\r\t\"\\"}
+            var value = new Dictionary<string, object> { { "a", "\u0001\u007f/\b\f\n\r\t\"\\" } };
+            Assert.That(CanonicalJson.Serialize(value), Is.EqualTo("{\"a\":\"\\u0001\\u007f/\\b\\f\\n\\r\\t\\\"\\\\\"}"));
+        }
 
         [Test]
         public void CanonicalSerializer_MatchesPythonJsonDumpsByteForByte()

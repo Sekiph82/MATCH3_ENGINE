@@ -67,8 +67,9 @@ namespace Match3.Engine.Tests.Editor
         private static IEnumerable<string> GameIds() => GameProfileCatalog.Ids;
 
         [TestCaseSource(nameof(GameIds))]
-        public void DefaultProfile_PassesAllPolicies(string gameId)
+        public void PlaceholderDefaults_PassAllPolicies(string gameId)
         {
+            // Engineering placeholders pending ENG-M20-009 owner economy approval, not tuned values.
             var r = EconomyBalanceSimulator.Run(EconomyParameters.DefaultFor(gameId));
             Assert.That(r.Violations, Is.Empty, Describe(r));
             Assert.That(r.Days.Count, Is.EqualTo(30));
@@ -76,10 +77,44 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void GeneralProfiles_ShareIdenticalPlaceholderDynamics_PendingOwnerTuning()
+        {
+            // Documented: no per-title tuning exists yet, so the four general profiles produce the same
+            // daily series; only the game ID (and therefore the fingerprint) differs.
+            var general = new[] { "Coral_Rescue", "Garage_Legends", "Dino_Islands", "The_Fractured_Realms" }
+                .Select(id => EconomyBalanceSimulator.Run(EconomyParameters.DefaultFor(id))).ToArray();
+            foreach (var r in general.Skip(1))
+            {
+                Assert.That(r.Days.Select(d => d.SumCoins), Is.EqualTo(general[0].Days.Select(d => d.SumCoins)));
+                Assert.That(r.Days.Select(d => d.SumLevelsCompleted), Is.EqualTo(general[0].Days.Select(d => d.SumLevelsCompleted)));
+                Assert.That(r.Fingerprint, Is.Not.EqualTo(general[0].Fingerprint));
+            }
+        }
+
+        [Test]
+        public void HeartRegeneration_DirectTimerBehaviour()
+        {
+            int acc;
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(0, 0, 25, 5, 10, out acc), Is.EqualTo(2));
+            Assert.That(acc, Is.EqualTo(5));
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(1, 7, 3, 5, 10, out acc), Is.EqualTo(2));
+            Assert.That(acc, Is.EqualTo(0));
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(1, 7, 2, 5, 10, out acc), Is.EqualTo(1));
+            Assert.That(acc, Is.EqualTo(9));
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(3, 4, 1000, 5, 10, out acc), Is.EqualTo(5));
+            Assert.That(acc, Is.EqualTo(0), "timer resets when full");
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(5, 0, 1000, 5, 10, out acc), Is.EqualTo(5));
+            Assert.That(acc, Is.EqualTo(0));
+            Assert.That(EconomyBalanceSimulator.RegenerateHearts(0, 0, long.MaxValue / 2, 5, 10, out acc), Is.EqualTo(5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => EconomyBalanceSimulator.RegenerateHearts(0, 0, 1, 5, 0, out acc));
+            Assert.Throws<ArgumentOutOfRangeException>(() => EconomyBalanceSimulator.RegenerateHearts(0, 0, -1, 5, 10, out acc));
+        }
+
+        [Test]
         public void WonderPopDefault_HasNoPaidFlowFixedRewardsAndShortHeartWait()
         {
             var r = EconomyBalanceSimulator.Run(EconomyParameters.DefaultFor("Wonder_Pop"));
-            Assert.That(r.ChildSafe, Is.True);
+            Assert.That(r.FamilySafe, Is.True);
             Assert.That(r.Payers, Is.Zero);
             Assert.That(r.PaidPurchases, Is.Zero);
             Assert.That(r.CoinsBought, Is.Zero);
@@ -121,6 +156,9 @@ namespace Match3.Engine.Tests.Editor
             p.PaidCoinPack = 5000;
             var r = EconomyBalanceSimulator.Run(p);
             Assert.That(r.Violations, Does.Contain(V.PayToProgressWall), Describe(r));
+            // The triggering metric itself, not just the flag.
+            Assert.That(r.NonPayers, Is.GreaterThan(0), Describe(r));
+            Assert.That(r.NonPayerProgressFractionBp, Is.LessThan(p.MinNonPayerProgressFractionBp), Describe(r));
             Assert.That(r.PayerMeanLevelsX100, Is.GreaterThan(r.NonPayerMeanLevelsX100), Describe(r));
             Assert.That(r.MedianNonPayerTimeToStallDay, Is.InRange(0, 29), Describe(r));
         }
@@ -136,7 +174,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void ChildPaidCurrencyFlow_Detected()
+        public void FamilySafePaidCurrencyFlow_Detected()
         {
             var p = EconomyParameters.DefaultFor("Wonder_Pop");
             p.PaidCurrencyEnabled = true;
@@ -152,22 +190,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void ChildPolicy_IsNotRelaxableForWonderPop()
+        public void FamilySafePolicy_IsNotRelaxableForWonderPop()
         {
             var p = EconomyParameters.DefaultFor("Wonder_Pop");
-            p.ChildSafe = false;
+            p.FamilySafe = false;
             p.WinCoinsRandomBonus = 30;
             var r = EconomyBalanceSimulator.Run(p);
-            Assert.That(r.ChildSafe, Is.True);
+            Assert.That(r.FamilySafe, Is.True);
             Assert.That(r.Violations, Does.Contain(V.ChildRandomReward), Describe(r));
         }
 
         [Test]
-        public void ChildRandomReward_Detected_ButAllowedForGeneralProfile()
+        public void FamilySafeRandomReward_Detected_ButAllowedForGeneralProfile()
         {
-            var child = EconomyParameters.DefaultFor("Wonder_Pop");
-            child.WinCoinsRandomBonus = 10;
-            var rc = EconomyBalanceSimulator.Run(child);
+            var family = EconomyParameters.DefaultFor("Wonder_Pop");
+            family.WinCoinsRandomBonus = 10;
+            var rc = EconomyBalanceSimulator.Run(family);
             Assert.That(rc.Violations, Does.Contain(V.ChildRandomReward), Describe(rc));
             Assert.That(rc.MaxWinReward, Is.GreaterThan(rc.MinWinReward));
 
@@ -177,7 +215,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void ChildHeartWaitExceeded_Detected()
+        public void FamilySafeHeartWaitExceeded_Detected()
         {
             var p = EconomyParameters.DefaultFor("Wonder_Pop");
             p.HeartRegenMinutes = 60;
@@ -191,10 +229,10 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void ChildHeartWaitCap_IsConfigurable()
+        public void FamilySafeHeartWaitCap_CanBeTightened()
         {
             var p = EconomyParameters.DefaultFor("Wonder_Pop");
-            p.ChildMaxHeartWaitMinutes = 5;
+            p.FamilySafeMaxHeartWaitMinutes = 5;
             p.MaxHearts = 2;
             p.SessionMinutes = 60;
             p.HeartRefillCoinCost = 100000;
@@ -202,6 +240,111 @@ namespace Match3.Engine.Tests.Editor
             var r = EconomyBalanceSimulator.Run(p);
             Assert.That(r.MaxHeartWaitMinutes, Is.GreaterThan(5), Describe(r));
             Assert.That(r.Violations, Does.Contain(V.ChildHeartWaitExceeded));
+        }
+
+        // ---- family-safe: configuration-based checks and tighten-only limits ---------
+
+        [Test]
+        public void FamilySafeRandomReward_FlaggedFromConfig_EvenWithZeroWinsAndOnePlayer()
+        {
+            var p = EconomyParameters.DefaultFor("Wonder_Pop");
+            p.Players = 1;
+            p.BaseWinBp = 0;
+            p.MinWinBp = 0;
+            p.BoosterWinBonusBp = 0;
+            p.ContinueWinBp = 0;
+            p.WinCoinsRandomBonus = 5;
+            var r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.CoinsEarnedFromWins, Is.Zero, "no wins observed");
+            Assert.That(r.MaxWinReward, Is.EqualTo(r.MinWinReward));
+            Assert.That(r.Violations, Does.Contain(V.ChildRandomReward), Describe(r));
+        }
+
+        [Test]
+        public void FamilySafeHeartWait_FlaggedFromConfig_EvenWhenNeverObserved()
+        {
+            var p = EconomyParameters.DefaultFor("Wonder_Pop");
+            p.Players = 1;
+            p.MaxHearts = 100;
+            p.HeartRegenMinutes = 60;
+            var r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.MaxHeartWaitMinutes, Is.Zero, "hearts never ran out");
+            Assert.That(r.Violations, Does.Contain(V.ChildHeartWaitExceeded), Describe(r));
+        }
+
+        [Test]
+        public void FamilySafe_LooseningHeartWaitCap_IsClampedAndStillFlags()
+        {
+            var p = EconomyParameters.DefaultFor("Wonder_Pop");
+            p.FamilySafeMaxHeartWaitMinutes = 999;
+            p.HeartRegenMinutes = 60;
+            var r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.EffectiveFamilySafeMaxHeartWaitMinutes, Is.EqualTo(EconomyParameters.FamilySafeHeartWaitCapMinutes));
+            Assert.That(r.Violations, Does.Contain(V.ChildHeartWaitExceeded), Describe(r));
+        }
+
+        [Test]
+        public void FamilySafe_LooseningEventIncentiveLimit_IsClampedAndStillFlags()
+        {
+            var p = EconomyParameters.DefaultFor("Wonder_Pop");
+            p.MaxEventIncentiveBp = 100000;
+            p.EventWinBonusCoins = 200;
+            var r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.EffectiveMaxEventIncentiveBp, Is.EqualTo(EconomyParameters.DefaultMaxEventIncentiveBp));
+            Assert.That(r.Violations, Does.Contain(V.EventIncentiveUnbounded), Describe(r));
+
+            // The same loosening is honoured for a general profile (clamp is family-safe only).
+            var g = EconomyParameters.DefaultFor("Coral_Rescue");
+            g.MaxEventIncentiveBp = 100000;
+            g.EventWinBonusCoins = 200;
+            var rg = EconomyBalanceSimulator.Run(g);
+            Assert.That(rg.EffectiveMaxEventIncentiveBp, Is.EqualTo(100000));
+            Assert.That(rg.Violations, Does.Not.Contain(V.EventIncentiveUnbounded), Describe(rg));
+        }
+
+        private static EconomyParameters Starved(string gameId)
+        {
+            var p = EconomyParameters.DefaultFor(gameId);
+            p.SessionsPerDay = 1;
+            p.SessionMinutes = 10;
+            p.BaseWinBp = 500;
+            p.MinWinBp = 100;
+            p.SkillSpreadBp = 0;
+            p.BoosterWinBonusBp = 0;
+            p.ContinueWinBp = 0;
+            p.MaxHearts = 1;
+            p.HeartRefillCoinCost = 1000000;
+            p.PayerFractionBp = 0;
+            return p;
+        }
+
+        [Test]
+        public void FamilySafe_LooseningProgressFraction_IsClampedAndStillFlagsWall()
+        {
+            var p = Starved("Wonder_Pop");
+            p.MinNonPayerProgressFractionBp = 0;
+            var r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.EffectiveMinNonPayerProgressFractionBp, Is.EqualTo(EconomyParameters.DefaultMinNonPayerProgressFractionBp));
+            Assert.That(r.NonPayers, Is.GreaterThan(0));
+            Assert.That(r.NonPayerProgressFractionBp, Is.LessThan(r.EffectiveMinNonPayerProgressFractionBp), Describe(r));
+            Assert.That(r.Violations, Does.Contain(V.PayToProgressWall), Describe(r));
+        }
+
+        [Test]
+        public void FamilySafe_LooseningLevelsPerDay_IsClampedAndStillFlagsWall()
+        {
+            var p = Starved("Wonder_Pop");
+            p.MinNonPayerLevelsPerDayX100 = 0;
+            var r = EconomyBalanceSimulator.Run(p);
+            Assert.That(r.EffectiveMinNonPayerLevelsPerDayX100, Is.EqualTo(EconomyParameters.DefaultMinNonPayerLevelsPerDayX100));
+            Assert.That(r.Violations, Does.Contain(V.PayToProgressWall), Describe(r));
+
+            // General profile: the caller's (loose) setting is honoured, so the wall is not flagged.
+            var g = Starved("Coral_Rescue");
+            g.MinNonPayerLevelsPerDayX100 = 0;
+            var rg = EconomyBalanceSimulator.Run(g);
+            Assert.That(rg.EffectiveMinNonPayerLevelsPerDayX100, Is.Zero);
+            Assert.That(rg.Violations, Does.Not.Contain(V.PayToProgressWall), Describe(rg));
         }
 
         [Test]
@@ -255,9 +398,9 @@ namespace Match3.Engine.Tests.Editor
         public void Run_DoesNotMutateInputParameters()
         {
             var p = EconomyParameters.DefaultFor("Wonder_Pop");
-            p.ChildSafe = false;
+            p.FamilySafe = false;
             EconomyBalanceSimulator.Run(p);
-            Assert.That(p.ChildSafe, Is.False);
+            Assert.That(p.FamilySafe, Is.False);
         }
     }
 }

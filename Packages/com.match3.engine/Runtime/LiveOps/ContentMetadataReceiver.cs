@@ -21,7 +21,7 @@ namespace Match3.Engine.Runtime.LiveOps
     //     "contentKind": "World" | "Level" | "Event",
     //     "contentId": "<id>", "contentVersion": <int >= 1>,
     //     "payload": { ...kind fields..., "x-<ext>": <ignored> },
-    //     "payloadSha256": "<64 lowercase hex>"   // optional
+    //     "payloadSha256": "<64 lowercase hex>"   // optional integrity digest (unkeyed; not authentication)
     //   } ]
     // }
     // World payload: { "order": int }
@@ -41,7 +41,11 @@ namespace Match3.Engine.Runtime.LiveOps
 
     public enum ContentKind { World = 0, Level = 1, Event = 2 }
 
-    public enum ContentIntegrity { Unsigned = 0, Verified = 1 }
+    /// <summary>
+    /// Integrity only: payloadSha256 is an unkeyed SHA-256, so DigestVerified proves the payload
+    /// was not altered relative to the digest in the same envelope -- it does NOT authenticate the producer.
+    /// </summary>
+    public enum ContentIntegrity { NoDigest = 0, DigestVerified = 1 }
 
     public static class ContentMetadataReasons
     {
@@ -161,7 +165,7 @@ namespace Match3.Engine.Runtime.LiveOps
               .Append(" producer=").Append(producer ?? "-")
               .Append(" items=").Append(Items.Count)
               .Append(" rejected=").Append(Items.Count(i => !i.Accepted))
-              .Append(" unsigned=").Append(Items.Count(i => i.Integrity == ContentIntegrity.Unsigned));
+              .Append(" noDigest=").Append(Items.Count(i => i.Integrity == ContentIntegrity.NoDigest));
             if (Detail.Length > 0) sb.Append(" detail=").Append(Detail);
             foreach (var i in Items)
                 sb.Append('\n').Append('[').Append(i.Index).Append("] ")
@@ -184,14 +188,20 @@ namespace Match3.Engine.Runtime.LiveOps
         private static readonly string[] EventFields = { "endUtc", "levelIds", "startUtc" };
         private static readonly string[] ObjectiveFields = { "count", "kind", "targetId" };
 
+        // Exact words (after compaction, also with one trailing 's' removed). Soft-currency
+        // words (cost, coins, gems) stay allowed: they are Engine-owned virtual economy terms.
         private static readonly HashSet<string> ForbiddenWords = new HashSet<string>(StringComparer.Ordinal)
         {
-            "price", "prices", "pricing", "sku", "skus", "iap", "receipt", "receipts", "purchase", "purchases",
-            "currency", "credential", "credentials", "secret", "secrets", "token", "tokens", "password", "apikey"
+            "price", "pricing", "sku", "iap", "inapp", "receipt", "purchase", "currency", "credential", "secret",
+            "token", "password", "apikey", "payment", "billing", "transaction", "paid", "bearer", "auth",
+            "authorization", "authorisation", "productid", "storeproduct", "storesku", "privatekey"
         };
-        private static readonly HashSet<string> ForbiddenPairs = new HashSet<string>(StringComparer.Ordinal)
+        // Substrings of the whole compact key: long, unambiguous monetization/credential terms only,
+        // so all-lowercase concatenations ("storeproductid", "purchasetoken") are caught too.
+        private static readonly string[] ForbiddenSubstrings =
         {
-            "productid", "apikey", "storeproduct", "privatekey"
+            "price", "receipt", "purchase", "credential", "password", "apikey", "productid", "storeproduct",
+            "privatekey", "payment", "billing", "transaction", "bearer"
         };
 
         private readonly HashSet<ContentKind> _allowedKinds;
@@ -324,13 +334,15 @@ namespace Match3.Engine.Runtime.LiveOps
             var results = new List<ContentItemResult>(n);
             for (var i = 0; i < n; i++)
                 results.Add(new ContentItemResult(i, kindText[i], idText[i], reasons[i], details[i],
-                    items[i]?.Integrity ?? ContentIntegrity.Unsigned));
+                    items[i]?.Integrity ?? ContentIntegrity.NoDigest));
 
             if (results.Any(r => !r.Accepted))
                 return new ContentBatchResult(false, ContentMetadataReasons.ItemRejected, "", results, game, producer);
 
-            // Atomic apply: only reached when every item is accepted.
-            foreach (var item in items) _applied[item.ContentId] = item;
+            // Atomic apply: only reached when every item is accepted. Unchanged re-deliveries keep
+            // the stored record (original producer and integrity), they never overwrite it.
+            for (var i = 0; i < n; i++)
+                if (reasons[i] == ContentMetadataReasons.Accepted) _applied[items[i].ContentId] = items[i];
             return new ContentBatchResult(true, ContentMetadataReasons.Accepted, "", results, game, producer);
         }
 
@@ -396,14 +408,14 @@ namespace Match3.Engine.Runtime.LiveOps
             }
 
             item.PayloadSha256 = CanonicalJson.Sha256Hex(payload);
-            item.Integrity = ContentIntegrity.Unsigned;
+            item.Integrity = ContentIntegrity.NoDigest;
             if (obj.TryGetValue("payloadSha256", out var d))
             {
                 if (!(d is string digest) || !IsLowerHex64(digest))
                     throw new Reject(ContentMetadataReasons.DigestMalformed, "payloadSha256");
                 if (!StringComparer.Ordinal.Equals(digest, item.PayloadSha256))
                     throw new Reject(ContentMetadataReasons.DigestMismatch, "computed " + item.PayloadSha256);
-                item.Integrity = ContentIntegrity.Verified;
+                item.Integrity = ContentIntegrity.DigestVerified;
             }
             return item;
         }
@@ -435,8 +447,9 @@ namespace Match3.Engine.Runtime.LiveOps
 
         private static string OrderSlot(ContentMetadataItem item)
         {
-            if (item.Kind == ContentKind.World) return "world#" + item.Order.ToString(CultureInfo.InvariantCulture);
-            if (item.Kind == ContentKind.Level) return item.WorldId + "#" + item.Order.ToString(CultureInfo.InvariantCulture);
+            // Distinct prefixes: a world whose ID is literally "world" cannot collide with world slots.
+            if (item.Kind == ContentKind.World) return "W|" + item.Order.ToString(CultureInfo.InvariantCulture);
+            if (item.Kind == ContentKind.Level) return "L|" + item.WorldId + "|" + item.Order.ToString(CultureInfo.InvariantCulture);
             return null;
         }
 
@@ -530,32 +543,52 @@ namespace Match3.Engine.Runtime.LiveOps
         }
 
         /// <summary>
-        /// True when the key, split into camelCase / '-' / '_' words, names a monetization
-        /// or credential concept (e.g. price, priceUsd, sku, iapId, storeProductId, apiKey).
-        /// Word-based so "x-mediaPath" is not mistaken for "iap".
+        /// True when the key names a monetization or credential concept. The key is lowercased and
+        /// split on '-', '_' and camelCase two ways (acronym kept whole: "SKUs" -> skus; acronym end
+        /// split: "IAPId" -> iap, id). Each word and each adjacent word pair is matched exactly against
+        /// <see cref="ForbiddenWords"/>, also with one trailing 's' removed ("SKUs", "productIds");
+        /// the compact whole key is also searched for long unambiguous substrings ("storeproductid").
+        /// Word-exact matching keeps "x-mediaPath" allowed. Known conservative rejections: any key
+        /// containing the word "token" or "secret" (e.g. "tokenCount") is rejected (fail closed).
         /// </summary>
         public static bool IsForbiddenKey(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return false;
+            var compact = key.Replace("-", "").Replace("_", "").ToLowerInvariant();
+            foreach (var sub in ForbiddenSubstrings)
+                if (compact.IndexOf(sub, StringComparison.Ordinal) >= 0) return true;
+            return HasForbiddenWord(SplitWords(key, false)) || HasForbiddenWord(SplitWords(key, true));
+        }
+
+        private static bool HasForbiddenWord(List<string> words)
+        {
+            for (var i = 0; i < words.Count; i++)
+            {
+                if (IsForbiddenWord(words[i])) return true;
+                if (i + 1 < words.Count && IsForbiddenWord(words[i] + words[i + 1])) return true;
+            }
+            return false;
+        }
+
+        private static bool IsForbiddenWord(string w) =>
+            ForbiddenWords.Contains(w) ||
+            w.Length > 1 && w[w.Length - 1] == 's' && ForbiddenWords.Contains(w.Substring(0, w.Length - 1));
+
+        private static List<string> SplitWords(string key, bool splitAcronymEnd)
         {
             var words = new List<string>();
             var current = new StringBuilder();
             for (var i = 0; i < key.Length; i++)
             {
                 var c = key[i];
-                // Word starts at '-'/'_', at lower->Upper ("priceUsd") and at the end of an
-                // acronym ("IAPId" -> IAP, Id).
                 var boundary = c == '-' || c == '_' ||
                     char.IsUpper(c) && i > 0 && (char.IsLower(key[i - 1]) ||
-                        char.IsUpper(key[i - 1]) && i + 1 < key.Length && char.IsLower(key[i + 1]));
+                        splitAcronymEnd && char.IsUpper(key[i - 1]) && i + 1 < key.Length && char.IsLower(key[i + 1]));
                 if (boundary && current.Length > 0) { words.Add(current.ToString()); current.Clear(); }
                 if (c != '-' && c != '_') current.Append(char.ToLowerInvariant(c));
             }
             if (current.Length > 0) words.Add(current.ToString());
-            for (var i = 0; i < words.Count; i++)
-            {
-                if (ForbiddenWords.Contains(words[i])) return true;
-                if (i + 1 < words.Count && ForbiddenPairs.Contains(words[i] + words[i + 1])) return true;
-            }
-            return false;
+            return words;
         }
 
         /// <summary>ASCII letter first, then letters/digits/'.'/'_'/'-', 3..80 chars.</summary>
@@ -600,20 +633,22 @@ namespace Match3.Engine.Runtime.LiveOps
     /// Minimal strict JSON reader plus canonical writer for content metadata.
     /// Reader: objects, arrays, strings, integers (long), true/false/null; rejects
     /// fractions/exponents, duplicate keys, trailing data, unpaired surrogates, control
-    /// characters, depth &gt; 32 and input &gt; 256 KiB. Object keys must be 1..64 chars of
+    /// characters, depth &gt; 32 and input &gt; 256 KiB of UTF-8. Object keys must be 1..64 chars of
     /// [A-Za-z0-9_-] so ordinal key order equals code-point order.
     /// Writer: sorted keys, no whitespace, ASCII-only (\uXXXX lowercase) escaping --
     /// byte-identical to Python json.dumps(v, sort_keys=True, separators=(",", ":")).
     /// </summary>
     public static class CanonicalJson
     {
-        public const int MaxChars = 256 * 1024;
+        public const int MaxUtf8Bytes = 256 * 1024;
         public const int MaxDepth = 32;
 
         public static object Parse(string text)
         {
             if (text == null) throw new FormatException("null input");
-            if (text.Length > MaxChars) throw new FormatException("input too large");
+            // Every char encodes to >= 1 UTF-8 byte, so the cheap length check is a valid early exit.
+            if (text.Length > MaxUtf8Bytes || Encoding.UTF8.GetByteCount(text) > MaxUtf8Bytes)
+                throw new FormatException("input exceeds " + MaxUtf8Bytes + " UTF-8 bytes");
             var pos = 0;
             var value = ReadValue(text, ref pos, 0);
             SkipWs(text, ref pos);

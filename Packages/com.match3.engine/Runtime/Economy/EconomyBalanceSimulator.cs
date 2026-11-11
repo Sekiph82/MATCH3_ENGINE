@@ -14,6 +14,12 @@ namespace Match3.Engine.Runtime.Economy
     // comes from SplitMix64, so results are bit-identical on every platform.
     // Default numbers are engineering placeholders pending owner economy approval
     // (ENG-M20-009); the policy checks are what the defaults are validated against.
+    // The four general-audience profiles (Coral_Rescue, Garage_Legends, Dino_Islands,
+    // The_Fractured_Realms) deliberately share IDENTICAL placeholder parameters: no
+    // per-title tuning has been approved, so none is invented here.
+    // Wonder_Pop is a general/family-friendly title (owner decision, GameBusinessProfiles)
+    // with ads/IAP/telemetry off; it always runs under the forced family-safe /
+    // monetization-off policy set below. Reason codes keep their historical "Child" prefix.
 
     /// <summary>SplitMix64 (Steele/Lea/Flood). Small, fast, platform-independent.</summary>
     public sealed class SplitMix64
@@ -44,8 +50,11 @@ namespace Match3.Engine.Runtime.Economy
     public static class EconomyPolicyViolations
     {
         public const string PayToProgressWall = "PayToProgressWall";
+        /// <summary>Family-safe profile: paid currency enabled or any purchase observed.</summary>
         public const string ChildPaidCurrencyFlow = "ChildPaidCurrencyFlow";
+        /// <summary>Family-safe profile: random reward configured or variable rewards observed.</summary>
         public const string ChildRandomReward = "ChildRandomReward";
+        /// <summary>Family-safe profile: per-heart wait configured or observed above the cap.</summary>
         public const string ChildHeartWaitExceeded = "ChildHeartWaitExceeded";
         public const string EventIncentiveUnbounded = "EventIncentiveUnbounded";
     }
@@ -54,8 +63,14 @@ namespace Match3.Engine.Runtime.Economy
     public sealed class EconomyParameters
     {
         public string GameId { get; set; }
-        /// <summary>Child-safe policy set. Always forced on for Wonder_Pop (non-relaxable).</summary>
-        public bool ChildSafe { get; set; }
+        // Policy defaults. For family-safe runs callers may only tighten these (Run clamps them).
+        public const int DefaultMinNonPayerLevelsPerDayX100 = 100;
+        public const int DefaultMinNonPayerProgressFractionBp = 8000;
+        public const int DefaultMaxEventIncentiveBp = 5000;
+        public const int FamilySafeHeartWaitCapMinutes = 15;
+
+        /// <summary>Family-safe / monetization-off policy set. Always forced on for Wonder_Pop (non-relaxable).</summary>
+        public bool FamilySafe { get; set; }
 
         public int Days { get; set; } = 30;
         public int Players { get; set; } = 200;
@@ -71,7 +86,7 @@ namespace Match3.Engine.Runtime.Economy
         public int StartingCoins { get; set; } = 500;
         public int StartingBoosters { get; set; } = 3;
         public int WinCoins { get; set; } = 50;
-        /// <summary>Extra uniform random 0..N coins per win (chest-style). Must be 0 for child-safe.</summary>
+        /// <summary>Extra uniform random 0..N coins per win (chest-style). Must be 0 for family-safe.</summary>
         public int WinCoinsRandomBonus { get; set; } = 20;
         public int DailyLoginCoins { get; set; } = 20;
 
@@ -97,24 +112,27 @@ namespace Match3.Engine.Runtime.Economy
         public int PaidCoinPack { get; set; } = 1000;
 
         /// <summary>Non-payer must average at least this many levels/day x100 to count as progressing.</summary>
-        public int MinNonPayerLevelsPerDayX100 { get; set; } = 100;
+        public int MinNonPayerLevelsPerDayX100 { get; set; } = DefaultMinNonPayerLevelsPerDayX100;
         /// <summary>Fraction (bp) of non-payers that must be progressing; below = pay-to-progress wall.</summary>
-        public int MinNonPayerProgressFractionBp { get; set; } = 8000;
-        public int ChildMaxHeartWaitMinutes { get; set; } = 15;
+        public int MinNonPayerProgressFractionBp { get; set; } = DefaultMinNonPayerProgressFractionBp;
+        /// <summary>Family-safe cap on any heart wait; never above <see cref="FamilySafeHeartWaitCapMinutes"/>.</summary>
+        public int FamilySafeMaxHeartWaitMinutes { get; set; } = FamilySafeHeartWaitCapMinutes;
         /// <summary>Event coins may not exceed this fraction (bp) of core level-win coins.</summary>
-        public int MaxEventIncentiveBp { get; set; } = 5000;
+        public int MaxEventIncentiveBp { get; set; } = DefaultMaxEventIncentiveBp;
 
         public static EconomyParameters DefaultFor(string gameId)
         {
             var business = GameBusinessProfileCatalog.Require(gameId);
-            var child = EconomyBalanceSimulator.IsChildProfile(gameId);
+            var familySafe = EconomyBalanceSimulator.IsFamilySafeProfile(gameId);
+            // Identical placeholder numbers for every general profile (pending ENG-M20-009);
+            // only the family-safe policy differences below are applied.
             var p = new EconomyParameters
             {
                 GameId = gameId,
-                ChildSafe = child,
-                PaidCurrencyEnabled = business.MonetizationEnabled && !child
+                FamilySafe = familySafe,
+                PaidCurrencyEnabled = business.MonetizationEnabled && !familySafe
             };
-            if (child)
+            if (familySafe)
             {
                 p.PayerFractionBp = 0;
                 p.WinCoinsRandomBonus = 0;
@@ -157,7 +175,7 @@ namespace Match3.Engine.Runtime.Economy
             Range(PaidCoinPack, 0, 1000000, nameof(PaidCoinPack));
             Range(MinNonPayerLevelsPerDayX100, 0, 10000, nameof(MinNonPayerLevelsPerDayX100));
             Range(MinNonPayerProgressFractionBp, 0, 10000, nameof(MinNonPayerProgressFractionBp));
-            Range(ChildMaxHeartWaitMinutes, 0, 1440, nameof(ChildMaxHeartWaitMinutes));
+            Range(FamilySafeMaxHeartWaitMinutes, 0, 1440, nameof(FamilySafeMaxHeartWaitMinutes));
             Range(MaxEventIncentiveBp, 0, 100000, nameof(MaxEventIncentiveBp));
         }
 
@@ -189,7 +207,7 @@ namespace Match3.Engine.Runtime.Economy
     public sealed class EconomySimulationResult
     {
         public string GameId { get; internal set; }
-        public bool ChildSafe { get; internal set; }
+        public bool FamilySafe { get; internal set; }
         public IReadOnlyList<EconomyDaySnapshot> Days { get; internal set; }
 
         public int Payers { get; internal set; }
@@ -222,6 +240,12 @@ namespace Match3.Engine.Runtime.Economy
         /// <summary>Longest time any player waited for a heart while wanting to play.</summary>
         public int MaxHeartWaitMinutes { get; internal set; }
 
+        /// <summary>Policy limits actually applied (after family-safe clamping).</summary>
+        public int EffectiveFamilySafeMaxHeartWaitMinutes { get; internal set; }
+        public int EffectiveMaxEventIncentiveBp { get; internal set; }
+        public int EffectiveMinNonPayerProgressFractionBp { get; internal set; }
+        public int EffectiveMinNonPayerLevelsPerDayX100 { get; internal set; }
+
         public IReadOnlyList<string> Violations { get; internal set; }
         public bool Passed => Violations.Count == 0;
         /// <summary>SHA-256 over the canonical daily integer series; golden-pinnable.</summary>
@@ -234,20 +258,28 @@ namespace Match3.Engine.Runtime.Economy
         private const int WakeMinute = 8 * 60;
         private const int AwakeMinutes = 14 * 60;
 
-        public static bool IsChildProfile(string gameId) => StringComparer.Ordinal.Equals(gameId, "Wonder_Pop");
+        public static bool IsFamilySafeProfile(string gameId) => StringComparer.Ordinal.Equals(gameId, "Wonder_Pop");
 
         public static EconomySimulationResult Run(EconomyParameters input)
         {
             if (input == null) throw new ArgumentNullException(nameof(input));
             var p = input.Clone();
             p.Validate();
-            var child = p.ChildSafe || IsChildProfile(p.GameId);
+            var child = p.FamilySafe || IsFamilySafeProfile(p.GameId);
+            if (child)
+            {
+                // Family-safe limits can only be tightened by callers, never loosened.
+                p.FamilySafeMaxHeartWaitMinutes = Math.Min(p.FamilySafeMaxHeartWaitMinutes, EconomyParameters.FamilySafeHeartWaitCapMinutes);
+                p.MaxEventIncentiveBp = Math.Min(p.MaxEventIncentiveBp, EconomyParameters.DefaultMaxEventIncentiveBp);
+                p.MinNonPayerProgressFractionBp = Math.Max(p.MinNonPayerProgressFractionBp, EconomyParameters.DefaultMinNonPayerProgressFractionBp);
+                p.MinNonPayerLevelsPerDayX100 = Math.Max(p.MinNonPayerLevelsPerDayX100, EconomyParameters.DefaultMinNonPayerLevelsPerDayX100);
+            }
 
             var days = new EconomyDaySnapshot[p.Days];
             for (var d = 0; d < p.Days; d++)
                 days[d] = new EconomyDaySnapshot { Day = d, Players = p.Players, EventActive = IsEventDay(p, d) };
 
-            var r = new EconomySimulationResult { GameId = p.GameId, ChildSafe = child, MinWinReward = int.MaxValue };
+            var r = new EconomySimulationResult { GameId = p.GameId, FamilySafe = child, MinWinReward = int.MaxValue };
             var stallDays = new List<int>();
             long nonPayerLevels = 0, payerLevels = 0;
             var progressing = 0;
@@ -284,10 +316,17 @@ namespace Match3.Engine.Runtime.Economy
                 v.Add(EconomyPolicyViolations.PayToProgressWall);
             if (child && (p.PaidCurrencyEnabled || r.PaidPurchases > 0 || r.CoinsBought > 0))
                 v.Add(EconomyPolicyViolations.ChildPaidCurrencyFlow);
-            if (child && r.MaxWinReward != r.MinWinReward)
+            // Configuration and observation both count: a cohort that never wins or never runs out
+            // of hearts must not hide a random reward or a long per-heart wait.
+            if (child && (p.WinCoinsRandomBonus > 0 || r.MaxWinReward != r.MinWinReward))
                 v.Add(EconomyPolicyViolations.ChildRandomReward);
-            if (child && r.MaxHeartWaitMinutes > p.ChildMaxHeartWaitMinutes)
+            if (child && (p.HeartRegenMinutes > p.FamilySafeMaxHeartWaitMinutes ||
+                          r.MaxHeartWaitMinutes > p.FamilySafeMaxHeartWaitMinutes))
                 v.Add(EconomyPolicyViolations.ChildHeartWaitExceeded);
+            r.EffectiveFamilySafeMaxHeartWaitMinutes = p.FamilySafeMaxHeartWaitMinutes;
+            r.EffectiveMaxEventIncentiveBp = p.MaxEventIncentiveBp;
+            r.EffectiveMinNonPayerProgressFractionBp = p.MinNonPayerProgressFractionBp;
+            r.EffectiveMinNonPayerLevelsPerDayX100 = p.MinNonPayerLevelsPerDayX100;
             if (r.CoinsEarnedFromEvents * 10000L > r.CoinsEarnedFromWins * (long)p.MaxEventIncentiveBp)
                 v.Add(EconomyPolicyViolations.EventIncentiveUnbounded);
             r.Violations = v.AsReadOnly();
@@ -324,14 +363,7 @@ namespace Match3.Engine.Runtime.Economy
             void Regen(long to)
             {
                 if (to <= clock) return;
-                if (hearts < p.MaxHearts)
-                {
-                    regenAcc += (int)Math.Min(to - clock, int.MaxValue / 2);
-                    var gained = regenAcc / p.HeartRegenMinutes;
-                    regenAcc %= p.HeartRegenMinutes;
-                    hearts = Math.Min(p.MaxHearts, hearts + gained);
-                    if (hearts == p.MaxHearts) regenAcc = 0;
-                }
+                hearts = RegenerateHearts(hearts, regenAcc, to - clock, p.MaxHearts, p.HeartRegenMinutes, out regenAcc);
                 clock = to;
             }
 
@@ -439,6 +471,31 @@ namespace Match3.Engine.Runtime.Economy
             }
 
             return new PlayerOutcome { Payer = payer, Levels = level, FirstStallDay = firstStall };
+        }
+
+        /// <summary>
+        /// Heart timer: one heart per <paramref name="regenMinutes"/> of accumulated time while below
+        /// max; the partial-heart remainder carries over and resets to 0 once hearts are full.
+        /// </summary>
+        public static int RegenerateHearts(int hearts, int accumulatedMinutes, long elapsedMinutes,
+            int maxHearts, int regenMinutes, out int newAccumulatedMinutes)
+        {
+            if (regenMinutes <= 0) throw new ArgumentOutOfRangeException(nameof(regenMinutes));
+            if (elapsedMinutes < 0) throw new ArgumentOutOfRangeException(nameof(elapsedMinutes));
+            if (hearts >= maxHearts)
+            {
+                newAccumulatedMinutes = accumulatedMinutes;
+                return hearts;
+            }
+            var total = accumulatedMinutes + elapsedMinutes;
+            var gained = total / regenMinutes;
+            newAccumulatedMinutes = (int)(total % regenMinutes);
+            if (hearts + gained >= maxHearts)
+            {
+                newAccumulatedMinutes = 0;
+                return maxHearts;
+            }
+            return hearts + (int)gained;
         }
 
         private static int Clamp(int v, int min, int max) => v < min ? min : v > max ? max : v;
