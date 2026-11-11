@@ -86,26 +86,7 @@ namespace Match3.Engine.Runtime.Commerce
             StoreOwned("Price must come from store; never hard-code or convert currency");
     }
 
-    /// <summary>
-    /// Result of a price-display eligibility check.
-    /// </summary>
-    public readonly struct AdEligibilityResult
-    {
-        public bool IsEligible { get; }
-        public string Reason { get; }
-
-        private AdEligibilityResult(bool eligible, string reason)
-        {
-            IsEligible = eligible;
-            Reason = reason;
-        }
-
-        public static AdEligibilityResult Eligible() =>
-            new AdEligibilityResult(true, string.Empty);
-
-        public static AdEligibilityResult Ineligible(string reason) =>
-            new AdEligibilityResult(false, reason ?? string.Empty);
-    }
+    // AdEligibilityResult is defined canonically in AdEligibilityGate.cs.
 
     /// <summary>
     /// Gate: enforces store-owned price display policy, including per-game prohibitions.

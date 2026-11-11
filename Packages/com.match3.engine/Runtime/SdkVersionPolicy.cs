@@ -1,7 +1,6 @@
 // ENG-M13-009: SDK upgrade policy enforcement.
 // See Documentation~/ENG-M13-009-sdk-upgrade-policy.md for full change-control procedure.
 using System;
-using UnityEngine;
 
 namespace Match3.Engine
 {
@@ -28,7 +27,8 @@ namespace Match3.Engine
         public const string ReleaseScriptingBackend = "IL2CPP";
 
         /// <summary>
-        /// In Dev/Editor builds, confirms Application.unityVersion matches the pinned string.
+        /// In Dev/Editor builds, confirms the caller-supplied running version matches the pinned string.
+        /// Callers pass UnityEngine.Application.unityVersion (this assembly has noEngineReferences).
         /// In production builds (IL2CPP, non-Development) this is a no-op returning true.
         /// Throws InvalidOperationException on mismatch so mismatches surface at startup, not silently.
         /// </summary>
@@ -36,10 +36,10 @@ namespace Match3.Engine
         /// <exception cref="InvalidOperationException">
         /// Thrown in Dev/Editor builds when the running Unity version does not match UnityVersion.
         /// </exception>
-        public static bool Validate()
+        public static bool Validate(string runningUnityVersion)
         {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            string running = Application.unityVersion;
+            string running = runningUnityVersion;
             if (!string.Equals(running, UnityVersion, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(

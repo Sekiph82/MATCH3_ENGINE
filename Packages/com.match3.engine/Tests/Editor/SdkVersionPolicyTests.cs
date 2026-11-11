@@ -43,7 +43,7 @@ namespace Match3.Engine.Tests.Editor
             bool result = false;
             try
             {
-                result = SdkVersionPolicy.Validate();
+                result = SdkVersionPolicy.Validate(UnityEngine.Application.unityVersion);
             }
             catch (InvalidOperationException ex)
             {
