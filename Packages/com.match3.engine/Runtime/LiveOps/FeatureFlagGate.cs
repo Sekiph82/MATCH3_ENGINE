@@ -81,9 +81,10 @@ namespace Match3.Engine.Runtime.LiveOps
                 return false;
             }
 
+            bool isWonderPop = string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal);
+
             // Guard 1: Wonder Pop explicitly prohibits child tournaments (canonical ID, ordinal).
-            if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal) &&
-                record.Feature == LiveOpsFeature.TournamentMode)
+            if (isWonderPop && record.Feature == LiveOpsFeature.TournamentMode)
             {
                 reason = "WonderPopTournamentProhibited";
                 return false;
@@ -96,8 +97,10 @@ namespace Match3.Engine.Runtime.LiveOps
                 return false;
             }
 
-            // Guard 3: restricted feature requires consent check.
-            if (policy.BlockRestrictedWithoutConsent && record.IsRestrictedFeature && !record.HasConsentCheck)
+            // Guard 3: restricted feature requires consent check. Never relaxable for Wonder Pop,
+            // so a permissive policy or remote config cannot bypass child/consent protections.
+            if (record.IsRestrictedFeature && !record.HasConsentCheck &&
+                (policy.BlockRestrictedWithoutConsent || isWonderPop))
             {
                 reason = "RestrictedFeatureRequiresConsent";
                 return false;

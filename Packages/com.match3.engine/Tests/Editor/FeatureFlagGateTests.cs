@@ -192,6 +192,13 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void CanEnableFlag_WonderPop_WeeklyPersonalBest_Permissive_NoConsent_StillBlocked()
+        {
+            Assert.IsFalse(Eval("Wonder_Pop", LiveOpsFeature.WeeklyPersonalBest, true, false, FeatureFlagPolicy.Permissive("relaxed"), out string reason));
+            Assert.AreEqual("RestrictedFeatureRequiresConsent", reason);
+        }
+
+        [Test]
         public void CanEnableFlag_WonderPop_Lowercase_Tournament_NotBlockedByGuard1()
         {
             // Ordinal match on canonical ID: "wonder_pop" skips Guard 1 and reaches the consent guard.
