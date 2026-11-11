@@ -23,7 +23,7 @@ namespace Match3.Engine.Runtime.LiveOps
     //   hold at most MaxInterruptionsPerRun pause/background/reconnect inputs (a frozen timer is thinking time).
     //
     // ponytail: in-memory, single tournament instance; persistence and the backend leaderboard come with
-    // ENG-M21-007/011 and ENG-M16-011.
+    // ENG-M21-007/011; mapping prize grants onto the ENG-M16-011 RewardLedger (source "tournament") is a follow-up.
     public sealed class TournamentPrizeTier
     {
         public int MaxRank { get; }

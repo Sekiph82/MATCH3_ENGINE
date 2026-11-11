@@ -23,7 +23,8 @@ namespace Match3.Engine.Runtime.LiveOps
     //   process / new monotonic base) charges whatever is left of the grace as if the app never returned,
     //   then auto-pauses: it can never give time back.
     // - Records and rewards are separate per mode. Rewards are grant requests with deterministic keys
-    //   (mode|runId|tier); ENG-M16-011 ledger is not on main yet, so nothing is credited here.
+    //   (mode|runId|tier). Nothing is credited here: wiring into the ENG-M16-011 RewardLedger (which landed
+    //   after this task started and has no alternative-mode RewardSource yet) is a follow-up.
     //
     // ponytail: Classic levels keep their goal-based runner; Classic here is only a move-limited score run so
     // records/caps stay keyed per mode. No special pieces are spawned in alternative modes.
