@@ -15,17 +15,22 @@ namespace Match3.Engine.Runtime.LiveOps
     //   same key (game|profile|mode|level|week) and durable previous score/result ID.
     // - First verified completion in a window = participation. A strictly higher verified score replaces the
     //   record. Improvements of at least MinImprovement earn one grant through the ENG-M16-011 RewardLedger
-    //   (source weekly_personal_best, instance "week|mode|level|t<tier>", Reference = result ID, ExpiresUtc = week
-    //   end) while the window is still open, capped per player per window across all levels. No ranking.
-    // - Tiers are derived from the ledger via TryGrant only (first tier slot not taken by another result), so a
-    //   restored or stale local state can never reuse a tier key; ledger Duplicate is reported as AlreadyGranted.
-    //   Every grant carries ExpiresUtc = end of its ISO week (UTC), as the ledger requires for windowed sources.
+    //   while the window is still open. No ranking.
+    // - Cap: the ledger itself holds the cap. Grants use week-wide slots (source weekly_personal_best, instance
+    //   "week|t<k>", k = 1..MaxImprovementRewardsPerWindow, Reference = result ID, ExpiresUtc = end of the ISO
+    //   week UTC). Slots are probed upward with TryGrant: Applied = granted; Duplicate = already granted;
+    //   IdempotencyConflict = slot taken, and if that record's Reference is this result (e.g. reward amount
+    //   changed mid-week) it is AlreadyGranted, otherwise the next slot is tried; no free slot = WindowCapReached.
+    //   So local state loss, an older snapshot or several devices on one merged ledger cannot exceed the cap.
     // - Replay: one entry per result ID and per verified ReplayTrace digest (mode|level|sha256(ReplayCodec.Encode)).
     //   A fixed-seed level replayed with different moves is a different run and may still improve the record.
-    // - Durability: ExportSnapshot()/FromSnapshot() persist all local state (records, result IDs, replay keys,
-    //   per-week grant counts) as canonical JSON (LiveOps.CanonicalJson, same codec as RewardLedger) with a
-    //   SHA-256 field: tamper-EVIDENCE, not authentication. Persist it together with the ledger snapshot; the
-    //   per-week cap count lives here, tier slots live in the ledger.
+    // - Durability: ExportSnapshot()/FromSnapshot() persist all local state (records, result IDs, replay keys)
+    //   plus a monotonic Sequence as canonical JSON (LiveOps.CanonicalJson, same codec as RewardLedger) with a
+    //   SHA-256 field: tamper-EVIDENCE, not authentication. Snapshot version 2; version 1 (which carried local
+    //   grant counts) is rejected with UnsupportedSnapshotVersion, not migrated: the ledger is the cap authority,
+    //   so starting from an empty local state is safe. Callers must keep a high-water Sequence and reject lower
+    //   ones; FromSnapshot enforces it when given minimumSequence (SnapshotRollback). A rolled-back snapshot can
+    //   only lose local replay/duplicate memory, never re-open a grant (ledger slots).
     // - Retention: weeks older than RetainedPastWeeks before the server week are rejected (WeekBeyondRetention)
     //   and pruned, so pruning never reopens a result ID or a grant (grants are only for the current week).
     // - No late-sync grant grace by design: an offline result synced after rollover updates its own week's
@@ -138,6 +143,7 @@ namespace Match3.Engine.Runtime.LiveOps
         public const string IntegrityMismatch = "IntegrityMismatch";
         public const string SnapshotOwnerMismatch = "SnapshotOwnerMismatch";
         public const string NonCanonicalSnapshot = "NonCanonicalSnapshot";
+        public const string SnapshotRollback = "SnapshotRollback";
     }
 
     /// <summary>Previous vs new personal record for one (mode, level, week). No ranking data.</summary>
@@ -181,7 +187,7 @@ namespace Match3.Engine.Runtime.LiveOps
     public sealed class WeeklyPersonalRecordService
     {
         public const string SnapshotFormat = "m3-weekly-pb";
-        public const long SnapshotVersion = 1;
+        public const long SnapshotVersion = 2;
 
         private sealed class Entry
         {
@@ -194,10 +200,11 @@ namespace Match3.Engine.Runtime.LiveOps
         private readonly Dictionary<string, Entry> _records = new Dictionary<string, Entry>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _resultWeeks = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _replayWeeks = new Dictionary<string, string>(StringComparer.Ordinal);
-        private readonly Dictionary<string, int> _grantsByWeek = new Dictionary<string, int>(StringComparer.Ordinal);
 
         public string GameId { get; }
         public string ProfileId { get; }
+        /// <summary>Increases on every local state change; persisted in the snapshot (rollback detection).</summary>
+        public long Sequence { get; private set; }
 
         /// <param name="ledger">ENG-M16-011 ledger of the same game and player (ledger PlayerId = profileId).</param>
         public WeeklyPersonalRecordService(string gameId, string profileId, WeeklyPersonalRecordPolicy policy,
@@ -216,8 +223,8 @@ namespace Match3.Engine.Runtime.LiveOps
             ProfileId = profileId;
         }
 
-        public static string GrantInstanceId(string weekId, string modeId, string levelId, int tier) =>
-            weekId + "|" + modeId + "|" + levelId + "|t" + tier.ToString(CultureInfo.InvariantCulture);
+        public static string GrantInstanceId(string weekId, int slot) =>
+            weekId + "|t" + slot.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
         /// Trust contract (inherited from ENG-M08-015, not redesigned here): <paramref name="result"/> and
@@ -276,6 +283,7 @@ namespace Match3.Engine.Runtime.LiveOps
 
             _resultWeeks[result.ResultId] = weekId;
             _replayWeeks[replayKey] = weekId;
+            Sequence++;
 
             if (prior == null)
             {
@@ -297,27 +305,26 @@ namespace Match3.Engine.Runtime.LiveOps
             if (result.Score - prior.Score < _policy.MinImprovement)
                 return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved,
                     WeeklyRecordReasons.BelowMinimumImprovement, view);
-            _grantsByWeek.TryGetValue(weekId, out var grantedThisWeek);
-            if (grantedThisWeek >= _policy.MaxImprovementRewardsPerWindow)
-                return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.WindowCapReached, view);
-
-            // First free tier slot via TryGrant only: Duplicate = this result was granted before (same payload);
-            // IdempotencyConflict = slot taken by another result, try the next tier.
-            for (var tier = 1; tier <= _policy.MaxImprovementRewardsPerWindow; tier++)
+            // Week-wide ledger slots k = 1..cap (see header): the ledger, not local state, enforces the cap.
+            for (var slot = 1; slot <= _policy.MaxImprovementRewardsPerWindow; slot++)
             {
+                var instance = GrantInstanceId(weekId, slot);
                 var granted = _ledger.TryGrant(new RewardLedgerRequest(GameId, ProfileId,
-                    RewardSources.WeeklyPersonalBest, GrantInstanceId(weekId, result.ModeId, result.LevelId, tier),
+                    RewardSources.WeeklyPersonalBest, instance,
                     new Dictionary<string, long> { [_policy.RewardId] = _policy.RewardAmount },
                     serverNowUtc, IsoWeekWindow.EndUtc(weekId), result.ResultId));
-                if (granted.Outcome == RewardLedgerOutcome.Rejected)
-                {
-                    if (granted.Reason == RewardLedgerReasons.IdempotencyConflict) continue;
+                if (granted.Outcome == RewardLedgerOutcome.Applied)
+                    return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, string.Empty, view, granted.Record);
+                if (granted.Outcome == RewardLedgerOutcome.Duplicate)
+                    return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.AlreadyGranted,
+                        view, granted.Record);
+                if (granted.Reason != RewardLedgerReasons.IdempotencyConflict)
                     return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, granted.Reason, view);
-                }
-                _grantsByWeek[weekId] = grantedThisWeek + 1;
-                return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved,
-                    granted.Outcome == RewardLedgerOutcome.Duplicate ? WeeklyRecordReasons.AlreadyGranted : string.Empty,
-                    view, granted.Record);
+                if (_ledger.TryGetRecord(RewardLedgerKey.Derive(GameId, ProfileId, RewardSources.WeeklyPersonalBest,
+                        instance), out var existing) &&
+                    StringComparer.Ordinal.Equals(existing.Reference, result.ResultId))
+                    return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.AlreadyGranted,
+                        view, existing);
             }
             return new WeeklyRecordOutcome(WeeklyRecordStatus.Improved, WeeklyRecordReasons.WindowCapReached, view);
         }
@@ -345,11 +352,7 @@ namespace Match3.Engine.Runtime.LiveOps
                     map.Remove(k);
                     removed++;
                 }
-            foreach (var k in _grantsByWeek.Keys.Where(Old).ToList())
-            {
-                _grantsByWeek.Remove(k);
-                removed++;
-            }
+            if (removed > 0) Sequence++;
             return removed;
         }
 
@@ -360,9 +363,12 @@ namespace Match3.Engine.Runtime.LiveOps
             return CanonicalJson.Serialize(doc);
         }
 
-        /// <summary>Restores state; null plus a reason when the snapshot is malformed, tampered, non-canonical or foreign.</summary>
+        /// <summary>
+        /// Restores state; null plus a reason when the snapshot is malformed, tampered, non-canonical, foreign,
+        /// of another version, or older than <paramref name="minimumSequence"/> (the caller's stored high-water mark).
+        /// </summary>
         public static WeeklyPersonalRecordService FromSnapshot(string text, string gameId, string profileId,
-            WeeklyPersonalRecordPolicy policy, RewardLedger ledger, out string reason)
+            WeeklyPersonalRecordPolicy policy, RewardLedger ledger, out string reason, long minimumSequence = 0)
         {
             var service = new WeeklyPersonalRecordService(gameId, profileId, policy, ledger);
             try
@@ -378,6 +384,11 @@ namespace Match3.Engine.Runtime.LiveOps
                     return Fail(WeeklyRecordReasons.IntegrityMismatch, out reason);
                 if (!Equals(doc["gameId"], gameId) || !Equals(doc["profileId"], profileId))
                     return Fail(WeeklyRecordReasons.SnapshotOwnerMismatch, out reason);
+                var sequence = (long)doc["sequence"];
+                if (sequence < 0) throw new FormatException("sequence");
+                if (sequence < minimumSequence)
+                    return Fail(WeeklyRecordReasons.SnapshotRollback, out reason);
+                service.Sequence = sequence;
 
                 foreach (Dictionary<string, object> r in (List<object>)doc["records"])
                 {
@@ -399,12 +410,6 @@ namespace Match3.Engine.Runtime.LiveOps
                     service._resultWeeks.Add(Id(r["id"], true), Week(r["week"]));
                 foreach (Dictionary<string, object> r in (List<object>)doc["replays"])
                     service._replayWeeks.Add(Id(r["key"], true), Week(r["week"]));
-                foreach (Dictionary<string, object> r in (List<object>)doc["grants"])
-                {
-                    var count = checked((int)(long)r["count"]);
-                    if (count < 1) throw new FormatException("grant count");
-                    service._grantsByWeek.Add(Week(r["week"]), count);
-                }
                 if (!StringComparer.Ordinal.Equals(service.ExportSnapshot(), text))
                     return Fail(WeeklyRecordReasons.NonCanonicalSnapshot, out reason);
             }
@@ -423,6 +428,7 @@ namespace Match3.Engine.Runtime.LiveOps
             ["version"] = SnapshotVersion,
             ["gameId"] = GameId,
             ["profileId"] = ProfileId,
+            ["sequence"] = Sequence,
             ["records"] = _records.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (object)
                 new Dictionary<string, object>(StringComparer.Ordinal)
                 {
@@ -436,10 +442,7 @@ namespace Match3.Engine.Runtime.LiveOps
                     ["prevResultId"] = kv.Value.Record.PreviousResultId
                 }).ToList(),
             ["results"] = Pairs(_resultWeeks, "id"),
-            ["replays"] = Pairs(_replayWeeks, "key"),
-            ["grants"] = _grantsByWeek.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (object)
-                new Dictionary<string, object>(StringComparer.Ordinal) { ["week"] = kv.Key, ["count"] = (long)kv.Value })
-                .ToList()
+            ["replays"] = Pairs(_replayWeeks, "key")
         };
 
         private static List<object> Pairs(Dictionary<string, string> map, string name) =>

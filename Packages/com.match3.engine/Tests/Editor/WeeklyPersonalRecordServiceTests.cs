@@ -60,8 +60,8 @@ namespace Match3.Engine.Tests.Editor
             svc.Submit(r, Trace(seed, steps, svc.GameId), completion, now ?? completion,
                 flag ?? Flag(svc.GameId), FeatureFlagPolicy.Default);
 
-        private static string Instance(string week, int tier, string level = Level) =>
-            WeeklyPersonalRecordService.GrantInstanceId(week, Mode, level, tier);
+        private static string Instance(string week, int slot) =>
+            WeeklyPersonalRecordService.GrantInstanceId(week, slot);
 
         // ---- ISO week window ---------------------------------------------------------------
 
@@ -189,9 +189,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual(1450, o.View.CurrentBest);
             Assert.AreEqual(250, o.View.ImprovementDelta);
             Assert.AreEqual(RewardSources.WeeklyPersonalBest, o.Grant.Source);
-            Assert.AreEqual("2026-W46|classic|cr.level.0001|t1", o.Grant.SourceInstanceId);
+            Assert.AreEqual("2026-W46|t1", o.Grant.SourceInstanceId);
             Assert.AreEqual(RewardLedgerKey.Derive(Game, Profile, RewardSources.WeeklyPersonalBest,
-                "2026-W46|classic|cr.level.0001|t1"), o.Grant.Key);
+                "2026-W46|t1"), o.Grant.Key);
             Assert.AreEqual("r2", o.Grant.Reference);
             Assert.AreEqual(Utc(2026, 11, 16), o.Grant.ExpiresUtc);
             Assert.AreEqual(25, _ledger.Balance(CurrencyType.Coins));
@@ -447,7 +447,9 @@ namespace Match3.Engine.Tests.Editor
             var before = svc.ExportSnapshot();
 
             Assert.AreEqual(0, svc.Prune(W47Wed), "W46 is inside retention at W47");
-            Assert.AreEqual(6, svc.Prune(W48Wed), "W46: 1 record + 2 result IDs + 2 replay keys + 1 grant count");
+            var sequence = svc.Sequence;
+            Assert.AreEqual(5, svc.Prune(W48Wed), "W46: 1 record + 2 result IDs + 2 replay keys");
+            Assert.That(svc.Sequence, Is.GreaterThan(sequence));
             Assert.IsNull(svc.GetView(Mode, Level, W46));
             Assert.AreEqual(100, svc.GetView(Mode, Level, "2026-W48").CurrentBest);
             Assert.That(svc.ExportSnapshot().Length, Is.LessThan(before.Length));
@@ -509,13 +511,106 @@ namespace Match3.Engine.Tests.Editor
 
             var fresh = new WeeklyPersonalRecordService(Game, Profile, _policy, _ledger); // local state lost
             Submit(fresh, Result("r1", 100), 1, W46Wed);
-            var again = Submit(fresh, Result("r2", 200), 2, W46Wed);
+            // Resynced two days later: GrantedUtc differs, ledger Duplicate semantics ignore it.
+            var again = Submit(fresh, Result("r2", 200), 2, W46Wed, now: W46Fri);
             Assert.AreEqual(R.AlreadyGranted, again.Reason);
             Assert.AreEqual(granted.Key, again.Grant.Key);
+            Assert.AreEqual(W46Wed, again.Grant.GrantedUtc, "original grant record is returned");
             Assert.AreEqual(25, _ledger.Balance(CurrencyType.Coins));
+            Assert.AreEqual(1, _ledger.Count);
 
             var next = Submit(fresh, Result("r3", 300), 3, W46Wed);
             Assert.AreEqual(Instance(W46, 2), next.Grant.SourceInstanceId);
+        }
+
+        [Test]
+        public void LostLocalState_RewardAmountChangedMidWeek_SameResultIsAlreadyGranted_NotRegrantedAtNextSlot()
+        {
+            var svc = Service(cap: 3);
+            Submit(svc, Result("r1", 100), 1, W46Wed);
+            Submit(svc, Result("r2", 200), 2, W46Wed);
+
+            var raised = new WeeklyPersonalRecordPolicy(3, 1, "Coins", 40);
+            var fresh = new WeeklyPersonalRecordService(Game, Profile, raised, _ledger);
+            Submit(fresh, Result("r1", 100), 1, W46Wed);
+            var again = Submit(fresh, Result("r2", 200), 2, W46Fri);
+            Assert.AreEqual(R.AlreadyGranted, again.Reason, "IdempotencyConflict on own slot is not a new grant");
+            Assert.AreEqual("r2", again.Grant.Reference);
+            Assert.AreEqual(25, _ledger.Balance(CurrencyType.Coins));
+            Assert.AreEqual(1, _ledger.Count);
+
+            var next = Submit(fresh, Result("r3", 300), 3, W46Fri);
+            Assert.AreEqual(Instance(W46, 2), next.Grant.SourceInstanceId);
+            Assert.AreEqual(65, _ledger.Balance(CurrencyType.Coins));
+        }
+
+        // ---- D1: the ledger enforces the cross-level weekly cap ---------------------------
+
+        private void CapTwoAcrossTwoLevels(WeeklyPersonalRecordService svc)
+        {
+            Submit(svc, Result("a1", 100), 1, W46Wed);
+            Assert.AreEqual(Instance(W46, 1), Submit(svc, Result("a2", 200), 2, W46Wed).Grant.SourceInstanceId);
+            Submit(svc, Result("b1", 100, level: "cr.level.0002"), 3, W46Wed);
+            Assert.AreEqual(Instance(W46, 2),
+                Submit(svc, Result("b2", 200, level: "cr.level.0002"), 4, W46Wed).Grant.SourceInstanceId);
+        }
+
+        [Test]
+        public void StateLossAfterCap_ThirdLevelImprovement_IsWindowCapReached()
+        {
+            var svc = Service(cap: 2);
+            CapTwoAcrossTwoLevels(svc);
+
+            var fresh = new WeeklyPersonalRecordService(Game, Profile, _policy, _ledger);
+            Submit(fresh, Result("c1", 100, level: "cr.level.0003"), 5, W46Wed);
+            var o = Submit(fresh, Result("c2", 900, level: "cr.level.0003"), 6, W46Wed);
+            Assert.AreEqual(WeeklyRecordStatus.Improved, o.Status);
+            Assert.AreEqual(R.WindowCapReached, o.Reason);
+            Assert.IsNull(o.Grant);
+            Assert.AreEqual(50, _ledger.Balance(CurrencyType.Coins));
+            Assert.AreEqual(2, _ledger.Count);
+        }
+
+        [Test]
+        public void OlderValidSnapshotRestored_CapStillHeld_AndHighWaterMarkRejectsIt()
+        {
+            var svc = Service(cap: 2);
+            Submit(svc, Result("c1", 100, level: "cr.level.0003"), 5, W46Wed);
+            var older = svc.ExportSnapshot();
+            var olderSequence = svc.Sequence;
+            CapTwoAcrossTwoLevels(svc);
+            Assert.That(svc.Sequence, Is.GreaterThan(olderSequence));
+
+            var restored = WeeklyPersonalRecordService.FromSnapshot(older, Game, Profile, _policy, _ledger, out var reason);
+            Assert.IsNotNull(restored, reason);
+            Assert.AreEqual(olderSequence, restored.Sequence);
+            var o = Submit(restored, Result("c2", 900, level: "cr.level.0003"), 6, W46Wed);
+            Assert.AreEqual(R.WindowCapReached, o.Reason);
+            Assert.IsNull(o.Grant);
+            Assert.AreEqual(50, _ledger.Balance(CurrencyType.Coins));
+
+            Assert.IsNull(WeeklyPersonalRecordService.FromSnapshot(older, Game, Profile, _policy, _ledger,
+                out var rollback, svc.Sequence));
+            Assert.AreEqual(R.SnapshotRollback, rollback);
+            Assert.IsNotNull(WeeklyPersonalRecordService.FromSnapshot(svc.ExportSnapshot(), Game, Profile, _policy,
+                _ledger, out _, svc.Sequence));
+        }
+
+        [Test]
+        public void TwoDevicesSharingOneLedger_CannotExceedWeeklyCap()
+        {
+            var phone = Service(cap: 2);
+            var tablet = new WeeklyPersonalRecordService(Game, Profile, _policy, _ledger);
+            Submit(phone, Result("a1", 100), 1, W46Wed);
+            Submit(tablet, Result("b1", 100, level: "cr.level.0002"), 2, W46Wed);
+            Assert.IsNotNull(Submit(phone, Result("a2", 200), 3, W46Wed).Grant);
+            Assert.IsNotNull(Submit(tablet, Result("b2", 200, level: "cr.level.0002"), 4, W46Wed).Grant);
+
+            Assert.AreEqual(R.WindowCapReached, Submit(phone, Result("a3", 300), 5, W46Wed).Reason);
+            Assert.AreEqual(R.WindowCapReached,
+                Submit(tablet, Result("b3", 300, level: "cr.level.0002"), 6, W46Wed).Reason);
+            Assert.AreEqual(2, _ledger.Count);
+            Assert.AreEqual(50, _ledger.Balance(CurrencyType.Coins));
         }
 
         [Test]
@@ -535,7 +630,9 @@ namespace Match3.Engine.Tests.Editor
 
             Assert.AreEqual(R.IntegrityMismatch, Import(text.Replace("\"score\":200", "\"score\":900")));
             Assert.AreEqual(R.SnapshotOwnerMismatch, Import(text, "p2"));
-            Assert.AreEqual(R.UnsupportedSnapshotVersion, Import(text.Replace("\"version\":1", "\"version\":2")));
+            // Version 1 (local grant counts) is rejected, not migrated; the ledger is the cap authority.
+            Assert.AreEqual(R.UnsupportedSnapshotVersion, Import(text.Replace("\"version\":2", "\"version\":1")));
+            Assert.AreEqual(R.UnsupportedSnapshotVersion, Import(text.Replace("\"version\":2", "\"version\":3")));
             Assert.AreEqual(R.NonCanonicalSnapshot, Import(" " + text));
             Assert.AreEqual(R.MalformedSnapshot, Import("not json"));
             Assert.AreEqual(R.MalformedSnapshot, Import("{}"));

@@ -297,6 +297,31 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue",
                 new[] { (a, new JourneySnapshot(new[] { "jx.b.1" })) }));
             Assert.Throws<ArgumentNullException>(() => JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue", null));
+
+            // Empty strip lists still validate the game ID.
+            var none = new (JourneyDefinition, JourneySnapshot)[0];
+            Assert.Throws<ArgumentException>(() => JourneyProgressAdapter.CompletedAcrossStrips("NotAGame", none));
+            Assert.Throws<ArgumentException>(() => JourneyProgressAdapter.CompletedAcrossStrips(null, none));
+            CollectionAssert.IsEmpty(JourneyProgressAdapter.CompletedAcrossStrips("Coral_Rescue", none).CompletedLevelIds);
+        }
+
+        [Test]
+        public void DuplicateWorldOrders_RejectedByReceiver_AndContentGapIfStateIsCorrupted()
+        {
+            var dup = new ContentMetadataReceiver("Coral_Rescue", Kinds).Receive(Doc(World("jx.world.a", 1) + "," +
+                World("jx.world.b", 1)));
+            Assert.IsFalse(dup.Accepted);
+            Assert.AreEqual(ContentMetadataReasons.DuplicateOrder, dup.Items[1].Reason);
+
+            // Defence in depth: force a duplicate order into accepted state (internal setter via reflection).
+            var rx = Load(Doc(World("jx.world.a", 1) + "," + World("jx.world.b", 2) + "," +
+                Level("jx.a.1", "jx.world.a", 1) + "," + Level("jx.b.1", "jx.world.b", 1)));
+            typeof(ContentMetadataItem).GetProperty(nameof(ContentMetadataItem.Order))
+                .SetValue(rx.Applied["jx.world.b"], 1);
+            var v = JourneyPreviewBuilder.Build(rx, new JourneySnapshot(new[] { "jx.a.1" }));
+            Assert.AreEqual(JourneyStatus.ContentGap, v.Status);
+            Assert.AreEqual(1, v.TotalJourneyLevels);
+            Assert.IsNull(v.Next);
         }
 
         [Test]
@@ -350,13 +375,18 @@ namespace Match3.Engine.Tests.Editor
         {
             var plain = Load(Doc(World("jx.world.a", 1) + "," + Level("jx.a.1", "jx.world.a", 1)));
             var decorated = Load(Doc(World("jx.world.a", 1) + "," + Level("jx.a.1", "jx.world.a", 1,
-                extra: ",\"x-offerId\":\"bundle.big\",\"x-paywall\":true")));
+                extra: ",\"x-editorNote\":\"tuned in review\"")));
             Assert.AreEqual(Describe(JourneyPreviewBuilder.Build(plain, new JourneySnapshot())),
                 Describe(JourneyPreviewBuilder.Build(decorated, new JourneySnapshot())));
 
-            var priced = new ContentMetadataReceiver("Coral_Rescue", Kinds).Receive(
-                Doc(World("jx.world.a", 1) + "," + Level("jx.a.1", "jx.world.a", 1, extra: ",\"x-price\":199")));
-            Assert.IsFalse(priced.Accepted, "price fields are rejected before they can reach the preview");
+            foreach (var monetized in new[] { ",\"x-price\":199", ",\"x-offerId\":\"bundle.big\"", ",\"x-paywall\":true" })
+            {
+                var rejected = new ContentMetadataReceiver("Coral_Rescue", Kinds).Receive(
+                    Doc(World("jx.world.a", 1) + "," + Level("jx.a.1", "jx.world.a", 1, extra: monetized)));
+                Assert.IsFalse(rejected.Accepted, monetized + " must be rejected before it can reach the preview");
+                Assert.AreEqual(ContentMetadataReasons.ItemRejected, rejected.Reason);
+                Assert.AreEqual(ContentMetadataReasons.ForbiddenMonetizationField, rejected.Items[1].Reason);
+            }
         }
 
         [Test]

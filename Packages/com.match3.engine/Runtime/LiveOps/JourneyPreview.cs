@@ -127,7 +127,8 @@ namespace Match3.Engine.Runtime.LiveOps
             var worldEnds = new HashSet<string>(levelsByWorld.Values.Select(l => l.Last().ContentId),
                 StringComparer.Ordinal);
 
-            // Truncate at the first missing world order, world without levels, or missing level order.
+            // Truncate at the first missing or duplicate world order, world without levels, or missing level order.
+            // (The receiver already rejects duplicate world orders; the builder still fails closed on them.)
             var journey = new List<ContentMetadataItem>();
             var gap = false;
             for (var w = 0; w < worlds.Count && !gap; w++)
@@ -190,6 +191,7 @@ namespace Match3.Engine.Runtime.LiveOps
         public static JourneySnapshot CompletedAcrossStrips(string gameId,
             IEnumerable<(JourneyDefinition Definition, JourneySnapshot Snapshot)> strips)
         {
+            if (!GameProfileCatalog.IsKnownId(gameId)) throw new ArgumentException("Unknown game ID.", nameof(gameId));
             if (strips == null) throw new ArgumentNullException(nameof(strips));
             var completed = new HashSet<string>(StringComparer.Ordinal);
             JourneyDefinition first = null;
