@@ -55,6 +55,9 @@ namespace Match3.Engine.Runtime.Commerce
 
         public bool IsEnabled(string gameId, AdFormatKind kind)
         {
+            // Fail closed: missing or non-catalog (Ordinal) game IDs are never enabled
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return false;
             var cfg = GetConfig(gameId, kind);
             return cfg.HasValue && cfg.Value.IsEnabled;
         }

@@ -34,9 +34,15 @@ namespace Match3.Engine.Runtime.Commerce
 
     public static class FulfillmentGate
     {
+        /// <summary>
+        /// Guard order: GameIdMissing -> UnknownGame (catalog, Ordinal) -> GameIdMismatch -> Wonder_Pop ->
+        /// already granted/acknowledged. Every guard fails closed (no grant).
+        /// </summary>
         public static bool CanGrantReward(string gameId, FulfillmentRecord record)
         {
             if (string.IsNullOrEmpty(gameId))
+                return false;
+            if (!GameProfileCatalog.IsKnownId(gameId))
                 return false;
 
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))

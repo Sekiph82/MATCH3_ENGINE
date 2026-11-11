@@ -27,21 +27,21 @@ namespace Match3.Engine.Tests.Editor
         public void OfflineEntry_Create_ZeroSequenceId_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 0));
+                OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 0));
         }
 
         [Test]
         public void OfflineEntry_Create_NegativeSequenceId_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                OfflineEntry.Create("GameA", QueuedOperation.SaveSync, -1));
+                OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, -1));
         }
 
         [Test]
         public void OfflineEntry_Create_Valid_ReturnsEntry()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.ProgressUpdate, 42);
-            Assert.AreEqual("GameA", entry.GameId);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.ProgressUpdate, 42);
+            Assert.AreEqual("Coral_Rescue", entry.GameId);
             Assert.AreEqual(QueuedOperation.ProgressUpdate, entry.Operation);
             Assert.AreEqual(42L, entry.SequenceId);
         }
@@ -49,14 +49,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void OfflineEntry_IsProgressUpdate_True_WhenProgressUpdate()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.ProgressUpdate, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.ProgressUpdate, 1);
             Assert.IsTrue(entry.IsProgressUpdate);
         }
 
         [Test]
         public void OfflineEntry_IsProgressUpdate_False_WhenSaveSync()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 1);
             Assert.IsFalse(entry.IsProgressUpdate);
         }
 
@@ -119,20 +119,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanEnqueue_WonderPop_LowercaseNotBlocked()
+        public void CanEnqueue_WonderPop_LowercaseUnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var entry = OfflineEntry.Create("wonder_pop", QueuedOperation.SaveSync, 1);
             var policy = OfflineQueuePolicy.Default;
             var result = OfflineQueueGate.CanEnqueue("wonder_pop", entry, policy);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
         public void CanEnqueue_EntitlementGrant_PolicyDisabled_IsIneligible()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.EntitlementGrant, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.EntitlementGrant, 1);
             var policy = OfflineQueuePolicy.Default; // AllowEntitlementQueue = false
-            var result = OfflineQueueGate.CanEnqueue("GameA", entry, policy);
+            var result = OfflineQueueGate.CanEnqueue("Coral_Rescue", entry, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("EntitlementQueueDisabled", result.Reason);
         }
@@ -140,18 +142,18 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnqueue_EntitlementGrant_PolicyEnabled_IsEligible()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.EntitlementGrant, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.EntitlementGrant, 1);
             var policy = new OfflineQueuePolicy(100, true, "entitlement allowed");
-            var result = OfflineQueueGate.CanEnqueue("GameA", entry, policy);
+            var result = OfflineQueueGate.CanEnqueue("Coral_Rescue", entry, policy);
             Assert.IsTrue(result.IsEligible);
         }
 
         [Test]
         public void CanEnqueue_SaveSync_AnyGame_IsEligible()
         {
-            var entry = OfflineEntry.Create("GameB", QueuedOperation.SaveSync, 5);
+            var entry = OfflineEntry.Create("Garage_Legends", QueuedOperation.SaveSync, 5);
             var policy = OfflineQueuePolicy.Default;
-            var result = OfflineQueueGate.CanEnqueue("GameB", entry, policy);
+            var result = OfflineQueueGate.CanEnqueue("Garage_Legends", entry, policy);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -183,21 +185,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresSync_SaveSync_ReturnsTrue()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 1);
             Assert.IsTrue(OfflineQueueGate.RequiresSync(entry));
         }
 
         [Test]
         public void RequiresSync_ProgressUpdate_ReturnsFalse()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.ProgressUpdate, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.ProgressUpdate, 1);
             Assert.IsFalse(OfflineQueueGate.RequiresSync(entry));
         }
 
         [Test]
         public void RequiresSync_EntitlementGrant_ReturnsFalse()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.EntitlementGrant, 1);
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.EntitlementGrant, 1);
             Assert.IsFalse(OfflineQueueGate.RequiresSync(entry));
         }
 
@@ -207,7 +209,7 @@ namespace Match3.Engine.Tests.Editor
         public void OfflineQueue_Enqueue_IncreasesCount()
         {
             var q = new OfflineQueue();
-            q.Enqueue(OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 1));
+            q.Enqueue(OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 1));
             Assert.AreEqual(1, q.Count);
         }
 
@@ -215,8 +217,8 @@ namespace Match3.Engine.Tests.Editor
         public void OfflineQueue_Dequeue_ReturnsInOrder()
         {
             var q = new OfflineQueue();
-            var e1 = OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 1);
-            var e2 = OfflineEntry.Create("GameA", QueuedOperation.ProgressUpdate, 2);
+            var e1 = OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 1);
+            var e2 = OfflineEntry.Create("Coral_Rescue", QueuedOperation.ProgressUpdate, 2);
             q.Enqueue(e1);
             q.Enqueue(e2);
             var d = q.Dequeue();
@@ -235,7 +237,7 @@ namespace Match3.Engine.Tests.Editor
         public void OfflineQueue_Peek_ReturnsWithoutRemoving()
         {
             var q = new OfflineQueue();
-            q.Enqueue(OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 10));
+            q.Enqueue(OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 10));
             var p = q.Peek();
             Assert.AreEqual(10L, p.SequenceId);
             Assert.AreEqual(1, q.Count);
@@ -252,8 +254,8 @@ namespace Match3.Engine.Tests.Editor
         public void OfflineQueue_Clear_ResetsCount()
         {
             var q = new OfflineQueue();
-            q.Enqueue(OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 1));
-            q.Enqueue(OfflineEntry.Create("GameA", QueuedOperation.ProgressUpdate, 2));
+            q.Enqueue(OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 1));
+            q.Enqueue(OfflineEntry.Create("Coral_Rescue", QueuedOperation.ProgressUpdate, 2));
             q.Clear();
             Assert.AreEqual(0, q.Count);
         }
@@ -269,9 +271,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.EntitlementGrant, 1);
-            var expected = OfflineQueueGate.CanEnqueue("GameA", entry, OfflineQueuePolicy.Default);
-            var result = OfflineQueueGate.CanEnqueue("GameA", entry, default(OfflineQueuePolicy));
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.EntitlementGrant, 1);
+            var expected = OfflineQueueGate.CanEnqueue("Coral_Rescue", entry, OfflineQueuePolicy.Default);
+            var result = OfflineQueueGate.CanEnqueue("Coral_Rescue", entry, default(OfflineQueuePolicy));
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual(expected.Reason, result.Reason);
             Assert.AreEqual("EntitlementQueueDisabled", result.Reason);
@@ -304,6 +306,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = OfflineQueueGate.CanEnqueue(gameId, default(OfflineEntry), default(OfflineQueuePolicy));
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = OfflineQueueGate.CanEnqueue(gameId, default(OfflineEntry), default(OfflineQueuePolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

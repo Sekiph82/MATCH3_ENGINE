@@ -29,21 +29,21 @@ namespace Match3.Engine.Tests.Editor
         public void MigrationContext_NullSourceDeviceId_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                MigrationContext.Create("GameA", MigrationTrigger.Reinstall, null));
+                MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, null));
         }
 
         [Test]
         public void MigrationContext_EmptySourceDeviceId_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                MigrationContext.Create("GameA", MigrationTrigger.Reinstall, ""));
+                MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, ""));
         }
 
         [Test]
         public void MigrationContext_Valid_PropertiesSet()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.NewDevice, "dev-42");
-            Assert.AreEqual("GameA", ctx.GameId);
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.NewDevice, "dev-42");
+            Assert.AreEqual("Coral_Rescue", ctx.GameId);
             Assert.AreEqual(MigrationTrigger.NewDevice, ctx.Trigger);
             Assert.AreEqual("dev-42", ctx.SourceDeviceId);
         }
@@ -53,21 +53,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsReinstall_TrueWhenReinstall()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             Assert.IsTrue(ctx.IsReinstall);
         }
 
         [Test]
         public void IsReinstall_FalseWhenNewDevice()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.NewDevice, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.NewDevice, "dev-1");
             Assert.IsFalse(ctx.IsReinstall);
         }
 
         [Test]
         public void IsReinstall_FalseWhenAppTransfer()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.AppTransfer, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.AppTransfer, "dev-1");
             Assert.IsFalse(ctx.IsReinstall);
         }
 
@@ -113,11 +113,12 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanMigrate_WonderPop_Lowercase_NotBlocked_OrdinalCheck()
+        public void CanMigrate_WonderPop_Lowercase_UnknownGame_OrdinalCheck()
         {
-            // "wonder_pop" lowercase must NOT be blocked — Ordinal, case-sensitive
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var result = DeviceMigrationGate.CanMigrate("wonder_pop", MigrationPolicy.Default);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
@@ -158,21 +159,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsReinstallTrigger_ReinstallContext_ReturnsTrue()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             Assert.IsTrue(DeviceMigrationGate.IsReinstallTrigger(ctx));
         }
 
         [Test]
         public void IsReinstallTrigger_NewDeviceContext_ReturnsFalse()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.NewDevice, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.NewDevice, "dev-1");
             Assert.IsFalse(DeviceMigrationGate.IsReinstallTrigger(ctx));
         }
 
         [Test]
         public void IsReinstallTrigger_AppTransferContext_ReturnsFalse()
         {
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.AppTransfer, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.AppTransfer, "dev-1");
             Assert.IsFalse(DeviceMigrationGate.IsReinstallTrigger(ctx));
         }
 
@@ -182,7 +183,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_NullReason_Throws()
         {
             var log = new MigrationAuditLog();
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             Assert.Throws<ArgumentException>(() => log.Record(ctx, true, null));
         }
 
@@ -190,7 +191,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_EmptyReason_Throws()
         {
             var log = new MigrationAuditLog();
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             Assert.Throws<ArgumentException>(() => log.Record(ctx, true, ""));
         }
 
@@ -198,7 +199,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Count_IncrementsOnRecord()
         {
             var log = new MigrationAuditLog();
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             log.Record(ctx, true, "ok");
             log.Record(ctx, false, "fail");
             Assert.AreEqual(2, log.Count);
@@ -208,7 +209,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Clear_ResetsCount()
         {
             var log = new MigrationAuditLog();
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             log.Record(ctx, true, "ok");
             log.Clear();
             Assert.AreEqual(0, log.Count);
@@ -218,39 +219,39 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_HasEntry_TrueAfterRecord()
         {
             var log = new MigrationAuditLog();
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             log.Record(ctx, true, "ok");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void AuditLog_HasEntry_FalseForUnrecordedGame()
         {
             var log = new MigrationAuditLog();
-            Assert.IsFalse(log.HasEntry("GameB"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void AuditLog_HasEntry_FalseAfterClear()
         {
             var log = new MigrationAuditLog();
-            var ctx = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
+            var ctx = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
             log.Record(ctx, true, "ok");
             log.Clear();
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void AuditLog_HasEntry_MultipleGames()
         {
             var log = new MigrationAuditLog();
-            var ctxA = MigrationContext.Create("GameA", MigrationTrigger.Reinstall, "dev-1");
-            var ctxB = MigrationContext.Create("GameB", MigrationTrigger.NewDevice, "dev-2");
+            var ctxA = MigrationContext.Create("Coral_Rescue", MigrationTrigger.Reinstall, "dev-1");
+            var ctxB = MigrationContext.Create("Garage_Legends", MigrationTrigger.NewDevice, "dev-2");
             log.Record(ctxA, true, "ok");
             log.Record(ctxB, false, "failed");
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsTrue(log.HasEntry("GameB"));
-            Assert.IsFalse(log.HasEntry("GameC"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsTrue(log.HasEntry("Garage_Legends"));
+            Assert.IsFalse(log.HasEntry("Dino_Islands"));
         }
 
 
@@ -258,8 +259,8 @@ namespace Match3.Engine.Tests.Editor
         public void DefaultStructPolicy_NormalizedToDefault_CloudVerificationRequired()
         {
             Assert.IsTrue(DeviceMigrationGate.RequiresCloudVerification(default(MigrationPolicy)));
-            Assert.AreEqual(DeviceMigrationGate.CanMigrate("GameA", MigrationPolicy.Default).Reason,
-                DeviceMigrationGate.CanMigrate("GameA", default(MigrationPolicy)).Reason);
+            Assert.AreEqual(DeviceMigrationGate.CanMigrate("Coral_Rescue", MigrationPolicy.Default).Reason,
+                DeviceMigrationGate.CanMigrate("Coral_Rescue", default(MigrationPolicy)).Reason);
         }
 
         [Test]
@@ -278,6 +279,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = DeviceMigrationGate.CanMigrate(gameId, MigrationPolicy.Default);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanMigrate_UnknownOrCaseVariantGameId_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = DeviceMigrationGate.CanMigrate(gameId, MigrationPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

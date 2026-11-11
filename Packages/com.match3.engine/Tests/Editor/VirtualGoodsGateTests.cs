@@ -101,6 +101,9 @@ namespace Match3.Engine.Tests.Editor
             // it may hit other guards but not WonderPopSpendProhibited
             var result = VirtualGoodsGate.CanSpend("wonder_pop", SpendGrantPolicy.Default);
             Assert.AreNotEqual("WonderPopSpendProhibited", result.Reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed as UnknownGame.
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]

@@ -63,35 +63,35 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RefundRecord_Pending_HasStatusRequested()
         {
-            var r = RefundRecord.Pending("ord-1", "GameA");
+            var r = RefundRecord.Pending("ord-1", "Coral_Rescue");
             Assert.AreEqual(RefundStatus.Requested, r.Status);
         }
 
         [Test]
         public void RefundRecord_Approved_HasStatusApproved()
         {
-            var r = RefundRecord.Approved("ord-2", "GameA");
+            var r = RefundRecord.Approved("ord-2", "Coral_Rescue");
             Assert.AreEqual(RefundStatus.Approved, r.Status);
         }
 
         [Test]
         public void RefundRecord_Revoked_HasStatusRevoked()
         {
-            var r = RefundRecord.Revoked("ord-3", "GameA");
+            var r = RefundRecord.Revoked("ord-3", "Coral_Rescue");
             Assert.AreEqual(RefundStatus.Revoked, r.Status);
         }
 
         [Test]
         public void RefundRecord_Reconciled_HasStatusReconciled()
         {
-            var r = RefundRecord.Reconciled("ord-4", "GameA");
+            var r = RefundRecord.Reconciled("ord-4", "Coral_Rescue");
             Assert.AreEqual(RefundStatus.Reconciled, r.Status);
         }
 
         [Test]
         public void RefundRecord_NullOrderId_ThrowsArgumentException()
         {
-            Assert.Throws<ArgumentException>(() => RefundRecord.Pending(null, "GameA"));
+            Assert.Throws<ArgumentException>(() => RefundRecord.Pending(null, "Coral_Rescue"));
         }
 
         [Test]
@@ -124,8 +124,8 @@ namespace Match3.Engine.Tests.Editor
         {
             // Guard 2: policy does not allow revocation
             var policy = RefundPolicy.Disabled("disabled");
-            var record = RefundRecord.Approved("ord-1", "GameA");
-            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("GameA", record, policy));
+            var record = RefundRecord.Approved("ord-1", "Coral_Rescue");
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, policy));
         }
 
         [Test]
@@ -133,8 +133,8 @@ namespace Match3.Engine.Tests.Editor
         {
             // Guard 3: status is not Approved or Revoked
             var policy = RefundPolicy.Active("active");
-            var record = RefundRecord.Pending("ord-1", "GameA");
-            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("GameA", record, policy));
+            var record = RefundRecord.Pending("ord-1", "Coral_Rescue");
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, policy));
         }
 
         [Test]
@@ -144,25 +144,25 @@ namespace Match3.Engine.Tests.Editor
             // Manually construct a rejected record via Revoked then verify rejected path
             // RefundStatus.Rejected isn't a factory method; test via raw status check
             Assert.IsFalse(RefundGate.IsRefundTerminal(RefundStatus.None)); // sanity
-            var record = RefundRecord.Pending("ord-1", "GameA");
+            var record = RefundRecord.Pending("ord-1", "Coral_Rescue");
             // Pending → Requested, not Approved/Revoked
-            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("GameA", record, policy));
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, policy));
         }
 
         [Test]
         public void ShouldRevokeEntitlement_OtherGame_ApprovedActivePolicy_ReturnsTrue()
         {
             var policy = RefundPolicy.Active("active");
-            var record = RefundRecord.Approved("ord-1", "GameA");
-            Assert.IsTrue(RefundGate.ShouldRevokeEntitlement("GameA", record, policy));
+            var record = RefundRecord.Approved("ord-1", "Coral_Rescue");
+            Assert.IsTrue(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, policy));
         }
 
         [Test]
         public void ShouldRevokeEntitlement_OtherGame_RevokedActivePolicy_ReturnsTrue()
         {
             var policy = RefundPolicy.Active("active");
-            var record = RefundRecord.Revoked("ord-1", "GameA");
-            Assert.IsTrue(RefundGate.ShouldRevokeEntitlement("GameA", record, policy));
+            var record = RefundRecord.Revoked("ord-1", "Coral_Rescue");
+            Assert.IsTrue(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, policy));
         }
 
         // ── IsRefundTerminal ──────────────────────────────────────────────────
@@ -231,7 +231,7 @@ namespace Match3.Engine.Tests.Editor
         public void RefundLedger_Record_And_TryGet_RoundTrip()
         {
             var ledger = new RefundLedger();
-            var record = RefundRecord.Approved("ord-1", "GameA");
+            var record = RefundRecord.Approved("ord-1", "Coral_Rescue");
             ledger.Record(record);
             Assert.IsTrue(ledger.TryGet("ord-1", out var retrieved));
             Assert.AreEqual(RefundStatus.Approved, retrieved.Status);
@@ -241,8 +241,8 @@ namespace Match3.Engine.Tests.Editor
         public void RefundLedger_Record_Overwrites_ExistingOrderId()
         {
             var ledger = new RefundLedger();
-            ledger.Record(RefundRecord.Pending("ord-1", "GameA"));
-            ledger.Record(RefundRecord.Approved("ord-1", "GameA"));
+            ledger.Record(RefundRecord.Pending("ord-1", "Coral_Rescue"));
+            ledger.Record(RefundRecord.Approved("ord-1", "Coral_Rescue"));
             ledger.TryGet("ord-1", out var r);
             Assert.AreEqual(RefundStatus.Approved, r.Status);
         }
@@ -258,9 +258,9 @@ namespace Match3.Engine.Tests.Editor
         public void RefundLedger_GetByStatus_FiltersCorrectly()
         {
             var ledger = new RefundLedger();
-            ledger.Record(RefundRecord.Approved("ord-1", "GameA"));
-            ledger.Record(RefundRecord.Pending("ord-2", "GameA"));
-            ledger.Record(RefundRecord.Approved("ord-3", "GameB"));
+            ledger.Record(RefundRecord.Approved("ord-1", "Coral_Rescue"));
+            ledger.Record(RefundRecord.Pending("ord-2", "Coral_Rescue"));
+            ledger.Record(RefundRecord.Approved("ord-3", "Garage_Legends"));
             var approved = ledger.GetByStatus(RefundStatus.Approved);
             Assert.AreEqual(2, approved.Count);
         }
@@ -269,8 +269,8 @@ namespace Match3.Engine.Tests.Editor
         public void RefundLedger_Count_TracksRecords()
         {
             var ledger = new RefundLedger();
-            ledger.Record(RefundRecord.Pending("ord-1", "GameA"));
-            ledger.Record(RefundRecord.Pending("ord-2", "GameA"));
+            ledger.Record(RefundRecord.Pending("ord-1", "Coral_Rescue"));
+            ledger.Record(RefundRecord.Pending("ord-2", "Coral_Rescue"));
             Assert.AreEqual(2, ledger.Count);
         }
 
@@ -278,7 +278,7 @@ namespace Match3.Engine.Tests.Editor
         public void RefundLedger_Clear_EmptiesLedger()
         {
             var ledger = new RefundLedger();
-            ledger.Record(RefundRecord.Pending("ord-1", "GameA"));
+            ledger.Record(RefundRecord.Pending("ord-1", "Coral_Rescue"));
             ledger.Clear();
             Assert.AreEqual(0, ledger.Count);
         }
@@ -287,10 +287,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var record = RefundRecord.Approved("order-1", "GameA");
-            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("GameA", record, default(RefundPolicy)));
-            Assert.AreEqual(RefundGate.ShouldRevokeEntitlement("GameA", record, RefundPolicy.Default),
-                RefundGate.ShouldRevokeEntitlement("GameA", record, default(RefundPolicy)));
+            var record = RefundRecord.Approved("order-1", "Coral_Rescue");
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, default(RefundPolicy)));
+            Assert.AreEqual(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, RefundPolicy.Default),
+                RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, default(RefundPolicy)));
             Assert.IsTrue(RefundGate.RequiresServerReconciliation(default(RefundPolicy)));
             Assert.DoesNotThrow(() => RefundGate.AssertReconciliationRequired(default(RefundPolicy)));
         }
@@ -319,6 +319,21 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(RefundGate.ShouldRevokeEntitlement(gameId, default(RefundRecord), RefundPolicy.Active("active")));
             }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_MatchingApprovedRecord_NeverRevokes()
+        {
+            // Revoke-safe: a non-catalog ID cannot own an entitlement, so nothing is revoked for it
+            // (and it can never be used to revoke another game's entitlement).
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop" })
+            {
+                Assert.IsFalse(RefundGate.ShouldRevokeEntitlement(gameId, RefundRecord.Approved("order-1", gameId), RefundPolicy.Active("active")), gameId);
+                Assert.IsFalse(RefundGate.ShouldRevokeEntitlement(gameId, RefundRecord.Revoked("order-1", gameId), RefundPolicy.Active("active")), gameId);
+            }
+            // Control: catalog games still revoke approved refunds under an active policy.
+            foreach (var gameId in new[] { "Coral_Rescue", "Garage_Legends", "Dino_Islands", "The_Fractured_Realms" })
+                Assert.IsTrue(RefundGate.ShouldRevokeEntitlement(gameId, RefundRecord.Approved("order-1", gameId), RefundPolicy.Active("active")), gameId);
         }
     }
 }

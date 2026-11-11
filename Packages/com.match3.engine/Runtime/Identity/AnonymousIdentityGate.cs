@@ -75,6 +75,8 @@ namespace Match3.Engine.Runtime.Identity
 
             if (string.IsNullOrEmpty(gameId))
                 return new CollectionEligibilityResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new CollectionEligibilityResult(false, "UnknownGame");
 
             if (!string.Equals(gameId, identity.GameId, StringComparison.Ordinal) ||
                 !string.Equals(gameId, consent.GameId, StringComparison.Ordinal))
@@ -101,6 +103,10 @@ namespace Match3.Engine.Runtime.Identity
         [Obsolete("Identity and consent unknown: always ineligible (ConsentRequired). Use the overload taking GuestIdentity and ConsentRecord.")]
         public static CollectionEligibilityResult CanCollectData(string gameId, IdentityPolicy policy)
         {
+            if (string.IsNullOrEmpty(gameId))
+                return new CollectionEligibilityResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new CollectionEligibilityResult(false, "UnknownGame");
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new CollectionEligibilityResult(false, "WonderPopCollectionProhibited");
 

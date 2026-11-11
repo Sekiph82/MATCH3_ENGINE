@@ -114,6 +114,8 @@ namespace Match3.Engine.Runtime.Commerce
 
             if (string.IsNullOrEmpty(gameId))
                 return AdEligibilityResult.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return AdEligibilityResult.Ineligible("UnknownGame");
 
             if (!string.Equals(gameId, price.GameId, StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("GameIdMismatch");

@@ -22,8 +22,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void MatrixTestRecord_Create_Valid_Succeeds()
         {
-            var r = MatrixTestRecord.Create("GameA", PrivacyTestProfile.StandardUser, false, true);
-            Assert.AreEqual("GameA", r.GameId);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, false, true);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(PrivacyTestProfile.StandardUser, r.Profile);
             Assert.IsFalse(r.HasUnexpectedTransfer);
             Assert.IsTrue(r.IsNetworkCallInstrumented);
@@ -32,49 +32,49 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void MatrixTestRecord_IsRestrictedProfile_ChildProfile_True()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.ChildProfile, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.ChildProfile, false, true);
             Assert.IsTrue(r.IsRestrictedProfile);
         }
 
         [Test]
         public void MatrixTestRecord_IsRestrictedProfile_AdDisabled_True()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.AdDisabled, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.AdDisabled, false, true);
             Assert.IsTrue(r.IsRestrictedProfile);
         }
 
         [Test]
         public void MatrixTestRecord_IsRestrictedProfile_ConsentDenied_True()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.ConsentDenied, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.ConsentDenied, false, true);
             Assert.IsTrue(r.IsRestrictedProfile);
         }
 
         [Test]
         public void MatrixTestRecord_IsRestrictedProfile_ConsentGranted_False()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.ConsentGranted, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.ConsentGranted, false, true);
             Assert.IsFalse(r.IsRestrictedProfile);
         }
 
         [Test]
         public void MatrixTestRecord_IsRestrictedProfile_StandardUser_False()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.StandardUser, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, false, true);
             Assert.IsFalse(r.IsRestrictedProfile);
         }
 
         [Test]
         public void MatrixTestRecord_RequiresInstrumentation_NotInstrumented_True()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.StandardUser, false, false);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, false, false);
             Assert.IsTrue(r.RequiresInstrumentation);
         }
 
         [Test]
         public void MatrixTestRecord_RequiresInstrumentation_Instrumented_False()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.StandardUser, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, false, true);
             Assert.IsFalse(r.RequiresInstrumentation);
         }
 
@@ -135,23 +135,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanPassTestMatrix_WonderPop_Lowercase_NotBlocked()
+        public void CanPassTestMatrix_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = MatrixTestRecord.Create("wonder_pop", PrivacyTestProfile.ChildProfile, true, true);
             var policy = PrivacyTestMatrixPolicy.Safe("test");
-            // Ordinal mismatch: "wonder_pop" != "Wonder_Pop"
             var result = PrivacyTestMatrixGate.CanPassTestMatrix("wonder_pop", record, policy, out var reason);
-            // Guard 1 not triggered; Guard 2 blocks due to unexpected transfer
             Assert.IsFalse(result);
-            Assert.AreEqual("UnexpectedTransferDetected", reason);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanPassTestMatrix_UnexpectedTransfer_SafePolicy_Blocked()
         {
-            var record = MatrixTestRecord.Create("OtherGame", PrivacyTestProfile.StandardUser, true, true);
+            var record = MatrixTestRecord.Create("Garage_Legends", PrivacyTestProfile.StandardUser, true, true);
             var policy = PrivacyTestMatrixPolicy.Safe("test");
-            var result = PrivacyTestMatrixGate.CanPassTestMatrix("OtherGame", record, policy, out var reason);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("Garage_Legends", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("UnexpectedTransferDetected", reason);
         }
@@ -159,9 +158,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanPassTestMatrix_NoTransfer_Instrumented_Eligible()
         {
-            var record = MatrixTestRecord.Create("OtherGame", PrivacyTestProfile.StandardUser, false, true);
+            var record = MatrixTestRecord.Create("Garage_Legends", PrivacyTestProfile.StandardUser, false, true);
             var policy = PrivacyTestMatrixPolicy.Safe("test");
-            var result = PrivacyTestMatrixGate.CanPassTestMatrix("OtherGame", record, policy, out var reason);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("Garage_Legends", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -169,9 +168,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanPassTestMatrix_NotInstrumented_Blocked()
         {
-            var record = MatrixTestRecord.Create("OtherGame", PrivacyTestProfile.StandardUser, false, false);
+            var record = MatrixTestRecord.Create("Garage_Legends", PrivacyTestProfile.StandardUser, false, false);
             var policy = PrivacyTestMatrixPolicy.Safe("test");
-            var result = PrivacyTestMatrixGate.CanPassTestMatrix("OtherGame", record, policy, out var reason);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("Garage_Legends", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("NetworkInstrumentationRequired", reason);
         }
@@ -179,9 +178,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanPassTestMatrix_GdprSubject_Instrumented_NoTransfer_Eligible()
         {
-            var record = MatrixTestRecord.Create("OtherGame", PrivacyTestProfile.GdprSubject, false, true);
+            var record = MatrixTestRecord.Create("Garage_Legends", PrivacyTestProfile.GdprSubject, false, true);
             var policy = PrivacyTestMatrixPolicy.Safe("test");
-            var result = PrivacyTestMatrixGate.CanPassTestMatrix("OtherGame", record, policy, out var reason);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("Garage_Legends", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -189,28 +188,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsRestrictedProfile_Helper_AdDisabled_True()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.AdDisabled, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.AdDisabled, false, true);
             Assert.IsTrue(PrivacyTestMatrixGate.IsRestrictedProfile(r));
         }
 
         [Test]
         public void IsRestrictedProfile_Helper_GdprSubject_False()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.GdprSubject, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.GdprSubject, false, true);
             Assert.IsFalse(PrivacyTestMatrixGate.IsRestrictedProfile(r));
         }
 
         [Test]
         public void RequiresInstrumentation_Helper_NotInstrumented_True()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.StandardUser, false, false);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, false, false);
             Assert.IsTrue(PrivacyTestMatrixGate.RequiresInstrumentation(r));
         }
 
         [Test]
         public void RequiresInstrumentation_Helper_Instrumented_False()
         {
-            var r = MatrixTestRecord.Create("G", PrivacyTestProfile.StandardUser, false, true);
+            var r = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, false, true);
             Assert.IsFalse(PrivacyTestMatrixGate.RequiresInstrumentation(r));
         }
 
@@ -218,8 +217,8 @@ namespace Match3.Engine.Tests.Editor
         public void PrivacyTestMatrixLog_Record_And_Count()
         {
             var log = new PrivacyTestMatrixLog();
-            log.Record("GameA", "ChildProfile");
-            log.Record("GameB", "StandardUser");
+            log.Record("Coral_Rescue", "ChildProfile");
+            log.Record("Garage_Legends", "StandardUser");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -227,16 +226,16 @@ namespace Match3.Engine.Tests.Editor
         public void PrivacyTestMatrixLog_HasEntry_True()
         {
             var log = new PrivacyTestMatrixLog();
-            log.Record("GameA", "ChildProfile");
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", "ChildProfile");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void PrivacyTestMatrixLog_Clear_ResetsCount()
         {
             var log = new PrivacyTestMatrixLog();
-            log.Record("GameA", "ChildProfile");
+            log.Record("Coral_Rescue", "ChildProfile");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -245,9 +244,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanPassTestMatrix_DefaultStructPolicy_FailsClosed()
         {
-            var record = MatrixTestRecord.Create("GameA", PrivacyTestProfile.StandardUser, true, true);
-            var expected = PrivacyTestMatrixGate.CanPassTestMatrix("GameA", record, PrivacyTestMatrixPolicy.Default, out var expectedReason);
-            var result = PrivacyTestMatrixGate.CanPassTestMatrix("GameA", record, default(PrivacyTestMatrixPolicy), out var reason);
+            var record = MatrixTestRecord.Create("Coral_Rescue", PrivacyTestProfile.StandardUser, true, true);
+            var expected = PrivacyTestMatrixGate.CanPassTestMatrix("Coral_Rescue", record, PrivacyTestMatrixPolicy.Default, out var expectedReason);
+            var result = PrivacyTestMatrixGate.CanPassTestMatrix("Coral_Rescue", record, default(PrivacyTestMatrixPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("UnexpectedTransferDetected", expectedReason);
@@ -267,8 +266,8 @@ namespace Match3.Engine.Tests.Editor
         public void PrivacyTestMatrixLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new PrivacyTestMatrixLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -280,9 +279,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -293,6 +292,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(PrivacyTestMatrixGate.CanPassTestMatrix(gameId, default(MatrixTestRecord), default(PrivacyTestMatrixPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(PrivacyTestMatrixGate.CanPassTestMatrix(gameId, default(MatrixTestRecord), default(PrivacyTestMatrixPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

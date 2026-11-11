@@ -73,6 +73,8 @@ namespace Match3.Engine.Runtime.Analytics
 
             if (string.IsNullOrEmpty(gameId))
                 return (false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return (false, "UnknownGame");
 
             if (!string.Equals(gameId, entry.GameId, StringComparison.Ordinal))
                 return (false, "GameIdMismatch");

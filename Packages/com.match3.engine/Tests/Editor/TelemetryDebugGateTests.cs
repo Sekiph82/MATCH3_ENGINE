@@ -91,22 +91,23 @@ namespace Match3.Engine.Tests.Editor
 
         // "wonder_pop" lowercase NOT blocked (Ordinal — case sensitive)
         [Test]
-        public void CanActivateDebug_WonderPopLowercase_NotBlocked()
+        public void CanActivateDebug_WonderPopLowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var session = DebugSession.Create("wonder_pop", DebugMode.EventInspector, true);
             var policyDesc = DebugPolicy.Safe("test");
             var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("wonder_pop", session, policyDesc);
-            // isTestDevice=true satisfies both guard 3 and 4
-            Assert.IsTrue(eligible);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // Guard 2: DebugModeDisabled
         [Test]
         public void CanActivateDebug_ModeDisabled_Blocked()
         {
-            var session = DebugSession.Create("Other", DebugMode.Disabled, true);
+            var session = DebugSession.Create("Garage_Legends", DebugMode.Disabled, true);
             var policy = DebugPolicy.Safe("desc");
-            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Other", session, policy);
+            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Garage_Legends", session, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("DebugModeDisabled", reason);
         }
@@ -115,10 +116,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateDebug_ProductionDebugNotAllowed()
         {
-            var session = DebugSession.Create("Other", DebugMode.EventInspector, false);
+            var session = DebugSession.Create("Garage_Legends", DebugMode.EventInspector, false);
             // Safe: AllowDebugInProduction=false, RequireTestDeviceFlag=true
             var policy = DebugPolicy.Safe("desc");
-            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Other", session, policy);
+            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Garage_Legends", session, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("ProductionDebugNotAllowed", reason);
         }
@@ -134,9 +135,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateDebug_TestDevice_Eligible()
         {
-            var session = DebugSession.Create("Other", DebugMode.EventInspector, true);
+            var session = DebugSession.Create("Garage_Legends", DebugMode.EventInspector, true);
             var policy = DebugPolicy.Safe("desc");
-            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Other", session, policy);
+            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Garage_Legends", session, policy);
             Assert.IsTrue(eligible);
             Assert.AreEqual("eligible", reason);
         }
@@ -190,14 +191,14 @@ namespace Match3.Engine.Tests.Editor
         public void DebugEventLog_Record_NullEventName_Throws()
         {
             var log = new DebugEventLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
         }
 
         [Test]
         public void DebugEventLog_Record_EmptyEventName_Throws()
         {
             var log = new DebugEventLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
@@ -205,21 +206,21 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new DebugEventLog();
             Assert.AreEqual(0, log.Count);
-            log.Record("GameA", "ev1");
-            log.Record("GameA", "ev2");
+            log.Record("Coral_Rescue", "ev1");
+            log.Record("Coral_Rescue", "ev2");
             Assert.AreEqual(2, log.Count);
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void DebugEventLog_Clear_ResetsCount()
         {
             var log = new DebugEventLog();
-            log.Record("GameA", "ev1");
+            log.Record("Coral_Rescue", "ev1");
             log.Clear();
             Assert.AreEqual(0, log.Count);
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
         // Safe() and Default values correct
@@ -245,8 +246,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var (e1, expected) = TelemetryDebugGate.CanActivateDebug("GameA", DebugSession.Create("GameA", DebugMode.EventInspector, false), DebugPolicy.Default);
-            var (e2, reason) = TelemetryDebugGate.CanActivateDebug("GameA", DebugSession.Create("GameA", DebugMode.EventInspector, false), default(DebugPolicy));
+            var (e1, expected) = TelemetryDebugGate.CanActivateDebug("Coral_Rescue", DebugSession.Create("Coral_Rescue", DebugMode.EventInspector, false), DebugPolicy.Default);
+            var (e2, reason) = TelemetryDebugGate.CanActivateDebug("Coral_Rescue", DebugSession.Create("Coral_Rescue", DebugMode.EventInspector, false), default(DebugPolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -278,6 +279,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = TelemetryDebugGate.CanActivateDebug(gameId, default(DebugSession), default(DebugPolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = TelemetryDebugGate.CanActivateDebug(gameId, default(DebugSession), default(DebugPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

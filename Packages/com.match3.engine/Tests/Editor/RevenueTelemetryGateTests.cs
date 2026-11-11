@@ -41,7 +41,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IapPurchase_IsIapRevenue_True_IsAdRevenue_False()
         {
-            var ev = RevenueEvent.Create("GameA", RevenueType.IapPurchase, true);
+            var ev = RevenueEvent.Create("Coral_Rescue", RevenueType.IapPurchase, true);
             Assert.IsTrue(ev.IsIapRevenue);
             Assert.IsFalse(ev.IsAdRevenue);
         }
@@ -49,7 +49,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IapRestore_IsIapRevenue_True_IsAdRevenue_False()
         {
-            var ev = RevenueEvent.Create("GameA", RevenueType.IapRestore, false);
+            var ev = RevenueEvent.Create("Coral_Rescue", RevenueType.IapRestore, false);
             Assert.IsTrue(ev.IsIapRevenue);
             Assert.IsFalse(ev.IsAdRevenue);
         }
@@ -57,7 +57,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AdImpression_IsAdRevenue_True_IsIapRevenue_False()
         {
-            var ev = RevenueEvent.Create("GameA", RevenueType.AdImpression, false);
+            var ev = RevenueEvent.Create("Coral_Rescue", RevenueType.AdImpression, false);
             Assert.IsTrue(ev.IsAdRevenue);
             Assert.IsFalse(ev.IsIapRevenue);
         }
@@ -65,7 +65,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AdReward_IsAdRevenue_True_IsIapRevenue_False()
         {
-            var ev = RevenueEvent.Create("GameA", RevenueType.AdReward, false);
+            var ev = RevenueEvent.Create("Coral_Rescue", RevenueType.AdReward, false);
             Assert.IsTrue(ev.IsAdRevenue);
             Assert.IsFalse(ev.IsIapRevenue);
         }
@@ -100,6 +100,9 @@ namespace Match3.Engine.Tests.Editor
             var policy = RevenueTelemetryPolicy.Allow("all allowed");
             var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("wonder_pop", ev, policy);
             Assert.AreNotEqual("WonderPopRevenueProhibited", reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // ---- AdRevenueTelemetryDisabled guard (Guard 2) ----
@@ -107,9 +110,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AdImpression_PolicyDisablesAd_AdRevenueTelemetryDisabled()
         {
-            var ev = RevenueEvent.Create("GameB", RevenueType.AdImpression, false);
+            var ev = RevenueEvent.Create("Garage_Legends", RevenueType.AdImpression, false);
             var policy = RevenueTelemetryPolicy.Safe("both off");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameB", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Garage_Legends", ev, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("AdRevenueTelemetryDisabled", reason);
         }
@@ -117,9 +120,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AdReward_PolicyDisablesAd_AdRevenueTelemetryDisabled()
         {
-            var ev = RevenueEvent.Create("GameB", RevenueType.AdReward, false);
+            var ev = RevenueEvent.Create("Garage_Legends", RevenueType.AdReward, false);
             var policy = RevenueTelemetryPolicy.Safe("both off");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameB", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Garage_Legends", ev, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("AdRevenueTelemetryDisabled", reason);
         }
@@ -129,9 +132,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IapPurchase_PolicyDisablesIap_IapTelemetryDisabled()
         {
-            var ev = RevenueEvent.Create("GameC", RevenueType.IapPurchase, true);
+            var ev = RevenueEvent.Create("Dino_Islands", RevenueType.IapPurchase, true);
             var policy = RevenueTelemetryPolicy.Safe("both off");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameC", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Dino_Islands", ev, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("IapTelemetryDisabled", reason);
         }
@@ -139,9 +142,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IapRestore_PolicyDisablesIap_IapTelemetryDisabled()
         {
-            var ev = RevenueEvent.Create("GameC", RevenueType.IapRestore, false);
+            var ev = RevenueEvent.Create("Dino_Islands", RevenueType.IapRestore, false);
             var policy = RevenueTelemetryPolicy.Safe("both off");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameC", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Dino_Islands", ev, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("IapTelemetryDisabled", reason);
         }
@@ -151,9 +154,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void BothDisabled_AdEvent_Guard2FiresNotGuard3()
         {
-            var ev = RevenueEvent.Create("GameD", RevenueType.AdImpression, false);
+            var ev = RevenueEvent.Create("The_Fractured_Realms", RevenueType.AdImpression, false);
             var policy = RevenueTelemetryPolicy.Safe("both off");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameD", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("The_Fractured_Realms", ev, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("AdRevenueTelemetryDisabled", reason);
             Assert.AreNotEqual("IapTelemetryDisabled", reason);
@@ -164,28 +167,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsAdEvent_AdImpression_ReturnsTrue()
         {
-            var ev = RevenueEvent.Create("GameE", RevenueType.AdImpression, false);
+            var ev = RevenueEvent.Create("The_Fractured_Realms", RevenueType.AdImpression, false);
             Assert.IsTrue(RevenueTelemetryGate.IsAdEvent(ev));
         }
 
         [Test]
         public void IsAdEvent_IapPurchase_ReturnsFalse()
         {
-            var ev = RevenueEvent.Create("GameE", RevenueType.IapPurchase, true);
+            var ev = RevenueEvent.Create("The_Fractured_Realms", RevenueType.IapPurchase, true);
             Assert.IsFalse(RevenueTelemetryGate.IsAdEvent(ev));
         }
 
         [Test]
         public void IsIapEvent_IapRestore_ReturnsTrue()
         {
-            var ev = RevenueEvent.Create("GameE", RevenueType.IapRestore, false);
+            var ev = RevenueEvent.Create("The_Fractured_Realms", RevenueType.IapRestore, false);
             Assert.IsTrue(RevenueTelemetryGate.IsIapEvent(ev));
         }
 
         [Test]
         public void IsIapEvent_AdReward_ReturnsFalse()
         {
-            var ev = RevenueEvent.Create("GameE", RevenueType.AdReward, false);
+            var ev = RevenueEvent.Create("The_Fractured_Realms", RevenueType.AdReward, false);
             Assert.IsFalse(RevenueTelemetryGate.IsIapEvent(ev));
         }
 
@@ -211,9 +214,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void BothAllowed_NonWonderPop_AdEvent_Eligible()
         {
-            var ev = RevenueEvent.Create("GameF", RevenueType.AdImpression, false);
+            var ev = RevenueEvent.Create("Dino_Islands", RevenueType.AdImpression, false);
             var policy = RevenueTelemetryPolicy.Allow("fully enabled");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameF", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Dino_Islands", ev, policy);
             Assert.IsTrue(eligible);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -221,9 +224,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void BothAllowed_NonWonderPop_IapEvent_Eligible()
         {
-            var ev = RevenueEvent.Create("GameF", RevenueType.IapPurchase, true);
+            var ev = RevenueEvent.Create("Dino_Islands", RevenueType.IapPurchase, true);
             var policy = RevenueTelemetryPolicy.Allow("fully enabled");
-            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("GameF", ev, policy);
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Dino_Islands", ev, policy);
             Assert.IsTrue(eligible);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -248,7 +251,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_IncreasesCount()
         {
             var log = new RevenueAuditLog();
-            log.Record("GameG", RevenueType.AdImpression);
+            log.Record("Garage_Legends", RevenueType.AdImpression);
             Assert.AreEqual(1, log.Count);
         }
 
@@ -256,8 +259,8 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_HasEntry_True_AfterRecord()
         {
             var log = new RevenueAuditLog();
-            log.Record("GameH", RevenueType.IapPurchase);
-            Assert.IsTrue(log.HasEntry("GameH"));
+            log.Record("Coral_Rescue", RevenueType.IapPurchase);
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -271,8 +274,8 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Clear_ResetsCount()
         {
             var log = new RevenueAuditLog();
-            log.Record("GameI", RevenueType.AdReward);
-            log.Record("GameI", RevenueType.IapRestore);
+            log.Record("The_Fractured_Realms", RevenueType.AdReward);
+            log.Record("The_Fractured_Realms", RevenueType.IapRestore);
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -281,17 +284,17 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Clear_HasEntry_False_AfterClear()
         {
             var log = new RevenueAuditLog();
-            log.Record("GameJ", RevenueType.AdImpression);
+            log.Record("Dino_Islands", RevenueType.AdImpression);
             log.Clear();
-            Assert.IsFalse(log.HasEntry("GameJ"));
+            Assert.IsFalse(log.HasEntry("Dino_Islands"));
         }
 
 
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var (e1, expected) = RevenueTelemetryGate.CanRecordRevenue("GameA", RevenueEvent.Create("GameA", RevenueType.AdImpression, true), RevenueTelemetryPolicy.Default);
-            var (e2, reason) = RevenueTelemetryGate.CanRecordRevenue("GameA", RevenueEvent.Create("GameA", RevenueType.AdImpression, true), default(RevenueTelemetryPolicy));
+            var (e1, expected) = RevenueTelemetryGate.CanRecordRevenue("Coral_Rescue", RevenueEvent.Create("Coral_Rescue", RevenueType.AdImpression, true), RevenueTelemetryPolicy.Default);
+            var (e2, reason) = RevenueTelemetryGate.CanRecordRevenue("Coral_Rescue", RevenueEvent.Create("Coral_Rescue", RevenueType.AdImpression, true), default(RevenueTelemetryPolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -323,6 +326,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue(gameId, default(RevenueEvent), default(RevenueTelemetryPolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue(gameId, default(RevenueEvent), default(RevenueTelemetryPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

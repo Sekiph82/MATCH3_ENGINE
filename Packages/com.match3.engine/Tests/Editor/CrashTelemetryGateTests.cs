@@ -25,8 +25,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CrashReport_Create_SetsProperties()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Error, true);
-            Assert.AreEqual("GameA", r.GameId);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Error, true);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(CrashSeverity.Error, r.Severity);
             Assert.IsTrue(r.IsSymbolicated);
         }
@@ -36,21 +36,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CrashReport_IsFatal_Warning_False()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Warning, true);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Warning, true);
             Assert.IsFalse(r.IsFatal);
         }
 
         [Test]
         public void CrashReport_IsFatal_Error_False()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Error, true);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Error, true);
             Assert.IsFalse(r.IsFatal);
         }
 
         [Test]
         public void CrashReport_IsFatal_Fatal_True()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Fatal, true);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Fatal, true);
             Assert.IsTrue(r.IsFatal);
         }
 
@@ -59,21 +59,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CrashReport_RequiresUpload_FatalSymbolicated_True()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Fatal, true);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Fatal, true);
             Assert.IsTrue(r.RequiresUpload);
         }
 
         [Test]
         public void CrashReport_RequiresUpload_NonFatalNotSymbolicated_True()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Warning, false);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Warning, false);
             Assert.IsTrue(r.RequiresUpload);
         }
 
         [Test]
         public void CrashReport_RequiresUpload_NonFatalSymbolicated_False()
         {
-            var r = CrashReport.Create("GameA", CrashSeverity.Warning, true);
+            var r = CrashReport.Create("Coral_Rescue", CrashSeverity.Warning, true);
             Assert.IsFalse(r.RequiresUpload);
         }
 
@@ -134,14 +134,17 @@ namespace Match3.Engine.Tests.Editor
             var policy = CrashTelemetryPolicy.Allow("allowed");
             var (eligible, reason) = CrashTelemetryGate.CanReportCrash("wonder_pop", report, policy);
             Assert.AreNotEqual("WonderPopCrashProhibited", reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanReportCrash_CrashReportingDisabled_Guard2()
         {
-            var report = CrashReport.Create("GameB", CrashSeverity.Error, true);
+            var report = CrashReport.Create("Garage_Legends", CrashSeverity.Error, true);
             var policy = CrashTelemetryPolicy.Safe("disabled");
-            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("GameB", report, policy);
+            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("Garage_Legends", report, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("CrashReportingDisabled", reason);
         }
@@ -149,9 +152,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanReportCrash_SymbolicationRequired_NotSymbolicated_Guard3()
         {
-            var report = CrashReport.Create("GameC", CrashSeverity.Warning, false);
+            var report = CrashReport.Create("Dino_Islands", CrashSeverity.Warning, false);
             var policy = CrashTelemetryPolicy.Allow("require sym");
-            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("GameC", report, policy);
+            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("Dino_Islands", report, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("SymbolicationRequired", reason);
         }
@@ -159,9 +162,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanReportCrash_Eligible_WhenAllowedAndSymbolicated()
         {
-            var report = CrashReport.Create("GameD", CrashSeverity.Warning, true);
+            var report = CrashReport.Create("The_Fractured_Realms", CrashSeverity.Warning, true);
             var policy = CrashTelemetryPolicy.Allow("allowed");
-            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("GameD", report, policy);
+            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("The_Fractured_Realms", report, policy);
             Assert.IsTrue(eligible);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -171,35 +174,35 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsFatalReport_FatalSeverity_True()
         {
-            var r = CrashReport.Create("GameE", CrashSeverity.Fatal, true);
+            var r = CrashReport.Create("The_Fractured_Realms", CrashSeverity.Fatal, true);
             Assert.IsTrue(CrashTelemetryGate.IsFatalReport(r));
         }
 
         [Test]
         public void IsFatalReport_ErrorSeverity_False()
         {
-            var r = CrashReport.Create("GameE", CrashSeverity.Error, true);
+            var r = CrashReport.Create("The_Fractured_Realms", CrashSeverity.Error, true);
             Assert.IsFalse(CrashTelemetryGate.IsFatalReport(r));
         }
 
         [Test]
         public void RequiresUpload_FatalReport_True()
         {
-            var r = CrashReport.Create("GameF", CrashSeverity.Fatal, true);
+            var r = CrashReport.Create("Dino_Islands", CrashSeverity.Fatal, true);
             Assert.IsTrue(CrashTelemetryGate.RequiresUpload(r));
         }
 
         [Test]
         public void RequiresUpload_NonFatalNotSymbolicated_True()
         {
-            var r = CrashReport.Create("GameF", CrashSeverity.Warning, false);
+            var r = CrashReport.Create("Dino_Islands", CrashSeverity.Warning, false);
             Assert.IsTrue(CrashTelemetryGate.RequiresUpload(r));
         }
 
         [Test]
         public void RequiresUpload_NonFatalSymbolicated_False()
         {
-            var r = CrashReport.Create("GameF", CrashSeverity.Error, true);
+            var r = CrashReport.Create("Dino_Islands", CrashSeverity.Error, true);
             Assert.IsFalse(CrashTelemetryGate.RequiresUpload(r));
         }
 
@@ -223,8 +226,8 @@ namespace Match3.Engine.Tests.Editor
         public void CrashLog_Record_IncreasesCount()
         {
             var log = new CrashLog();
-            log.Record("GameG", CrashSeverity.Error);
-            log.Record("GameG", CrashSeverity.Fatal);
+            log.Record("Garage_Legends", CrashSeverity.Error);
+            log.Record("Garage_Legends", CrashSeverity.Fatal);
             Assert.AreEqual(2, log.Count);
         }
 
@@ -232,8 +235,8 @@ namespace Match3.Engine.Tests.Editor
         public void CrashLog_HasEntry_AfterRecord_True()
         {
             var log = new CrashLog();
-            log.Record("GameH", CrashSeverity.Warning);
-            Assert.IsTrue(log.HasEntry("GameH"));
+            log.Record("Coral_Rescue", CrashSeverity.Warning);
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -247,7 +250,7 @@ namespace Match3.Engine.Tests.Editor
         public void CrashLog_Clear_ResetsCount()
         {
             var log = new CrashLog();
-            log.Record("GameI", CrashSeverity.Error);
+            log.Record("The_Fractured_Realms", CrashSeverity.Error);
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -256,17 +259,17 @@ namespace Match3.Engine.Tests.Editor
         public void CrashLog_HasEntry_AfterClear_False()
         {
             var log = new CrashLog();
-            log.Record("GameJ", CrashSeverity.Fatal);
+            log.Record("Dino_Islands", CrashSeverity.Fatal);
             log.Clear();
-            Assert.IsFalse(log.HasEntry("GameJ"));
+            Assert.IsFalse(log.HasEntry("Dino_Islands"));
         }
 
 
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var (e1, expected) = CrashTelemetryGate.CanReportCrash("GameA", CrashReport.Create("GameA", CrashSeverity.Fatal, true), CrashTelemetryPolicy.Default);
-            var (e2, reason) = CrashTelemetryGate.CanReportCrash("GameA", CrashReport.Create("GameA", CrashSeverity.Fatal, true), default(CrashTelemetryPolicy));
+            var (e1, expected) = CrashTelemetryGate.CanReportCrash("Coral_Rescue", CrashReport.Create("Coral_Rescue", CrashSeverity.Fatal, true), CrashTelemetryPolicy.Default);
+            var (e2, reason) = CrashTelemetryGate.CanReportCrash("Coral_Rescue", CrashReport.Create("Coral_Rescue", CrashSeverity.Fatal, true), default(CrashTelemetryPolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -298,6 +301,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = CrashTelemetryGate.CanReportCrash(gameId, default(CrashReport), default(CrashTelemetryPolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = CrashTelemetryGate.CanReportCrash(gameId, default(CrashReport), default(CrashTelemetryPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

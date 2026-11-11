@@ -73,7 +73,7 @@ namespace Match3.Engine.Tests.Editor
         {
             foreach (ChildProfileFeature feature in Enum.GetValues(typeof(ChildProfileFeature)))
             {
-                var record = ChildRestrictionRecord.Create("AnyGame", feature, true, true);
+                var record = ChildRestrictionRecord.Create("Coral_Rescue", feature, true, true);
                 Assert.IsTrue(record.IsDefaultRestricted, $"Expected IsDefaultRestricted=true for {feature}");
             }
         }
@@ -178,23 +178,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanEnableFeature_WonderPop_Lowercase_RemoteConfig_NotBlocked()
+        public void CanEnableFeature_WonderPop_Lowercase_RemoteConfig_UnknownGame()
         {
-            // Ordinal mismatch: "wonder_pop" != "Wonder_Pop" so Guard 1 not triggered
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = ChildRestrictionRecord.Create("wonder_pop", ChildProfileFeature.RemoteConfigOverride, true, true);
             var policy = ChildProfilePolicy.Default;
             bool result = ChildProfileRestrictionsGate.CanEnableFeature("wonder_pop", record, policy, out string reason);
-            // Guard 1 not triggered; Guard 4 checks owner-locked but IsOwnerApproved=true so eligible
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanEnableFeature_NonWonderPop_OwnerLocked_NoOwnerApproval_Blocked()
         {
-            var record = ChildRestrictionRecord.Create("OtherGame", ChildProfileFeature.SocialInvite, true, false);
+            var record = ChildRestrictionRecord.Create("Garage_Legends", ChildProfileFeature.SocialInvite, true, false);
             var policy = ChildProfilePolicy.Default;
-            bool result = ChildProfileRestrictionsGate.CanEnableFeature("OtherGame", record, policy, out string reason);
+            bool result = ChildProfileRestrictionsGate.CanEnableFeature("Garage_Legends", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("OwnerApprovalRequired", reason);
         }
@@ -202,9 +201,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_NonWonderPop_OwnerLocked_OwnerApproved_Eligible()
         {
-            var record = ChildRestrictionRecord.Create("OtherGame", ChildProfileFeature.TournamentEntry, false, true);
+            var record = ChildRestrictionRecord.Create("Garage_Legends", ChildProfileFeature.TournamentEntry, false, true);
             var policy = ChildProfilePolicy.Default;
-            bool result = ChildProfileRestrictionsGate.CanEnableFeature("OtherGame", record, policy, out string reason);
+            bool result = ChildProfileRestrictionsGate.CanEnableFeature("Garage_Legends", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -212,9 +211,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_NonWonderPop_NonLocked_Eligible()
         {
-            var record = ChildRestrictionRecord.Create("OtherGame", ChildProfileFeature.BehavioralProfiling, false, false);
+            var record = ChildRestrictionRecord.Create("Garage_Legends", ChildProfileFeature.BehavioralProfiling, false, false);
             var policy = ChildProfilePolicy.Default;
-            bool result = ChildProfileRestrictionsGate.CanEnableFeature("OtherGame", record, policy, out string reason);
+            bool result = ChildProfileRestrictionsGate.CanEnableFeature("Garage_Legends", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -224,21 +223,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsOwnerLockedFeature_Helper_RemoteConfigOverride_True()
         {
-            var record = ChildRestrictionRecord.Create("AnyGame", ChildProfileFeature.RemoteConfigOverride, false, false);
+            var record = ChildRestrictionRecord.Create("Coral_Rescue", ChildProfileFeature.RemoteConfigOverride, false, false);
             Assert.IsTrue(ChildProfileRestrictionsGate.IsOwnerLockedFeature(record));
         }
 
         [Test]
         public void IsOwnerLockedFeature_Helper_SocialRank_False()
         {
-            var record = ChildRestrictionRecord.Create("AnyGame", ChildProfileFeature.SocialRank, false, false);
+            var record = ChildRestrictionRecord.Create("Coral_Rescue", ChildProfileFeature.SocialRank, false, false);
             Assert.IsFalse(ChildProfileRestrictionsGate.IsOwnerLockedFeature(record));
         }
 
         [Test]
         public void IsDefaultRestricted_Helper_AnyFeature_True()
         {
-            var record = ChildRestrictionRecord.Create("AnyGame", ChildProfileFeature.ForcedStorePrompt, false, false);
+            var record = ChildRestrictionRecord.Create("Coral_Rescue", ChildProfileFeature.ForcedStorePrompt, false, false);
             Assert.IsTrue(ChildProfileRestrictionsGate.IsDefaultRestricted(record));
         }
 
@@ -259,7 +258,7 @@ namespace Match3.Engine.Tests.Editor
             var log = new ChildRestrictionLog();
             log.Record("Wonder_Pop", "BehavioralProfiling");
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
-            Assert.IsFalse(log.HasEntry("OtherGame"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
@@ -282,9 +281,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_DefaultStructPolicy_FailsClosed()
         {
-            var record = ChildRestrictionRecord.Create("GameA", ChildProfileFeature.SocialInvite, true, false);
-            var expected = ChildProfileRestrictionsGate.CanEnableFeature("GameA", record, ChildProfilePolicy.Default, out var expectedReason);
-            var result = ChildProfileRestrictionsGate.CanEnableFeature("GameA", record, default(ChildProfilePolicy), out var reason);
+            var record = ChildRestrictionRecord.Create("Coral_Rescue", ChildProfileFeature.SocialInvite, true, false);
+            var expected = ChildProfileRestrictionsGate.CanEnableFeature("Coral_Rescue", record, ChildProfilePolicy.Default, out var expectedReason);
+            var result = ChildProfileRestrictionsGate.CanEnableFeature("Coral_Rescue", record, default(ChildProfilePolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("OwnerApprovalRequired", expectedReason);
@@ -304,8 +303,8 @@ namespace Match3.Engine.Tests.Editor
         public void ChildRestrictionLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new ChildRestrictionLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -317,9 +316,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -330,6 +329,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(ChildProfileRestrictionsGate.CanEnableFeature(gameId, default(ChildRestrictionRecord), default(ChildProfilePolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(ChildProfileRestrictionsGate.CanEnableFeature(gameId, default(ChildRestrictionRecord), default(ChildProfilePolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

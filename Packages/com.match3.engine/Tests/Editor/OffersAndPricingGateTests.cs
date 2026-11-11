@@ -22,57 +22,57 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void OfferRecord_Create_Valid_Succeeds()
         {
-            var r = OfferRecord.Create("game1", OfferType.ShopPromotion, true, false, false);
-            Assert.AreEqual("game1", r.GameId);
+            var r = OfferRecord.Create("coral_rescue", OfferType.ShopPromotion, true, false, false);
+            Assert.AreEqual("coral_rescue", r.GameId);
             Assert.AreEqual(OfferType.ShopPromotion, r.Type);
         }
 
         [Test]
         public void OfferRecord_RequiresStoreAuth_RealMoney_NoAuth_True()
         {
-            var r = OfferRecord.Create("game1", OfferType.StarterBundle, true, true, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.StarterBundle, true, true, false);
             Assert.IsTrue(r.RequiresStoreAuth);
         }
 
         [Test]
         public void OfferRecord_RequiresStoreAuth_NotRealMoney_False()
         {
-            var r = OfferRecord.Create("game1", OfferType.BonusBoosterEvent, true, false, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.BonusBoosterEvent, true, false, false);
             Assert.IsFalse(r.RequiresStoreAuth);
         }
 
         [Test]
         public void OfferRecord_RequiresStoreAuth_RealMoney_HasAuth_False()
         {
-            var r = OfferRecord.Create("game1", OfferType.StarterBundle, true, true, true);
+            var r = OfferRecord.Create("coral_rescue", OfferType.StarterBundle, true, true, true);
             Assert.IsFalse(r.RequiresStoreAuth);
         }
 
         [Test]
         public void OfferRecord_IsEligibleForPresentation_Approved_NotRealMoney_True()
         {
-            var r = OfferRecord.Create("game1", OfferType.ContentAvailability, true, false, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.ContentAvailability, true, false, false);
             Assert.IsTrue(r.IsEligibleForPresentation);
         }
 
         [Test]
         public void OfferRecord_IsEligibleForPresentation_Approved_RealMoney_HasAuth_True()
         {
-            var r = OfferRecord.Create("game1", OfferType.LimitedTimeBundle, true, true, true);
+            var r = OfferRecord.Create("coral_rescue", OfferType.LimitedTimeBundle, true, true, true);
             Assert.IsTrue(r.IsEligibleForPresentation);
         }
 
         [Test]
         public void OfferRecord_IsEligibleForPresentation_NotApproved_False()
         {
-            var r = OfferRecord.Create("game1", OfferType.SeasonalOffer, false, false, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.SeasonalOffer, false, false, false);
             Assert.IsFalse(r.IsEligibleForPresentation);
         }
 
         [Test]
         public void OfferRecord_IsEligibleForPresentation_RealMoney_NoAuth_False()
         {
-            var r = OfferRecord.Create("game1", OfferType.StarterBundle, true, true, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.StarterBundle, true, true, false);
             Assert.IsFalse(r.IsEligibleForPresentation);
         }
 
@@ -139,14 +139,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanPresentOffer_WonderPop_Lowercase_RealMoney_NoAuth_Guard2()
+        public void CanPresentOffer_WonderPop_Lowercase_RealMoney_NoAuth_UnknownGame()
         {
-            // "wonder_pop" (lowercase) does NOT match Guard 1 (Ordinal), falls through to Guard 2
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = OfferRecord.Create("wonder_pop", OfferType.StarterBundle, true, true, false);
             var policy = OfferPolicy.Default;
             var result = OffersAndPricingGate.CanPresentOffer("wonder_pop", record, policy, out string reason);
             Assert.IsFalse(result);
-            Assert.AreEqual("RealMoneyOfferRequiresStoreAuth", reason);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
@@ -202,20 +202,20 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanPresentOffer_AnyPolicy_RealMoneyNoAuth_AlwaysBlocked()
         {
-            var record = OfferRecord.Create("SomeGame", OfferType.StarterBundle, true, true, false);
-            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, new OfferPolicy("custom policy"), out string reason));
+            var record = OfferRecord.Create("Coral_Rescue", OfferType.StarterBundle, true, true, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, new OfferPolicy("custom policy"), out string reason));
             Assert.AreEqual("RealMoneyOfferRequiresStoreAuth", reason);
-            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, default(OfferPolicy), out reason));
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, default(OfferPolicy), out reason));
             Assert.AreEqual("RealMoneyOfferRequiresStoreAuth", reason);
         }
 
         [Test]
         public void CanPresentOffer_AnyPolicy_NotOwnerApproved_AlwaysBlocked()
         {
-            var record = OfferRecord.Create("SomeGame", OfferType.ShopPromotion, false, false, false);
-            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, new OfferPolicy("custom policy"), out string reason));
+            var record = OfferRecord.Create("Coral_Rescue", OfferType.ShopPromotion, false, false, false);
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, new OfferPolicy("custom policy"), out string reason));
             Assert.AreEqual("OfferRequiresOwnerApproval", reason);
-            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("SomeGame", record, default(OfferPolicy), out reason));
+            Assert.IsFalse(OffersAndPricingGate.CanPresentOffer("Coral_Rescue", record, default(OfferPolicy), out reason));
             Assert.AreEqual("OfferRequiresOwnerApproval", reason);
         }
 
@@ -233,28 +233,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresStoreAuth_Helper_True()
         {
-            var r = OfferRecord.Create("game1", OfferType.StarterBundle, true, true, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.StarterBundle, true, true, false);
             Assert.IsTrue(OffersAndPricingGate.RequiresStoreAuth(r));
         }
 
         [Test]
         public void RequiresStoreAuth_Helper_False()
         {
-            var r = OfferRecord.Create("game1", OfferType.StarterBundle, true, false, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.StarterBundle, true, false, false);
             Assert.IsFalse(OffersAndPricingGate.RequiresStoreAuth(r));
         }
 
         [Test]
         public void IsEligibleForPresentation_Helper_True()
         {
-            var r = OfferRecord.Create("game1", OfferType.ContentAvailability, true, false, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.ContentAvailability, true, false, false);
             Assert.IsTrue(OffersAndPricingGate.IsEligibleForPresentation(r));
         }
 
         [Test]
         public void IsEligibleForPresentation_Helper_False()
         {
-            var r = OfferRecord.Create("game1", OfferType.ContentAvailability, false, false, false);
+            var r = OfferRecord.Create("coral_rescue", OfferType.ContentAvailability, false, false, false);
             Assert.IsFalse(OffersAndPricingGate.IsEligibleForPresentation(r));
         }
 
@@ -263,7 +263,7 @@ namespace Match3.Engine.Tests.Editor
         public void OfferLog_Record_And_Count()
         {
             var log = new OfferLog();
-            log.Record("game1", "StarterBundle");
+            log.Record("coral_rescue", "StarterBundle");
             log.Record("game2", "ShopPromotion");
             Assert.AreEqual(2, log.Count);
         }
@@ -272,15 +272,15 @@ namespace Match3.Engine.Tests.Editor
         public void OfferLog_HasEntry_True()
         {
             var log = new OfferLog();
-            log.Record("game1", "StarterBundle");
-            Assert.IsTrue(log.HasEntry("game1"));
+            log.Record("coral_rescue", "StarterBundle");
+            Assert.IsTrue(log.HasEntry("coral_rescue"));
         }
 
         [Test]
         public void OfferLog_Clear_ResetsCount()
         {
             var log = new OfferLog();
-            log.Record("game1", "StarterBundle");
+            log.Record("coral_rescue", "StarterBundle");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -296,8 +296,8 @@ namespace Match3.Engine.Tests.Editor
         public void OfferLog_Record_NullOrEmptyOfferType_Throws()
         {
             var log = new OfferLog();
-            Assert.Throws<ArgumentException>(() => log.Record("game1", null));
-            Assert.Throws<ArgumentException>(() => log.Record("game1", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("coral_rescue", null));
+            Assert.Throws<ArgumentException>(() => log.Record("coral_rescue", ""));
         }
 
         [Test]
@@ -330,13 +330,13 @@ namespace Match3.Engine.Tests.Editor
         public void OfferLog_HasEntry_IsOrdinal()
         {
             var log = new OfferLog();
-            log.Record("game1", "StarterBundle");
-            Assert.IsFalse(log.HasEntry("GAME1"));
-            Assert.IsFalse(log.HasEntry("game"));
+            log.Record("coral_rescue", "StarterBundle");
+            Assert.IsFalse(log.HasEntry("CORAL_RESCUE"));
+            Assert.IsFalse(log.HasEntry("coral"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
             var softHyphenLog = new OfferLog();
-            softHyphenLog.Record("Game\u00ADA", "evt");
-            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
+            softHyphenLog.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -354,6 +354,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(OffersAndPricingGate.CanPresentOffer(gameId, default(OfferRecord), default(OfferPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(OffersAndPricingGate.CanPresentOffer(gameId, default(OfferRecord), default(OfferPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

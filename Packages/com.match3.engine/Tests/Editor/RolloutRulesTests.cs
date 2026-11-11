@@ -136,7 +136,7 @@ namespace Match3.Engine.Tests.Editor
                 Assert.IsFalse(d.Included);
                 Assert.AreEqual("ChildProfileExcluded", d.Reason);
             }
-            // Child check precedes all others (e.g. invalid version).
+            // Child check precedes all others except the catalog game guard (e.g. invalid version).
             Assert.AreEqual("ChildProfileExcluded", RolloutEvaluator.Evaluate(r, Ctx(app: "garbage", child: true)).Reason);
         }
 
@@ -146,13 +146,19 @@ namespace Match3.Engine.Tests.Editor
             var r = RolloutRule.Create("rule-g", 1, new[] { "Coral_Rescue", "Dino_Islands" }, null, null, Mobile, new string[0], 100, "s");
             Assert.IsTrue(RolloutEvaluator.Evaluate(r, Ctx(game: "Coral_Rescue")).Included);
             Assert.IsTrue(RolloutEvaluator.Evaluate(r, Ctx(game: "Dino_Islands")).Included);
-            foreach (var g in new[] { "Wonder_Pop", "Garage_Legends", "coral_rescue", "Coral_Rescue ", "Coral" })
+            // Non-catalog / case-variant IDs (Ordinal) fail closed first, before child and rule-scope checks.
+            foreach (var g in new[] { "coral_rescue", "Coral_Rescue ", "Coral", "Unknown_Game" })
+            {
+                Assert.AreEqual("UnknownGame", RolloutEvaluator.Evaluate(r, Ctx(game: g)).Reason, g);
+                Assert.AreEqual("UnknownGame", RolloutEvaluator.Evaluate(r, Ctx(game: g, child: true)).Reason, g);
+            }
+            foreach (var g in new[] { "Wonder_Pop", "Garage_Legends" })
             {
                 var d = RolloutEvaluator.Evaluate(r, Ctx(game: g));
                 Assert.IsFalse(d.Included, g);
                 Assert.AreEqual("GameNotInRule", d.Reason, g);
             }
-            // Order: child exclusion first, then game, before any version/platform/region/percent check.
+            // Order (catalog games): child exclusion first, then rule game scope, before any version/platform/region/percent check.
             Assert.AreEqual("ChildProfileExcluded", RolloutEvaluator.Evaluate(r, Ctx(game: "Wonder_Pop", child: true)).Reason);
             Assert.AreEqual("GameNotInRule", RolloutEvaluator.Evaluate(Rule(0, "9.0.0", null, new[] { Platform.Android }, new[] { "CA" }),
                 Ctx(game: "Wonder_Pop", app: "garbage", platform: Platform.iOS, region: "US")).Reason);

@@ -24,42 +24,42 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DenialRecord_Create_ValidGameId_Succeeds()
         {
-            var r = DenialRecord.Create("TestGame", DenialReason.UserOptOut, false);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
         }
 
         [Test]
         public void DenialRecord_IsNetworkDenied_AttDenied_True()
         {
-            var r = DenialRecord.Create("G", DenialReason.AttDenied, false);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.AttDenied, false);
             Assert.IsTrue(r.IsNetworkDenied);
         }
 
         [Test]
         public void DenialRecord_IsNetworkDenied_OfflineMode_True()
         {
-            var r = DenialRecord.Create("G", DenialReason.OfflineMode, false);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.OfflineMode, false);
             Assert.IsTrue(r.IsNetworkDenied);
         }
 
         [Test]
         public void DenialRecord_IsNetworkDenied_UserOptOut_False()
         {
-            var r = DenialRecord.Create("G", DenialReason.UserOptOut, false);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, false);
             Assert.IsFalse(r.IsNetworkDenied);
         }
 
         [Test]
         public void DenialRecord_IsPermanentDenial_WhenNotTemporary_True()
         {
-            var r = DenialRecord.Create("G", DenialReason.UserOptOut, false);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, false);
             Assert.IsTrue(r.IsPermanentDenial);
         }
 
         [Test]
         public void DenialRecord_IsPermanentDenial_WhenTemporary_False()
         {
-            var r = DenialRecord.Create("G", DenialReason.UserOptOut, true);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, true);
             Assert.IsFalse(r.IsPermanentDenial);
         }
 
@@ -96,21 +96,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanTrack_WonderPop_Lowercase_NotBlocked()
+        public void CanTrack_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = DenialRecord.Create("wonder_pop", DenialReason.PolicyDefault, false);
             var policy = NoBlock;
             var result = TrackingDenialGate.CanTrack("wonder_pop", record, policy, out var reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanTrack_UserOptOut_SafePolicy_Blocked()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.UserOptOut, false);
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, false);
             var policy = DenialPolicy.Safe("block all");
-            var result = TrackingDenialGate.CanTrack("GameA", record, policy, out var reason);
+            var result = TrackingDenialGate.CanTrack("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("UserOptedOut", reason);
         }
@@ -118,9 +119,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanTrack_BlockOnAnyDenial_AttDenied_Blocked()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.AttDenied, false);
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.AttDenied, false);
             var policy = DenialPolicy.Safe("block all");
-            var result = TrackingDenialGate.CanTrack("GameA", record, policy, out var reason);
+            var result = TrackingDenialGate.CanTrack("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("TrackingDeniedByPolicy", reason);
         }
@@ -128,10 +129,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanTrack_PolicyDefault_Reason_Eligible_WithSafePolicy()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.PolicyDefault, false);
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.PolicyDefault, false);
             var policy = DenialPolicy.Safe("block all");
             // BlockOnAnyDenial does not apply to PolicyDefault records, and PolicyDefault is not a network denial.
-            var result = TrackingDenialGate.CanTrack("GameA", record, policy, out var reason);
+            var result = TrackingDenialGate.CanTrack("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -139,10 +140,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanTrack_AttDenied_NoBlockPolicy_NetworkDenied()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.AttDenied, false);
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.AttDenied, false);
             // With BlockOnAnyDenial=false the policy rule does not fire; the network-denial rule still blocks.
             var policyNoBlock = NoBlock;
-            var result = TrackingDenialGate.CanTrack("GameA", record, policyNoBlock, out var reason);
+            var result = TrackingDenialGate.CanTrack("Coral_Rescue", record, policyNoBlock, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("NetworkDenied", reason);
         }
@@ -150,9 +151,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanTrack_OfflineMode_NoBlockPolicy_NetworkDenied()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.OfflineMode, false);
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.OfflineMode, false);
             var policyNoBlock = NoBlock;
-            var result = TrackingDenialGate.CanTrack("GameA", record, policyNoBlock, out var reason);
+            var result = TrackingDenialGate.CanTrack("Coral_Rescue", record, policyNoBlock, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("NetworkDenied", reason);
         }
@@ -162,19 +163,19 @@ namespace Match3.Engine.Tests.Editor
         {
             // Most relaxed constructible policy (BlockOnAnyDenial=false) cannot override an opt-out,
             // permanent or temporary.
-            var permanent = DenialRecord.Create("GameA", DenialReason.UserOptOut, false);
-            Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", permanent, NoBlock, out var reason));
+            var permanent = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, false);
+            Assert.IsFalse(TrackingDenialGate.CanTrack("Coral_Rescue", permanent, NoBlock, out var reason));
             Assert.AreEqual("UserOptedOut", reason);
-            var temporary = DenialRecord.Create("GameA", DenialReason.UserOptOut, true);
-            Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", temporary, NoBlock, out reason));
+            var temporary = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, true);
+            Assert.IsFalse(TrackingDenialGate.CanTrack("Coral_Rescue", temporary, NoBlock, out reason));
             Assert.AreEqual("UserOptedOut", reason);
         }
 
         [Test]
         public void CanTrack_PolicyDefault_RelaxedPolicy_Eligible()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.PolicyDefault, false);
-            Assert.IsTrue(TrackingDenialGate.CanTrack("GameA", record, NoBlock, out var reason));
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.PolicyDefault, false);
+            Assert.IsTrue(TrackingDenialGate.CanTrack("Coral_Rescue", record, NoBlock, out var reason));
             Assert.AreEqual(string.Empty, reason);
         }
 
@@ -189,14 +190,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsNetworkDenied_Helper_AttDenied_True()
         {
-            var r = DenialRecord.Create("G", DenialReason.AttDenied, false);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.AttDenied, false);
             Assert.IsTrue(TrackingDenialGate.IsNetworkDenied(r));
         }
 
         [Test]
         public void IsNetworkDenied_Helper_UserOptOut_False()
         {
-            var r = DenialRecord.Create("G", DenialReason.UserOptOut, false);
+            var r = DenialRecord.Create("Coral_Rescue", DenialReason.UserOptOut, false);
             Assert.IsFalse(TrackingDenialGate.IsNetworkDenied(r));
         }
 
@@ -204,7 +205,7 @@ namespace Match3.Engine.Tests.Editor
         public void DenialLog_Record_And_Count()
         {
             var log = new DenialLog();
-            log.Record("GameA", "reason1");
+            log.Record("Coral_Rescue", "reason1");
             Assert.AreEqual(1, log.Count);
         }
 
@@ -212,15 +213,15 @@ namespace Match3.Engine.Tests.Editor
         public void DenialLog_HasEntry_True()
         {
             var log = new DenialLog();
-            log.Record("GameA", "reason1");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "reason1");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void DenialLog_Clear_ResetsCount()
         {
             var log = new DenialLog();
-            log.Record("GameA", "reason1");
+            log.Record("Coral_Rescue", "reason1");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -236,21 +237,21 @@ namespace Match3.Engine.Tests.Editor
         public void DenialLog_Record_NullOrEmptyReason_Throws()
         {
             var log = new DenialLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
         public void DenialLog_HasEntry_IsOrdinal()
         {
             var log = new DenialLog();
-            log.Record("GameA", "reason1");
-            Assert.IsFalse(log.HasEntry("gamea"));
-            Assert.IsFalse(log.HasEntry("Game"));
+            log.Record("Coral_Rescue", "reason1");
+            Assert.IsFalse(log.HasEntry("coral_rescue"));
+            Assert.IsFalse(log.HasEntry("Coral"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
             var softHyphenLog = new DenialLog();
-            softHyphenLog.Record("Game\u00ADA", "evt");
-            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
+            softHyphenLog.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -263,9 +264,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanTrack_DefaultStructPolicy_FailsClosed()
         {
-            var record = DenialRecord.Create("GameA", DenialReason.AttDenied, false);
-            Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", record, DenialPolicy.Default, out var expected));
-            Assert.IsFalse(TrackingDenialGate.CanTrack("GameA", record, default(DenialPolicy), out var reason));
+            var record = DenialRecord.Create("Coral_Rescue", DenialReason.AttDenied, false);
+            Assert.IsFalse(TrackingDenialGate.CanTrack("Coral_Rescue", record, DenialPolicy.Default, out var expected));
+            Assert.IsFalse(TrackingDenialGate.CanTrack("Coral_Rescue", record, default(DenialPolicy), out var reason));
             Assert.AreEqual(expected, reason);
             Assert.AreEqual("TrackingDeniedByPolicy", reason);
         }
@@ -286,6 +287,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(TrackingDenialGate.CanTrack(gameId, default(DenialRecord), default(DenialPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(TrackingDenialGate.CanTrack(gameId, default(DenialRecord), default(DenialPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

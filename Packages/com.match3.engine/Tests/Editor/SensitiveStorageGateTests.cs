@@ -27,34 +27,34 @@ namespace Match3.Engine.Tests.Editor
         public void StorageEntry_NullKeyName_ThrowsArgumentException()
         {
             Assert.Throws<ArgumentException>(() =>
-                StorageEntry.Create("GameA", StorageClassification.Public, null));
+                StorageEntry.Create("Coral_Rescue", StorageClassification.Public, null));
         }
 
         [Test]
         public void StorageEntry_EmptyKeyName_ThrowsArgumentException()
         {
             Assert.Throws<ArgumentException>(() =>
-                StorageEntry.Create("GameA", StorageClassification.Public, ""));
+                StorageEntry.Create("Coral_Rescue", StorageClassification.Public, ""));
         }
 
         [Test]
         public void StorageEntry_IsSensitive_TrueForSensitive()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "tok");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "tok");
             Assert.IsTrue(entry.IsSensitive);
         }
 
         [Test]
         public void StorageEntry_IsSensitive_FalseForPublic()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "tok");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "tok");
             Assert.IsFalse(entry.IsSensitive);
         }
 
         [Test]
         public void StorageEntry_IsSensitive_FalseForInternal()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Internal, "tok");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Internal, "tok");
             Assert.IsFalse(entry.IsSensitive);
         }
 
@@ -99,8 +99,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void StorageEntry_Create_DefaultsToUnencrypted()
         {
-            Assert.IsFalse(StorageEntry.Create("GameA", StorageClassification.Sensitive, "k").IsEncrypted);
-            Assert.IsTrue(StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", true).IsEncrypted);
+            Assert.IsFalse(StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k").IsEncrypted);
+            Assert.IsTrue(StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k", true).IsEncrypted);
         }
 
         // ---- Guard 1: Wonder_Pop blocked (Ordinal) ----
@@ -116,22 +116,25 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanStoreSensitive_WonderPop_OrdinalCaseDifferent_NotBlocked()
+        public void CanStoreSensitive_WonderPop_OrdinalCaseDifferent_UnknownGame()
         {
-            // "wonder_pop" lowercase is not "Wonder_Pop" under Ordinal — must pass through
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var entry = StorageEntry.Create("wonder_pop", StorageClassification.Public, "k");
             var policy = SensitiveStoragePolicy.Default;
-            var (eligible, _) = SensitiveStorageGate.CanStoreSensitive("wonder_pop", entry, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("wonder_pop", entry, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
-        public void CanStoreSensitive_WonderPopMixedCase_NotBlocked()
+        public void CanStoreSensitive_WonderPopMixedCase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var entry = StorageEntry.Create("WONDER_POP", StorageClassification.Public, "k");
             var policy = SensitiveStoragePolicy.Default;
-            var (eligible, _) = SensitiveStorageGate.CanStoreSensitive("WONDER_POP", entry, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("WONDER_POP", entry, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // ---- Guard 2: PlaintextSensitiveProhibited ----
@@ -139,10 +142,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanStoreSensitive_UnencryptedSensitive_RejectedUnderEveryPolicy()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k");
             foreach (var policy in AllConstructiblePolicies)
             {
-                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy);
+                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, policy);
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("PlaintextSensitiveProhibited", reason);
             }
@@ -151,18 +154,18 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanStoreSensitive_ExplicitlyUnencryptedSensitive_RejectedUnderEveryPolicy()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", isEncrypted: false);
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k", isEncrypted: false);
             foreach (var policy in AllConstructiblePolicies)
-                Assert.IsFalse(SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy).eligible);
+                Assert.IsFalse(SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, policy).eligible);
         }
 
         [Test]
         public void CanStoreSensitive_EncryptedSensitive_EligibleUnderEveryPolicy()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", isEncrypted: true);
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k", isEncrypted: true);
             foreach (var policy in AllConstructiblePolicies)
             {
-                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy);
+                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, policy);
                 Assert.IsTrue(eligible);
                 Assert.AreEqual("Eligible", reason);
             }
@@ -171,9 +174,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanStoreSensitive_DefaultStructPolicy_FailsClosed()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
-            var (e1, expected) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, SensitiveStoragePolicy.Default);
-            var (e2, reason) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, default(SensitiveStoragePolicy));
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k");
+            var (e1, expected) = SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, SensitiveStoragePolicy.Default);
+            var (e2, reason) = SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, default(SensitiveStoragePolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -200,9 +203,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanStoreSensitive_PublicAnyPolicy_IsEligible()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             var policy = SensitiveStoragePolicy.Default;
-            var (eligible, _) = SensitiveStorageGate.CanStoreSensitive("GameA", entry, policy);
+            var (eligible, _) = SensitiveStorageGate.CanStoreSensitive("Coral_Rescue", entry, policy);
             Assert.IsTrue(eligible);
         }
 
@@ -220,7 +223,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSecureEntry_NonSensitive_AlwaysTrue()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             var policy = SensitiveStoragePolicy.Safe("desc");
             Assert.IsTrue(SensitiveStorageGate.IsSecureEntry(entry, policy));
         }
@@ -228,7 +231,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSecureEntry_SensitiveWithEncryption_IsTrue()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k", isEncrypted: true);
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k", isEncrypted: true);
             foreach (var policy in AllConstructiblePolicies)
                 Assert.IsTrue(SensitiveStorageGate.IsSecureEntry(entry, policy));
         }
@@ -236,7 +239,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSecureEntry_SensitiveWithoutEncryption_IsFalseUnderEveryPolicy()
         {
-            var entry = StorageEntry.Create("GameA", StorageClassification.Sensitive, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Sensitive, "k");
             foreach (var policy in AllConstructiblePolicies)
                 Assert.IsFalse(SensitiveStorageGate.IsSecureEntry(entry, policy));
         }
@@ -254,7 +257,7 @@ namespace Match3.Engine.Tests.Editor
         public void StorageAccessLog_Record_NullReason_ThrowsArgumentException()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             Assert.Throws<ArgumentException>(() => log.Record(entry, true, null));
         }
 
@@ -262,7 +265,7 @@ namespace Match3.Engine.Tests.Editor
         public void StorageAccessLog_Record_EmptyReason_ThrowsArgumentException()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             Assert.Throws<ArgumentException>(() => log.Record(entry, true, ""));
         }
 
@@ -270,7 +273,7 @@ namespace Match3.Engine.Tests.Editor
         public void StorageAccessLog_Count_IncrementsOnRecord()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             log.Record(entry, true, "ok");
             log.Record(entry, false, "denied");
             Assert.AreEqual(2, log.Count);
@@ -280,7 +283,7 @@ namespace Match3.Engine.Tests.Editor
         public void StorageAccessLog_Clear_ResetsCount()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             log.Record(entry, true, "ok");
             log.Clear();
             Assert.AreEqual(0, log.Count);
@@ -290,28 +293,28 @@ namespace Match3.Engine.Tests.Editor
         public void StorageAccessLog_HasEntry_TrueAfterRecord()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             log.Record(entry, true, "ok");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void StorageAccessLog_HasEntry_FalseForMissingGame()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             log.Record(entry, true, "ok");
-            Assert.IsFalse(log.HasEntry("GameB"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void StorageAccessLog_HasEntry_FalseAfterClear()
         {
             var log = new StorageAccessLog();
-            var entry = StorageEntry.Create("GameA", StorageClassification.Public, "k");
+            var entry = StorageEntry.Create("Coral_Rescue", StorageClassification.Public, "k");
             log.Record(entry, true, "ok");
             log.Clear();
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -323,6 +326,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive(gameId, default(StorageEntry), default(SensitiveStoragePolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = SensitiveStorageGate.CanStoreSensitive(gameId, default(StorageEntry), default(SensitiveStoragePolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

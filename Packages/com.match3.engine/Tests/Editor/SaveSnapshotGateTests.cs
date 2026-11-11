@@ -23,27 +23,27 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void SaveSnapshot_SchemaVersionZero_Throws()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => SaveSnapshot.Create("game1", 0, 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => SaveSnapshot.Create("coral_rescue", 0, 0));
         }
 
         [Test]
         public void SaveSnapshot_NegativeRevision_Throws()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => SaveSnapshot.Create("game1", 1, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => SaveSnapshot.Create("coral_rescue", 1, -1));
         }
 
         [Test]
         public void SaveSnapshot_Create_IsEntitlementAuthoritativeFalse()
         {
-            var snap = SaveSnapshot.Create("game1", 1, 0);
+            var snap = SaveSnapshot.Create("coral_rescue", 1, 0);
             Assert.IsFalse(snap.IsEntitlementAuthoritative);
         }
 
         [Test]
         public void SaveSnapshot_Create_PropertiesRoundtrip()
         {
-            var snap = SaveSnapshot.Create("MyGame", 2, 42);
-            Assert.AreEqual("MyGame", snap.GameId);
+            var snap = SaveSnapshot.Create("Coral_Rescue", 2, 42);
+            Assert.AreEqual("Coral_Rescue", snap.GameId);
             Assert.AreEqual(2, snap.SchemaVersion);
             Assert.AreEqual(42, snap.Revision);
         }
@@ -111,11 +111,12 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanSaveLocally_WonderPop_CaseSensitive_Eligible()
+        public void CanSaveLocally_WonderPop_CaseSensitive_UnknownGame()
         {
-            // "wonder_pop" (lowercase) is NOT Wonder_Pop — Ordinal compare
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var result = SaveSnapshotGate.CanSaveLocally("wonder_pop", SaveField.Stars, SaveSchemaPolicy.Default);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
@@ -124,7 +125,7 @@ namespace Match3.Engine.Tests.Editor
             var policy = SaveSchemaPolicy.Default;
             foreach (SaveField field in Enum.GetValues(typeof(SaveField)))
             {
-                var result = SaveSnapshotGate.CanSaveLocally("OtherGame", field, policy);
+                var result = SaveSnapshotGate.CanSaveLocally("Garage_Legends", field, policy);
                 Assert.IsTrue(result.IsEligible, $"Expected eligible for field {field}");
             }
         }
@@ -175,9 +176,9 @@ namespace Match3.Engine.Tests.Editor
         public void SaveRevisionLog_RecordAndGet()
         {
             var log = new SaveRevisionLog();
-            var snap = SaveSnapshot.Create("game1", 1, 7);
+            var snap = SaveSnapshot.Create("coral_rescue", 1, 7);
             log.Record(snap);
-            Assert.IsTrue(log.TryGet("game1", out var retrieved));
+            Assert.IsTrue(log.TryGet("coral_rescue", out var retrieved));
             Assert.AreEqual(7, retrieved.Revision);
         }
 
@@ -185,9 +186,9 @@ namespace Match3.Engine.Tests.Editor
         public void SaveRevisionLog_OverwriteOnNewRevision()
         {
             var log = new SaveRevisionLog();
-            log.Record(SaveSnapshot.Create("game1", 1, 1));
-            log.Record(SaveSnapshot.Create("game1", 1, 5));
-            log.TryGet("game1", out var snap);
+            log.Record(SaveSnapshot.Create("coral_rescue", 1, 1));
+            log.Record(SaveSnapshot.Create("coral_rescue", 1, 5));
+            log.TryGet("coral_rescue", out var snap);
             Assert.AreEqual(5, snap.Revision);
         }
 
@@ -233,6 +234,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = SaveSnapshotGate.CanSaveLocally(gameId, SaveField.Progression, SaveSchemaPolicy.Default);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanSaveLocally_UnknownOrCaseVariantGameId_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = SaveSnapshotGate.CanSaveLocally(gameId, SaveField.Progression, SaveSchemaPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

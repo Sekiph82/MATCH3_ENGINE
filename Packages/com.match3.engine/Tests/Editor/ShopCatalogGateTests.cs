@@ -121,6 +121,9 @@ namespace Match3.Engine.Tests.Editor
         {
             Assert.IsTrue(ShopCatalogGate.IsPlatformPriceAuthoritative(ShopCatalogPolicy.Enabled("x")));
             Assert.IsTrue(ShopCatalogGate.IsPlatformPriceAuthoritative(ShopCatalogPolicy.Disabled("x")));
+            Assert.IsTrue(ShopCatalogGate.IsPlatformPriceAuthoritative(ShopCatalogPolicy.Default));
+            // default(ShopCatalogPolicy) is normalized to the safe value (store price authoritative).
+            Assert.IsTrue(ShopCatalogGate.IsPlatformPriceAuthoritative(default(ShopCatalogPolicy)));
         }
 
         [Test]

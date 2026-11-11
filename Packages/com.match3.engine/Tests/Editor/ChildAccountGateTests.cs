@@ -25,28 +25,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ChildProfile_IsRestricted_Adult_LocalOnlyFalse_IsNotRestricted()
         {
-            var p = ChildProfile.Create("Game1", AgeCategory.Adult, false);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             Assert.IsFalse(p.IsRestricted);
         }
 
         [Test]
         public void ChildProfile_IsRestricted_Adult_LocalOnlyTrue_IsRestricted()
         {
-            var p = ChildProfile.Create("Game1", AgeCategory.Adult, true);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, true);
             Assert.IsTrue(p.IsRestricted);
         }
 
         [Test]
         public void ChildProfile_IsRestricted_MinorWithParent_IsRestricted()
         {
-            var p = ChildProfile.Create("Game1", AgeCategory.MinorWithParent, false);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.MinorWithParent, false);
             Assert.IsTrue(p.IsRestricted);
         }
 
         [Test]
         public void ChildProfile_IsRestricted_MinorUnverified_IsRestricted()
         {
-            var p = ChildProfile.Create("Game1", AgeCategory.MinorUnverified, false);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.MinorUnverified, false);
             Assert.IsTrue(p.IsRestricted);
         }
 
@@ -96,21 +96,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanUseSocialFeatures_WonderPopLowercase_NotBlocked()
+        public void CanUseSocialFeatures_WonderPopLowercase_UnknownGame()
         {
-            // Ordinal check: "wonder_pop" != "Wonder_Pop"
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var profile = ChildProfile.Create("wonder_pop", AgeCategory.Adult, false);
             var policy = new ChildAccountPolicy(true, true, "open");
-            var (eligible, _) = ChildAccountGate.CanUseSocialFeatures("wonder_pop", profile, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("wonder_pop", profile, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanUseSocialFeatures_RestrictedProfile_BlockedGuard2()
         {
-            var profile = ChildProfile.Create("Game1", AgeCategory.MinorWithParent, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.MinorWithParent, false);
             var policy = new ChildAccountPolicy(true, true, "open");
-            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("Game1", profile, policy);
+            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("Coral_Rescue", profile, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("RestrictedProfileProhibited", reason);
         }
@@ -118,9 +119,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanUseSocialFeatures_SocialDisabled_BlockedGuard3()
         {
-            var profile = ChildProfile.Create("Game1", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             var policy = new ChildAccountPolicy(false, true, "restricted");
-            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("Game1", profile, policy);
+            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("Coral_Rescue", profile, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("SocialFeaturesDisabled", reason);
         }
@@ -128,9 +129,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanUseSocialFeatures_AllGuardsPassed_IsEligible()
         {
-            var profile = ChildProfile.Create("Game1", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             var policy = new ChildAccountPolicy(true, true, "open");
-            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("Game1", profile, policy);
+            var (eligible, reason) = ChildAccountGate.CanUseSocialFeatures("Coral_Rescue", profile, policy);
             Assert.IsTrue(eligible);
             Assert.IsEmpty(reason);
         }
@@ -159,20 +160,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanUsePublicHandle_WonderPopLowercase_NotBlocked()
+        public void CanUsePublicHandle_WonderPopLowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var policy = new ChildAccountPolicy(true, true, "open");
             var profile = ChildProfile.Create("wonder_pop", AgeCategory.Adult, false);
-            var (eligible, _) = ChildAccountGate.CanUsePublicHandle("wonder_pop", profile, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("wonder_pop", profile, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanUsePublicHandle_HandleDisabled_BlockedGuard2()
         {
             var policy = new ChildAccountPolicy(true, false, "restricted");
-            var profile = ChildProfile.Create("Game1", AgeCategory.Adult, false);
-            var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Game1", profile, policy);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
+            var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Coral_Rescue", profile, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("PublicHandleDisabled", reason);
         }
@@ -181,8 +184,8 @@ namespace Match3.Engine.Tests.Editor
         public void CanUsePublicHandle_AllGuardsPassed_IsEligible()
         {
             var policy = new ChildAccountPolicy(true, true, "open");
-            var profile = ChildProfile.Create("Game1", AgeCategory.Adult, false);
-            var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Game1", profile, policy);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
+            var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Coral_Rescue", profile, policy);
             Assert.IsTrue(eligible);
             Assert.IsEmpty(reason);
         }
@@ -200,16 +203,16 @@ namespace Match3.Engine.Tests.Editor
         {
             var restricted = new[]
             {
-                ChildProfile.Create("Game1", AgeCategory.MinorWithParent, false),
-                ChildProfile.Create("Game1", AgeCategory.MinorUnverified, false),
-                ChildProfile.Create("Game1", AgeCategory.MinorWithParent, true),
-                ChildProfile.Create("Game1", AgeCategory.MinorUnverified, true),
-                ChildProfile.Create("Game1", AgeCategory.Adult, true),
+                ChildProfile.Create("Coral_Rescue", AgeCategory.MinorWithParent, false),
+                ChildProfile.Create("Coral_Rescue", AgeCategory.MinorUnverified, false),
+                ChildProfile.Create("Coral_Rescue", AgeCategory.MinorWithParent, true),
+                ChildProfile.Create("Coral_Rescue", AgeCategory.MinorUnverified, true),
+                ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, true),
             };
             foreach (var policy in AllConstructiblePolicies)
                 foreach (var profile in restricted)
                 {
-                    var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Game1", profile, policy);
+                    var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Coral_Rescue", profile, policy);
                     Assert.IsFalse(eligible);
                     Assert.AreEqual("RestrictedProfileProhibited", reason);
                 }
@@ -221,11 +224,16 @@ namespace Match3.Engine.Tests.Editor
 #pragma warning disable 0618
             foreach (var policy in AllConstructiblePolicies)
             {
-                var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Game1", policy);
+                var (eligible, reason) = ChildAccountGate.CanUsePublicHandle("Coral_Rescue", policy);
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("RestrictedProfileProhibited", reason);
             }
             var (wpEligible, wpReason) = ChildAccountGate.CanUsePublicHandle("Wonder_Pop", new ChildAccountPolicy(true, true, "open"));
+            var open = new ChildAccountPolicy(true, true, "open");
+            Assert.AreEqual("GameIdMissing", ChildAccountGate.CanUsePublicHandle(null, open).reason);
+            Assert.AreEqual("GameIdMissing", ChildAccountGate.CanUsePublicHandle(string.Empty, open).reason);
+            Assert.AreEqual("UnknownGame", ChildAccountGate.CanUsePublicHandle("wonder_pop", open).reason);
+            Assert.AreEqual("UnknownGame", ChildAccountGate.CanUsePublicHandle("Unknown_Game", open).reason);
 #pragma warning restore 0618
             Assert.IsFalse(wpEligible);
             Assert.AreEqual("WonderPopHandleProhibited", wpReason);
@@ -234,14 +242,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var adult = ChildProfile.Create("Game1", AgeCategory.Adult, false);
-            var (h1, hExpected) = ChildAccountGate.CanUsePublicHandle("Game1", adult, ChildAccountPolicy.Default);
-            var (h2, hReason) = ChildAccountGate.CanUsePublicHandle("Game1", adult, default(ChildAccountPolicy));
+            var adult = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
+            var (h1, hExpected) = ChildAccountGate.CanUsePublicHandle("Coral_Rescue", adult, ChildAccountPolicy.Default);
+            var (h2, hReason) = ChildAccountGate.CanUsePublicHandle("Coral_Rescue", adult, default(ChildAccountPolicy));
             Assert.IsFalse(h1);
             Assert.IsFalse(h2);
             Assert.AreEqual(hExpected, hReason);
-            var (s1, sExpected) = ChildAccountGate.CanUseSocialFeatures("Game1", adult, ChildAccountPolicy.Default);
-            var (s2, sReason) = ChildAccountGate.CanUseSocialFeatures("Game1", adult, default(ChildAccountPolicy));
+            var (s1, sExpected) = ChildAccountGate.CanUseSocialFeatures("Coral_Rescue", adult, ChildAccountPolicy.Default);
+            var (s2, sReason) = ChildAccountGate.CanUseSocialFeatures("Coral_Rescue", adult, default(ChildAccountPolicy));
             Assert.IsFalse(s1);
             Assert.IsFalse(s2);
             Assert.AreEqual(sExpected, sReason);
@@ -279,28 +287,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsChildRestricted_AdultNotLocalOnly_False()
         {
-            var p = ChildProfile.Create("G", AgeCategory.Adult, false);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             Assert.IsFalse(ChildAccountGate.IsChildRestricted(p));
         }
 
         [Test]
         public void IsChildRestricted_AdultLocalOnly_True()
         {
-            var p = ChildProfile.Create("G", AgeCategory.Adult, true);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, true);
             Assert.IsTrue(ChildAccountGate.IsChildRestricted(p));
         }
 
         [Test]
         public void IsChildRestricted_MinorWithParent_True()
         {
-            var p = ChildProfile.Create("G", AgeCategory.MinorWithParent, false);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.MinorWithParent, false);
             Assert.IsTrue(ChildAccountGate.IsChildRestricted(p));
         }
 
         [Test]
         public void IsChildRestricted_MinorUnverified_True()
         {
-            var p = ChildProfile.Create("G", AgeCategory.MinorUnverified, false);
+            var p = ChildProfile.Create("Coral_Rescue", AgeCategory.MinorUnverified, false);
             Assert.IsTrue(ChildAccountGate.IsChildRestricted(p));
         }
 
@@ -310,7 +318,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_NullReason_Throws()
         {
             var log = new ChildAuditLog();
-            var profile = ChildProfile.Create("G", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             Assert.Throws<ArgumentException>(() => log.Record(profile, true, null));
         }
 
@@ -318,7 +326,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_EmptyReason_Throws()
         {
             var log = new ChildAuditLog();
-            var profile = ChildProfile.Create("G", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             Assert.Throws<ArgumentException>(() => log.Record(profile, true, string.Empty));
         }
 
@@ -326,7 +334,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_IncrementsCount()
         {
             var log = new ChildAuditLog();
-            var profile = ChildProfile.Create("G", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             log.Record(profile, true, "ok");
             Assert.AreEqual(1, log.Count);
         }
@@ -335,7 +343,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Clear_ResetsCount()
         {
             var log = new ChildAuditLog();
-            var profile = ChildProfile.Create("G", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             log.Record(profile, true, "ok");
             log.Clear();
             Assert.AreEqual(0, log.Count);
@@ -345,9 +353,9 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_HasEntry_ReturnsTrueAfterRecord()
         {
             var log = new ChildAuditLog();
-            var profile = ChildProfile.Create("MyGame", AgeCategory.Adult, false);
+            var profile = ChildProfile.Create("Coral_Rescue", AgeCategory.Adult, false);
             log.Record(profile, false, "denied");
-            Assert.IsTrue(log.HasEntry("MyGame"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -369,6 +377,20 @@ namespace Match3.Engine.Tests.Editor
                 var (socialEligible, socialReason) = ChildAccountGate.CanUseSocialFeatures(gameId, default(ChildProfile), default(ChildAccountPolicy));
                 Assert.IsFalse(socialEligible);
                 Assert.AreEqual("GameIdMissing", socialReason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = ChildAccountGate.CanUsePublicHandle(gameId, default(ChildProfile), default(ChildAccountPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
+                var (socialEligible, socialReason) = ChildAccountGate.CanUseSocialFeatures(gameId, default(ChildProfile), default(ChildAccountPolicy));
+                Assert.IsFalse(socialEligible);
+                Assert.AreEqual("UnknownGame", socialReason);
             }
         }
     }

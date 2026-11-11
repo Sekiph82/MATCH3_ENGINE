@@ -25,8 +25,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DataRetentionRecord_Create_Valid_Succeeds()
         {
-            var r = DataRetentionRecord.Create("Game1", DataRetentionAction.ExportRequest, true, false);
-            Assert.AreEqual("Game1", r.GameId);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.ExportRequest, true, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(DataRetentionAction.ExportRequest, r.Action);
             Assert.IsTrue(r.IsUserInitiated);
             Assert.IsFalse(r.HasPendingPurge);
@@ -35,49 +35,49 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DataRetentionRecord_RequiresPurge_DeletionRequest_True()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.DeletionRequest, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.DeletionRequest, false, false);
             Assert.IsTrue(r.RequiresPurge);
         }
 
         [Test]
         public void DataRetentionRecord_RequiresPurge_BackupPurge_True()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.BackupPurge, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.BackupPurge, false, false);
             Assert.IsTrue(r.RequiresPurge);
         }
 
         [Test]
         public void DataRetentionRecord_RequiresPurge_SdkDataPurge_True()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.SdkDataPurge, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.SdkDataPurge, false, false);
             Assert.IsTrue(r.RequiresPurge);
         }
 
         [Test]
         public void DataRetentionRecord_RequiresPurge_ExportRequest_False()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.ExportRequest, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.ExportRequest, false, false);
             Assert.IsFalse(r.RequiresPurge);
         }
 
         [Test]
         public void DataRetentionRecord_RequiresPurge_RetentionCheck_False()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.RetentionCheck, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.RetentionCheck, false, false);
             Assert.IsFalse(r.RequiresPurge);
         }
 
         [Test]
         public void DataRetentionRecord_IsAuditAction_AuditLog_True()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.AuditLog, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.AuditLog, false, false);
             Assert.IsTrue(r.IsAuditAction);
         }
 
         [Test]
         public void DataRetentionRecord_IsAuditAction_ExportRequest_False()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.ExportRequest, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.ExportRequest, false, false);
             Assert.IsFalse(r.IsAuditAction);
         }
 
@@ -129,22 +129,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanProcessDataAction_WonderPop_Lowercase_NotBlocked()
+        public void CanProcessDataAction_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = DataRetentionRecord.Create("wonder_pop", DataRetentionAction.AuditLog, false, false);
             var policy = DataRetentionPolicy.Default;
-            // Ordinal mismatch: "wonder_pop" != "Wonder_Pop"
-            // AuditLog not RequiresPurge; AuditLog != RetentionCheck => eligible
             var result = DataExportRetentionGate.CanProcessDataAction("wonder_pop", record, policy, out string reason);
-            Assert.IsTrue(result);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanProcessDataAction_PurgeRequired_NoPendingPurge_Blocked()
         {
-            var record = DataRetentionRecord.Create("Game1", DataRetentionAction.DeletionRequest, false, false);
+            var record = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.DeletionRequest, false, false);
             var policy = DataRetentionPolicy.Default;
-            var result = DataExportRetentionGate.CanProcessDataAction("Game1", record, policy, out string reason);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("PurgeNotScheduled", reason);
         }
@@ -152,9 +152,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanProcessDataAction_PurgeRequired_HasPendingPurge_Eligible()
         {
-            var record = DataRetentionRecord.Create("Game1", DataRetentionAction.DeletionRequest, false, true);
+            var record = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.DeletionRequest, false, true);
             var policy = DataRetentionPolicy.Default;
-            var result = DataExportRetentionGate.CanProcessDataAction("Game1", record, policy, out string reason);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -162,9 +162,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanProcessDataAction_RetentionCheck_NonUserInitiated_Blocked()
         {
-            var record = DataRetentionRecord.Create("Game1", DataRetentionAction.RetentionCheck, false, false);
+            var record = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.RetentionCheck, false, false);
             var policy = DataRetentionPolicy.Default;
-            var result = DataExportRetentionGate.CanProcessDataAction("Game1", record, policy, out string reason);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("RetentionCheckRequiresUserContext", reason);
         }
@@ -172,9 +172,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanProcessDataAction_RetentionCheck_UserInitiated_Eligible()
         {
-            var record = DataRetentionRecord.Create("Game1", DataRetentionAction.RetentionCheck, true, false);
+            var record = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.RetentionCheck, true, false);
             var policy = DataRetentionPolicy.Default;
-            var result = DataExportRetentionGate.CanProcessDataAction("Game1", record, policy, out string reason);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -182,9 +182,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanProcessDataAction_ExportRequest_SafePolicy_Eligible()
         {
-            var record = DataRetentionRecord.Create("Game1", DataRetentionAction.ExportRequest, true, false);
+            var record = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.ExportRequest, true, false);
             var policy = DataRetentionPolicy.Default;
-            var result = DataExportRetentionGate.CanProcessDataAction("Game1", record, policy, out string reason);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -193,28 +193,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresPurge_Helper_SdkDataPurge_True()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.SdkDataPurge, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.SdkDataPurge, false, false);
             Assert.IsTrue(DataExportRetentionGate.RequiresPurge(r));
         }
 
         [Test]
         public void RequiresPurge_Helper_AuditLog_False()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.AuditLog, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.AuditLog, false, false);
             Assert.IsFalse(DataExportRetentionGate.RequiresPurge(r));
         }
 
         [Test]
         public void IsAuditAction_Helper_AuditLog_True()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.AuditLog, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.AuditLog, false, false);
             Assert.IsTrue(DataExportRetentionGate.IsAuditAction(r));
         }
 
         [Test]
         public void IsAuditAction_Helper_DeletionRequest_False()
         {
-            var r = DataRetentionRecord.Create("G", DataRetentionAction.DeletionRequest, false, false);
+            var r = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.DeletionRequest, false, false);
             Assert.IsFalse(DataExportRetentionGate.IsAuditAction(r));
         }
 
@@ -224,9 +224,9 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new DataRetentionLog();
             Assert.AreEqual(0, log.Count);
-            log.Record("Game1", "ExportRequest");
+            log.Record("Coral_Rescue", "ExportRequest");
             Assert.AreEqual(1, log.Count);
-            log.Record("Game1", "DeletionRequest");
+            log.Record("Coral_Rescue", "DeletionRequest");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -243,8 +243,8 @@ namespace Match3.Engine.Tests.Editor
         public void DataRetentionLog_Clear_ResetsCount()
         {
             var log = new DataRetentionLog();
-            log.Record("G", "X");
-            log.Record("G", "Y");
+            log.Record("Coral_Rescue", "X");
+            log.Record("Coral_Rescue", "Y");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -253,9 +253,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanProcessDataAction_DefaultStructPolicy_FailsClosed()
         {
-            var record = DataRetentionRecord.Create("GameA", DataRetentionAction.DeletionRequest, true, false);
-            var expected = DataExportRetentionGate.CanProcessDataAction("GameA", record, DataRetentionPolicy.Default, out var expectedReason);
-            var result = DataExportRetentionGate.CanProcessDataAction("GameA", record, default(DataRetentionPolicy), out var reason);
+            var record = DataRetentionRecord.Create("Coral_Rescue", DataRetentionAction.DeletionRequest, true, false);
+            var expected = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, DataRetentionPolicy.Default, out var expectedReason);
+            var result = DataExportRetentionGate.CanProcessDataAction("Coral_Rescue", record, default(DataRetentionPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("PurgeNotScheduled", expectedReason);
@@ -275,8 +275,8 @@ namespace Match3.Engine.Tests.Editor
         public void DataRetentionLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new DataRetentionLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -288,9 +288,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -301,6 +301,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(DataExportRetentionGate.CanProcessDataAction(gameId, default(DataRetentionRecord), default(DataRetentionPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(DataExportRetentionGate.CanProcessDataAction(gameId, default(DataRetentionRecord), default(DataRetentionPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

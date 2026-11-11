@@ -80,6 +80,11 @@ namespace Match3.Engine.Runtime.Analytics
                 ineligibilityReason = "GameIdMissing";
                 return false;
             }
+            if (!GameProfileCatalog.IsKnownId(gameId))
+            {
+                ineligibilityReason = "UnknownGame";
+                return false;
+            }
 
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {

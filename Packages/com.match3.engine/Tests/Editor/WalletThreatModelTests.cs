@@ -116,6 +116,9 @@ namespace Match3.Engine.Tests.Editor
             // "wonder_pop" (lowercase) must NOT hit the Wonder_Pop guard
             var (eligible, reason) = WalletThreatGate.CanBypassServerAuth("wonder_pop", WalletThreatPolicy.Default);
             Assert.AreNotEqual("WonderPopBypassProhibited", reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed as UnknownGame.
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // 12. CanBypassServerAuth: server-authoritative policy blocks bypass for other games

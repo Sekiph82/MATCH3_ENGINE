@@ -75,6 +75,11 @@ namespace Match3.Engine.Runtime.LiveOps
                 reason = "GameIdMissing";
                 return false;
             }
+            if (!GameProfileCatalog.IsKnownId(gameId))
+            {
+                reason = "UnknownGame";
+                return false;
+            }
 
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {
@@ -141,6 +146,8 @@ namespace Match3.Engine.Runtime.LiveOps
         {
             if (string.IsNullOrEmpty(gameId))
                 throw new ArgumentException("gameId must not be null or empty.", nameof(gameId));
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                throw new ArgumentException("Unknown game ID.", nameof(gameId));
             if (string.IsNullOrEmpty(playerId))
                 throw new ArgumentException("playerId must not be null or empty.", nameof(playerId));
             if (string.IsNullOrEmpty(weekId))

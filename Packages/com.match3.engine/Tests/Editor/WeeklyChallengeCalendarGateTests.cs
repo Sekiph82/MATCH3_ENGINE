@@ -44,21 +44,21 @@ namespace Match3.Engine.Tests.Editor
         public void CalendarEventRecord_Create_NullWeekId_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                CalendarEventRecord.Create("G", CalendarEventType.DailyChallenge, null, false, false, true));
+                CalendarEventRecord.Create("Coral_Rescue", CalendarEventType.DailyChallenge, null, false, false, true));
         }
 
         [Test]
         public void CalendarEventRecord_Create_EmptyWeekId_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                CalendarEventRecord.Create("G", CalendarEventType.DailyChallenge, "", false, false, true));
+                CalendarEventRecord.Create("Coral_Rescue", CalendarEventType.DailyChallenge, "", false, false, true));
         }
 
         [Test]
         public void CalendarEventRecord_Create_Valid_Succeeds()
         {
-            var r = CalendarEventRecord.Create("TestGame", CalendarEventType.EventProgress, "2026-W45", true, false, true);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = CalendarEventRecord.Create("Coral_Rescue", CalendarEventType.EventProgress, "2026-W45", true, false, true);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(CalendarEventType.EventProgress, r.EventType);
             Assert.AreEqual("2026-W45", r.WeekId);
             Assert.IsTrue(r.IsAlreadyClaimed);
@@ -69,31 +69,31 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CalendarEventRecord_IsDuplicateClaim_AlreadyClaimed_True()
         {
-            Assert.IsTrue(Rec("G", true, false, true).IsDuplicateClaim);
+            Assert.IsTrue(Rec("Coral_Rescue", true, false, true).IsDuplicateClaim);
         }
 
         [Test]
         public void CalendarEventRecord_IsDuplicateClaim_NotClaimed_False()
         {
-            Assert.IsFalse(Rec("G", false, false, true).IsDuplicateClaim);
+            Assert.IsFalse(Rec("Coral_Rescue", false, false, true).IsDuplicateClaim);
         }
 
         [Test]
         public void CalendarEventRecord_RequiresUtcAnchor_NoAnchorNoOffline_True()
         {
-            Assert.IsTrue(Rec("G", false, false, false).RequiresUtcAnchor);
+            Assert.IsTrue(Rec("Coral_Rescue", false, false, false).RequiresUtcAnchor);
         }
 
         [Test]
         public void CalendarEventRecord_RequiresUtcAnchor_HasAnchor_False()
         {
-            Assert.IsFalse(Rec("G", false, false, true).RequiresUtcAnchor);
+            Assert.IsFalse(Rec("Coral_Rescue", false, false, true).RequiresUtcAnchor);
         }
 
         [Test]
         public void CalendarEventRecord_RequiresUtcAnchor_OfflineRecoveryWithoutAnchor_True()
         {
-            Assert.IsTrue(Rec("G", false, true, false).RequiresUtcAnchor);
+            Assert.IsTrue(Rec("Coral_Rescue", false, true, false).RequiresUtcAnchor);
         }
 
         // CalendarEventPolicy
@@ -166,9 +166,10 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanClaimReward_WonderPop_Lowercase_AlreadyClaimed_Guard2()
+        public void CanClaimReward_WonderPop_Lowercase_AlreadyClaimed_UnknownGame()
         {
-            AssertBlocked("wonder_pop", Rec("wonder_pop", true, false, true), CalendarEventPolicy.Default, "DuplicateClaimDetected");
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
+            AssertBlocked("wonder_pop", Rec("wonder_pop", true, false, true), CalendarEventPolicy.Default, "UnknownGame");
         }
 
         // CanClaimReward — other games
@@ -236,25 +237,25 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsDuplicateClaim_Helper_True()
         {
-            Assert.IsTrue(WeeklyChallengeCalendarGate.IsDuplicateClaim(Rec("G", true, false, true)));
+            Assert.IsTrue(WeeklyChallengeCalendarGate.IsDuplicateClaim(Rec("Coral_Rescue", true, false, true)));
         }
 
         [Test]
         public void IsDuplicateClaim_Helper_False()
         {
-            Assert.IsFalse(WeeklyChallengeCalendarGate.IsDuplicateClaim(Rec("G", false, false, true)));
+            Assert.IsFalse(WeeklyChallengeCalendarGate.IsDuplicateClaim(Rec("Coral_Rescue", false, false, true)));
         }
 
         [Test]
         public void RequiresUtcAnchor_Helper_True()
         {
-            Assert.IsTrue(WeeklyChallengeCalendarGate.RequiresUtcAnchor(Rec("G", false, false, false)));
+            Assert.IsTrue(WeeklyChallengeCalendarGate.RequiresUtcAnchor(Rec("Coral_Rescue", false, false, false)));
         }
 
         [Test]
         public void RequiresUtcAnchor_Helper_False()
         {
-            Assert.IsFalse(WeeklyChallengeCalendarGate.RequiresUtcAnchor(Rec("G", false, false, true)));
+            Assert.IsFalse(WeeklyChallengeCalendarGate.RequiresUtcAnchor(Rec("Coral_Rescue", false, false, true)));
         }
 
         // WeeklyClaimLedger
@@ -302,16 +303,20 @@ namespace Match3.Engine.Tests.Editor
         {
             var ledger = new WeeklyClaimLedger();
             Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-W45"));
-            Assert.IsTrue(ledger.TryClaim("coral_rescue", "p1", "2026-W45"));
             Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "P1", "2026-W45"));
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "p1", "2026-w45"));
+            // Case-variant / non-catalog game IDs are rejected (Ordinal catalog), never a separate claim key.
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("coral_rescue", "p1", "2026-W45"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("Unknown_Game", "p1", "2026-W45"));
         }
 
         [Test]
         public void WeeklyClaimLedger_SeparatorInIds_NoKeyCollision()
         {
             var ledger = new WeeklyClaimLedger();
-            Assert.IsTrue(ledger.TryClaim("a|b", "c", "W1"));
-            Assert.IsTrue(ledger.TryClaim("a", "b|c", "W1"));
+            // Game IDs are catalog-only, so the separator boundary under test is player|week.
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "a|b", "W1"));
+            Assert.IsTrue(ledger.TryClaim("Coral_Rescue", "a", "b|W1"));
         }
 
         [Test]
@@ -320,10 +325,10 @@ namespace Match3.Engine.Tests.Editor
             var ledger = new WeeklyClaimLedger();
             Assert.Throws<ArgumentException>(() => ledger.TryClaim(null, "p1", "W1"));
             Assert.Throws<ArgumentException>(() => ledger.TryClaim("", "p1", "W1"));
-            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", null, "W1"));
-            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", "", "W1"));
-            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", "p1", null));
-            Assert.Throws<ArgumentException>(() => ledger.TryClaim("G", "p1", ""));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("Coral_Rescue", null, "W1"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("Coral_Rescue", "", "W1"));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("Coral_Rescue", "p1", null));
+            Assert.Throws<ArgumentException>(() => ledger.TryClaim("Coral_Rescue", "p1", ""));
         }
 
         // CalendarEventLog
@@ -349,7 +354,7 @@ namespace Match3.Engine.Tests.Editor
         public void CalendarEventLog_Clear_ResetsCount()
         {
             var log = new CalendarEventLog();
-            log.Record("G", "EventProgress");
+            log.Record("Coral_Rescue", "EventProgress");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -365,8 +370,8 @@ namespace Match3.Engine.Tests.Editor
         public void CalendarEventLog_Record_NullOrEmptyEventType_Throws()
         {
             var log = new CalendarEventLog();
-            Assert.Throws<ArgumentException>(() => log.Record("G", null));
-            Assert.Throws<ArgumentException>(() => log.Record("G", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
@@ -378,8 +383,8 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(log.HasEntry("Coral"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
             var softHyphenLog = new CalendarEventLog();
-            softHyphenLog.Record("Game\u00ADA", "evt");
-            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
+            softHyphenLog.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -396,6 +401,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward(gameId, default(CalendarEventRecord), default(CalendarEventPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(WeeklyChallengeCalendarGate.CanClaimReward(gameId, default(CalendarEventRecord), default(CalendarEventPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

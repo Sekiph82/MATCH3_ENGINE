@@ -13,11 +13,11 @@ namespace Match3.Engine.Tests.Editor.Commerce
         [Test]
         public void FromStore_ValidArgs_ReturnsAvailablePrice()
         {
-            var p = LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_001");
+            var p = LocalizedPrice.FromStore("$1.99", "USD", "Coral_Rescue", "sku_001");
             Assert.IsTrue(p.IsAvailable);
             Assert.AreEqual("$1.99", p.FormattedPrice);
             Assert.AreEqual("USD", p.CurrencyCode);
-            Assert.AreEqual("GameA", p.GameId);
+            Assert.AreEqual("Coral_Rescue", p.GameId);
             Assert.AreEqual("sku_001", p.SkuId);
         }
 
@@ -25,21 +25,21 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void FromStore_NullFormattedPrice_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                LocalizedPrice.FromStore(null, "USD", "GameA", "sku_001"));
+                LocalizedPrice.FromStore(null, "USD", "Coral_Rescue", "sku_001"));
         }
 
         [Test]
         public void FromStore_EmptyFormattedPrice_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                LocalizedPrice.FromStore(string.Empty, "USD", "GameA", "sku_001"));
+                LocalizedPrice.FromStore(string.Empty, "USD", "Coral_Rescue", "sku_001"));
         }
 
         [Test]
         public void FromStore_NullCurrencyCode_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                LocalizedPrice.FromStore("$1.99", null, "GameA", "sku_001"));
+                LocalizedPrice.FromStore("$1.99", null, "Coral_Rescue", "sku_001"));
         }
 
         [Test]
@@ -53,7 +53,7 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void FromStore_NullSkuId_Throws()
         {
             Assert.Throws<ArgumentException>(() =>
-                LocalizedPrice.FromStore("$1.99", "USD", "GameA", null));
+                LocalizedPrice.FromStore("$1.99", "USD", "Coral_Rescue", null));
         }
 
         // ---- LocalizedPrice.Unavailable ----
@@ -61,7 +61,7 @@ namespace Match3.Engine.Tests.Editor.Commerce
         [Test]
         public void Unavailable_IsNotAvailable()
         {
-            var p = LocalizedPrice.Unavailable("GameA", "sku_001");
+            var p = LocalizedPrice.Unavailable("Coral_Rescue", "sku_001");
             Assert.IsFalse(p.IsAvailable);
             Assert.AreEqual(string.Empty, p.FormattedPrice);
             Assert.AreEqual(string.Empty, p.CurrencyCode);
@@ -70,8 +70,8 @@ namespace Match3.Engine.Tests.Editor.Commerce
         [Test]
         public void Unavailable_PreservesGameIdAndSkuId()
         {
-            var p = LocalizedPrice.Unavailable("GameB", "sku_xyz");
-            Assert.AreEqual("GameB", p.GameId);
+            var p = LocalizedPrice.Unavailable("Garage_Legends", "sku_xyz");
+            Assert.AreEqual("Garage_Legends", p.GameId);
             Assert.AreEqual("sku_xyz", p.SkuId);
         }
 
@@ -111,22 +111,22 @@ namespace Match3.Engine.Tests.Editor.Commerce
         }
 
         [Test]
-        public void CanDisplayPrice_WonderPop_CaseSensitive_OtherCaseIsNotBlocked()
+        public void CanDisplayPrice_WonderPop_CaseSensitive_OtherCaseIsUnknownGame()
         {
-            // "wonder_pop" (lowercase) must NOT hit the Wonder_Pop guard
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var price = LocalizedPrice.FromStore("$1.99", "USD", "wonder_pop", "sku_001");
             var result = LocalizedPriceDisplayGate.CanDisplayPrice(
                 "wonder_pop", price, PriceDisplayPolicy.Default);
-            // Should pass all guards and be eligible
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
         public void CanDisplayPrice_UnavailablePrice_Ineligible()
         {
-            var price = LocalizedPrice.Unavailable("GameA", "sku_001");
+            var price = LocalizedPrice.Unavailable("Coral_Rescue", "sku_001");
             var result = LocalizedPriceDisplayGate.CanDisplayPrice(
-                "GameA", price, PriceDisplayPolicy.Default);
+                "Coral_Rescue", price, PriceDisplayPolicy.Default);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("PriceUnavailableFromStore", result.Reason);
         }
@@ -134,9 +134,9 @@ namespace Match3.Engine.Tests.Editor.Commerce
         [Test]
         public void CanDisplayPrice_ValidGame_ValidPrice_IsEligible()
         {
-            var price = LocalizedPrice.FromStore("£1.49", "GBP", "GameA", "sku_uk");
+            var price = LocalizedPrice.FromStore("£1.49", "GBP", "Coral_Rescue", "sku_uk");
             var result = LocalizedPriceDisplayGate.CanDisplayPrice(
-                "GameA", price, PriceDisplayPolicy.Default);
+                "Coral_Rescue", price, PriceDisplayPolicy.Default);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -163,7 +163,7 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void PriceCache_StoreAndRetrieve()
         {
             var cache = new PriceCache();
-            var price = LocalizedPrice.FromStore("€2.99", "EUR", "GameA", "sku_eu");
+            var price = LocalizedPrice.FromStore("€2.99", "EUR", "Coral_Rescue", "sku_eu");
             cache.Store(price);
             Assert.AreEqual(1, cache.Count);
             Assert.IsTrue(cache.TryGet("sku_eu", out var retrieved));
@@ -181,8 +181,8 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void PriceCache_Store_OverwritesExistingKey()
         {
             var cache = new PriceCache();
-            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_001"));
-            cache.Store(LocalizedPrice.FromStore("$2.99", "USD", "GameA", "sku_001"));
+            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "Coral_Rescue", "sku_001"));
+            cache.Store(LocalizedPrice.FromStore("$2.99", "USD", "Coral_Rescue", "sku_001"));
             Assert.AreEqual(1, cache.Count);
             cache.TryGet("sku_001", out var p);
             Assert.AreEqual("$2.99", p.FormattedPrice);
@@ -192,8 +192,8 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void PriceCache_Clear_ResetsCount()
         {
             var cache = new PriceCache();
-            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_001"));
-            cache.Store(LocalizedPrice.FromStore("$2.99", "USD", "GameA", "sku_002"));
+            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "Coral_Rescue", "sku_001"));
+            cache.Store(LocalizedPrice.FromStore("$2.99", "USD", "Coral_Rescue", "sku_002"));
             cache.Clear();
             Assert.AreEqual(0, cache.Count);
             Assert.IsFalse(cache.TryGet("sku_001", out _));
@@ -203,9 +203,9 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void PriceCache_MultipleEntries_AllRetrievable()
         {
             var cache = new PriceCache();
-            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "GameA", "sku_a"));
-            cache.Store(LocalizedPrice.FromStore("£1.49", "GBP", "GameA", "sku_b"));
-            cache.Store(LocalizedPrice.FromStore("€1.79", "EUR", "GameA", "sku_c"));
+            cache.Store(LocalizedPrice.FromStore("$1.99", "USD", "Coral_Rescue", "sku_a"));
+            cache.Store(LocalizedPrice.FromStore("£1.49", "GBP", "Coral_Rescue", "sku_b"));
+            cache.Store(LocalizedPrice.FromStore("€1.79", "EUR", "Coral_Rescue", "sku_c"));
             Assert.AreEqual(3, cache.Count);
             Assert.IsTrue(cache.TryGet("sku_a", out _));
             Assert.IsTrue(cache.TryGet("sku_b", out _));
@@ -217,9 +217,9 @@ namespace Match3.Engine.Tests.Editor.Commerce
         public void DefaultStructPolicy_BehavesAsDefault()
         {
             // PriceDisplayPolicy is store-owned only (AllowFabricatedPrices is always false); default(struct) is normalized.
-            var price = LocalizedPrice.FromStore("$0.99", "USD", "GameA", "sku");
-            var expected = LocalizedPriceDisplayGate.CanDisplayPrice("GameA", price, PriceDisplayPolicy.Default);
-            var result = LocalizedPriceDisplayGate.CanDisplayPrice("GameA", price, default(PriceDisplayPolicy));
+            var price = LocalizedPrice.FromStore("$0.99", "USD", "Coral_Rescue", "sku");
+            var expected = LocalizedPriceDisplayGate.CanDisplayPrice("Coral_Rescue", price, PriceDisplayPolicy.Default);
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice("Coral_Rescue", price, default(PriceDisplayPolicy));
             Assert.AreEqual(expected.IsEligible, result.IsEligible);
             Assert.AreEqual(expected.Reason, result.Reason);
             Assert.IsTrue(LocalizedPriceDisplayGate.IsStoreOwnedDisplay(default(PriceDisplayPolicy)));
@@ -252,6 +252,17 @@ namespace Match3.Engine.Tests.Editor.Commerce
                 var result = LocalizedPriceDisplayGate.CanDisplayPrice(gameId, default(LocalizedPrice), default(PriceDisplayPolicy));
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = LocalizedPriceDisplayGate.CanDisplayPrice(gameId, default(LocalizedPrice), default(PriceDisplayPolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

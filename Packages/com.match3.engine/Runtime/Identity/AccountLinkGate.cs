@@ -71,9 +71,11 @@ namespace Match3.Engine.Runtime.Identity
 
         public static CanLinkResult CanLink(string gameId, AccountLinkPolicy policy)
         {
-            // Fail closed: a missing game context is never eligible
+            // Fail closed: a missing or non-catalog game context is never eligible
             if (string.IsNullOrEmpty(gameId))
                 return new CanLinkResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new CanLinkResult(false, "UnknownGame");
 
             policy = Normalize(policy);
 

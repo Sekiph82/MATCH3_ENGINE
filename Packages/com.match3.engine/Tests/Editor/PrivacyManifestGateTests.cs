@@ -26,8 +26,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void PrivacyManifestRecord_Create_Valid_Succeeds()
         {
-            var record = PrivacyManifestRecord.Create("TestGame", PrivacyDataCategory.UsageData, true, false);
-            Assert.AreEqual("TestGame", record.GameId);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.UsageData, true, false);
+            Assert.AreEqual("Coral_Rescue", record.GameId);
             Assert.AreEqual(PrivacyDataCategory.UsageData, record.DataCategory);
             Assert.IsTrue(record.HasSdkDisclosure);
             Assert.IsFalse(record.IsRequiredReasonApi);
@@ -36,35 +36,35 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void PrivacyManifestRecord_RequiresDisclosure_DeviceIdentifiers_True()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.DeviceIdentifiers, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.DeviceIdentifiers, false, false);
             Assert.IsTrue(record.RequiresDisclosure);
         }
 
         [Test]
         public void PrivacyManifestRecord_RequiresDisclosure_NoDataCollected_False()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, false, false);
             Assert.IsFalse(record.RequiresDisclosure);
         }
 
         [Test]
         public void PrivacyManifestRecord_IsSdkCompliant_HasDisclosure_True()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.UsageData, true, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.UsageData, true, false);
             Assert.IsTrue(record.IsSdkCompliant);
         }
 
         [Test]
         public void PrivacyManifestRecord_IsSdkCompliant_NoData_True()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, false, false);
             Assert.IsTrue(record.IsSdkCompliant);
         }
 
         [Test]
         public void PrivacyManifestRecord_IsSdkCompliant_NoDisclosure_UsageData_False()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.UsageData, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.UsageData, false, false);
             Assert.IsFalse(record.IsSdkCompliant);
         }
 
@@ -107,21 +107,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanDeclareDataUsage_WonderPop_Lowercase_NotBlocked()
+        public void CanDeclareDataUsage_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = PrivacyManifestRecord.Create("wonder_pop", PrivacyDataCategory.NoDataCollected, true, false);
             var policy = PrivacyManifestPolicy.Default;
             var result = PrivacyManifestGate.CanDeclareDataUsage("wonder_pop", record, policy, out var reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanDeclareDataUsage_UndisclosedTracking_Blocked()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.DeviceIdentifiers, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.DeviceIdentifiers, false, false);
             var policy = PrivacyManifestPolicy.Safe("Block tracking policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("UndisclosedTrackingBlocked", reason);
         }
@@ -129,9 +130,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_HasDisclosure_RequiresDisclosure_Eligible()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.DeviceIdentifiers, true, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.DeviceIdentifiers, true, false);
             var policy = PrivacyManifestPolicy.Safe("Safe policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -139,9 +140,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_RequiredReasonApi_NoDisclosure_Blocked()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, false, true);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, false, true);
             var policy = PrivacyManifestPolicy.Safe("Require SDK disclosure policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("SdkDisclosureRequired", reason);
         }
@@ -149,9 +150,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_RequiredReasonApi_HasDisclosure_Eligible()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, true, true);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, true, true);
             var policy = PrivacyManifestPolicy.Safe("Safe policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -159,9 +160,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_NoDataCollected_SafePolicy_Eligible()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, false, false);
             var policy = PrivacyManifestPolicy.Safe("Safe policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -169,9 +170,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_DiagnosticData_HasDisclosure_Eligible()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.DiagnosticData, true, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.DiagnosticData, true, false);
             var policy = PrivacyManifestPolicy.Safe("Safe policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -179,9 +180,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_LocationData_NoDisclosure_Blocked()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.LocationData, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.LocationData, false, false);
             var policy = PrivacyManifestPolicy.Safe("Safe policy");
-            var result = PrivacyManifestGate.CanDeclareDataUsage("Game1", record, policy, out var reason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("UndisclosedTrackingBlocked", reason);
         }
@@ -191,28 +192,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresDisclosure_Helper_UsageData_True()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.UsageData, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.UsageData, false, false);
             Assert.IsTrue(PrivacyManifestGate.RequiresDisclosure(record));
         }
 
         [Test]
         public void RequiresDisclosure_Helper_NoDataCollected_False()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, false, false);
             Assert.IsFalse(PrivacyManifestGate.RequiresDisclosure(record));
         }
 
         [Test]
         public void IsSdkCompliant_Helper_HasDisclosure_True()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.ContactInfo, true, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.ContactInfo, true, false);
             Assert.IsTrue(PrivacyManifestGate.IsSdkCompliant(record));
         }
 
         [Test]
         public void IsSdkCompliant_Helper_NoDataNoDisclosure_True()
         {
-            var record = PrivacyManifestRecord.Create("Game1", PrivacyDataCategory.NoDataCollected, false, false);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.NoDataCollected, false, false);
             Assert.IsTrue(PrivacyManifestGate.IsSdkCompliant(record));
         }
 
@@ -222,8 +223,8 @@ namespace Match3.Engine.Tests.Editor
         public void PrivacyManifestLog_Record_And_Count()
         {
             var log = new PrivacyManifestLog();
-            log.Record("Game1", "UsageData");
-            log.Record("Game2", "DiagnosticData");
+            log.Record("Coral_Rescue", "UsageData");
+            log.Record("Garage_Legends", "DiagnosticData");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -231,16 +232,16 @@ namespace Match3.Engine.Tests.Editor
         public void PrivacyManifestLog_HasEntry_True()
         {
             var log = new PrivacyManifestLog();
-            log.Record("Game1", "UsageData");
-            Assert.IsTrue(log.HasEntry("Game1"));
-            Assert.IsFalse(log.HasEntry("Game2"));
+            log.Record("Coral_Rescue", "UsageData");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void PrivacyManifestLog_Clear_ResetsCount()
         {
             var log = new PrivacyManifestLog();
-            log.Record("Game1", "UsageData");
+            log.Record("Coral_Rescue", "UsageData");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -256,9 +257,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanDeclareDataUsage_DefaultStructPolicy_FailsClosed()
         {
-            var record = PrivacyManifestRecord.Create("GameA", PrivacyDataCategory.UsageData, false, false);
-            var expected = PrivacyManifestGate.CanDeclareDataUsage("GameA", record, PrivacyManifestPolicy.Default, out var expectedReason);
-            var result = PrivacyManifestGate.CanDeclareDataUsage("GameA", record, default(PrivacyManifestPolicy), out var reason);
+            var record = PrivacyManifestRecord.Create("Coral_Rescue", PrivacyDataCategory.UsageData, false, false);
+            var expected = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, PrivacyManifestPolicy.Default, out var expectedReason);
+            var result = PrivacyManifestGate.CanDeclareDataUsage("Coral_Rescue", record, default(PrivacyManifestPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("UndisclosedTrackingBlocked", expectedReason);
@@ -278,8 +279,8 @@ namespace Match3.Engine.Tests.Editor
         public void PrivacyManifestLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new PrivacyManifestLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -291,9 +292,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -304,6 +305,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(PrivacyManifestGate.CanDeclareDataUsage(gameId, default(PrivacyManifestRecord), default(PrivacyManifestPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(PrivacyManifestGate.CanDeclareDataUsage(gameId, default(PrivacyManifestRecord), default(PrivacyManifestPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

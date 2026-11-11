@@ -24,16 +24,16 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void GuestIdentity_Create_IsNotRestricted()
         {
-            var id = GuestIdentity.Create("MyGame");
+            var id = GuestIdentity.Create("Coral_Rescue");
             Assert.IsFalse(id.IsRestricted);
-            Assert.AreEqual("MyGame", id.GameId);
+            Assert.AreEqual("Coral_Rescue", id.GameId);
             Assert.IsFalse(string.IsNullOrEmpty(id.LocalKey));
         }
 
         [Test]
         public void GuestIdentity_CreateChild_IsRestricted()
         {
-            var id = GuestIdentity.CreateChild("MyGame");
+            var id = GuestIdentity.CreateChild("Coral_Rescue");
             Assert.IsTrue(id.IsRestricted);
         }
 
@@ -94,17 +94,18 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanCollectData_WonderPop_CaseSensitive_OtherCaseIsNotBlocked()
+        public void CanCollectData_WonderPop_CaseSensitive_OtherCaseIsUnknownGame()
         {
-            // "wonder_pop" (lowercase) is NOT Wonder_Pop — ordinal check
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var result = AnonymousIdentityGate.CanCollectData("wonder_pop", GuestIdentity.Create("wonder_pop"), Consent("wonder_pop"), Permissive);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
         public void CanCollectData_PolicyNotAllowed_Ineligible()
         {
-            var result = AnonymousIdentityGate.CanCollectData("OtherGame", GuestIdentity.Create("OtherGame"), Consent("OtherGame"), IdentityPolicy.Default);
+            var result = AnonymousIdentityGate.CanCollectData("Garage_Legends", GuestIdentity.Create("Garage_Legends"), Consent("Garage_Legends"), IdentityPolicy.Default);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("CollectionNotAllowed", result.Reason);
         }
@@ -112,7 +113,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollectData_AdultWithExplicitConsent_PermissivePolicy_Eligible()
         {
-            var result = AnonymousIdentityGate.CanCollectData("OtherGame", GuestIdentity.Create("OtherGame"), Consent("OtherGame"), Permissive);
+            var result = AnonymousIdentityGate.CanCollectData("Garage_Legends", GuestIdentity.Create("Garage_Legends"), Consent("Garage_Legends"), Permissive);
             Assert.IsTrue(result.IsEligible);
             Assert.AreEqual("Eligible", result.Reason);
         }
@@ -120,10 +121,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollectData_ChildIdentity_IneligibleUnderEveryPolicy()
         {
-            var child = GuestIdentity.CreateChild("OtherGame");
+            var child = GuestIdentity.CreateChild("Garage_Legends");
             foreach (var policy in AllConstructiblePolicies)
             {
-                var result = AnonymousIdentityGate.CanCollectData("OtherGame", child, Consent("OtherGame"), policy);
+                var result = AnonymousIdentityGate.CanCollectData("Garage_Legends", child, Consent("Garage_Legends"), policy);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("ChildCollectionProhibited", result.Reason);
             }
@@ -132,17 +133,17 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollectData_NoOrRevokedConsent_IneligibleUnderPermissivePolicy()
         {
-            var adult = GuestIdentity.Create("OtherGame");
+            var adult = GuestIdentity.Create("Garage_Legends");
             var noConsent = new[]
             {
-                ConsentRecord.Create("OtherGame", ConsentBasis.NoneRequired),
-                ConsentRecord.Create("OtherGame", ConsentBasis.ChildSafe),
-                ConsentRecord.Create("OtherGame", ConsentBasis.LegitimateInterest),
-                ConsentRecord.Revoke(Consent("OtherGame")),
+                ConsentRecord.Create("Garage_Legends", ConsentBasis.NoneRequired),
+                ConsentRecord.Create("Garage_Legends", ConsentBasis.ChildSafe),
+                ConsentRecord.Create("Garage_Legends", ConsentBasis.LegitimateInterest),
+                ConsentRecord.Revoke(Consent("Garage_Legends")),
             };
             foreach (var consent in noConsent)
             {
-                var result = AnonymousIdentityGate.CanCollectData("OtherGame", adult, consent, Permissive);
+                var result = AnonymousIdentityGate.CanCollectData("Garage_Legends", adult, consent, Permissive);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("ConsentRequired", result.Reason);
             }
@@ -153,7 +154,7 @@ namespace Match3.Engine.Tests.Editor
         {
             // default(GuestIdentity) has GameId=null -> GameIdMismatch for any real game; with a matching
             // GameId but empty key it is treated as unknown/child.
-            var r1 = AnonymousIdentityGate.CanCollectData("OtherGame", default(GuestIdentity), Consent("OtherGame"), Permissive);
+            var r1 = AnonymousIdentityGate.CanCollectData("Garage_Legends", default(GuestIdentity), Consent("Garage_Legends"), Permissive);
             Assert.IsFalse(r1.IsEligible);
             Assert.AreEqual("GameIdMismatch", r1.Reason);
             Assert.IsTrue(default(GuestIdentity).IsEmpty);
@@ -162,7 +163,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollectData_DefaultStructPolicy_FailsClosed()
         {
-            var result = AnonymousIdentityGate.CanCollectData("OtherGame", GuestIdentity.Create("OtherGame"), Consent("OtherGame"), default(IdentityPolicy));
+            var result = AnonymousIdentityGate.CanCollectData("Garage_Legends", GuestIdentity.Create("Garage_Legends"), Consent("Garage_Legends"), default(IdentityPolicy));
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("CollectionNotAllowed", result.Reason);
         }
@@ -191,9 +192,18 @@ namespace Match3.Engine.Tests.Editor
         public void CanCollectData_ObsoleteOverload_FailsClosed()
         {
 #pragma warning disable 0618
-            var r = AnonymousIdentityGate.CanCollectData("OtherGame", Permissive);
+            var r = AnonymousIdentityGate.CanCollectData("Garage_Legends", Permissive);
             var wp = AnonymousIdentityGate.CanCollectData("Wonder_Pop", Permissive);
+            var missing = AnonymousIdentityGate.CanCollectData(null, Permissive);
+            var empty = AnonymousIdentityGate.CanCollectData(string.Empty, Permissive);
+            var unknown = AnonymousIdentityGate.CanCollectData("wonder_pop", Permissive);
 #pragma warning restore 0618
+            Assert.IsFalse(missing.IsEligible);
+            Assert.AreEqual("GameIdMissing", missing.Reason);
+            Assert.IsFalse(empty.IsEligible);
+            Assert.AreEqual("GameIdMissing", empty.Reason);
+            Assert.IsFalse(unknown.IsEligible);
+            Assert.AreEqual("UnknownGame", unknown.Reason);
             Assert.IsFalse(r.IsEligible);
             Assert.AreEqual("ConsentRequired", r.Reason);
             Assert.IsFalse(wp.IsEligible);
@@ -267,6 +277,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = AnonymousIdentityGate.CanCollectData(gameId, default(GuestIdentity), default(ConsentRecord), default(IdentityPolicy));
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = AnonymousIdentityGate.CanCollectData(gameId, default(GuestIdentity), default(ConsentRecord), default(IdentityPolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

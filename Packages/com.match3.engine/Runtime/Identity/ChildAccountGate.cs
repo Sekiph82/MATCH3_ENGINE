@@ -77,6 +77,8 @@ namespace Match3.Engine.Runtime.Identity
 
             if (string.IsNullOrEmpty(gameId))
                 return Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return Ineligible("UnknownGame");
 
             if (!string.Equals(gameId, profile.GameId, StringComparison.Ordinal))
                 return Ineligible("GameIdMismatch");
@@ -103,6 +105,8 @@ namespace Match3.Engine.Runtime.Identity
 
             if (string.IsNullOrEmpty(gameId))
                 return Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return Ineligible("UnknownGame");
 
             if (!string.Equals(gameId, profile.GameId, StringComparison.Ordinal))
                 return Ineligible("GameIdMismatch");
@@ -127,6 +131,10 @@ namespace Match3.Engine.Runtime.Identity
         public static (bool eligible, string reason) CanUsePublicHandle(
             string gameId, ChildAccountPolicy policy)
         {
+            if (string.IsNullOrEmpty(gameId))
+                return Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return Ineligible("UnknownGame");
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return Ineligible("WonderPopHandleProhibited");
 

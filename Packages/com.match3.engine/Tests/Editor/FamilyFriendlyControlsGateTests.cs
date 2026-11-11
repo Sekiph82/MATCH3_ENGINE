@@ -26,8 +26,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void FamilyControlRecord_Create_Valid_Succeeds()
         {
-            var r = FamilyControlRecord.Create("TestGame", FamilyControlFeature.ChatFeature, true, false);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ChatFeature, true, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(FamilyControlFeature.ChatFeature, r.Feature);
             Assert.IsTrue(r.HasParentalConsent);
             Assert.IsFalse(r.IsKidsCategoryEnrolled);
@@ -36,42 +36,42 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void FamilyControlRecord_RequiresParentalGate_ExternalLink_True()
         {
-            var r = FamilyControlRecord.Create("G", FamilyControlFeature.ParentalGateExternalLink, false, false);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGateExternalLink, false, false);
             Assert.IsTrue(r.RequiresParentalGate);
         }
 
         [Test]
         public void FamilyControlRecord_RequiresParentalGate_Purchase_True()
         {
-            var r = FamilyControlRecord.Create("G", FamilyControlFeature.ParentalGatePurchase, false, false);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGatePurchase, false, false);
             Assert.IsTrue(r.RequiresParentalGate);
         }
 
         [Test]
         public void FamilyControlRecord_RequiresParentalGate_ChatFeature_False()
         {
-            var r = FamilyControlRecord.Create("G", FamilyControlFeature.ChatFeature, false, false);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ChatFeature, false, false);
             Assert.IsFalse(r.RequiresParentalGate);
         }
 
         [Test]
         public void FamilyControlRecord_IsThirdPartySdk_AdSdk_True()
         {
-            var r = FamilyControlRecord.Create("G", FamilyControlFeature.ThirdPartyAdSdk, false, false);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ThirdPartyAdSdk, false, false);
             Assert.IsTrue(r.IsThirdPartySdk);
         }
 
         [Test]
         public void FamilyControlRecord_IsThirdPartySdk_AnalyticsSdk_True()
         {
-            var r = FamilyControlRecord.Create("G", FamilyControlFeature.ThirdPartyAnalyticsSdk, false, false);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ThirdPartyAnalyticsSdk, false, false);
             Assert.IsTrue(r.IsThirdPartySdk);
         }
 
         [Test]
         public void FamilyControlRecord_IsThirdPartySdk_ParentalGate_False()
         {
-            var r = FamilyControlRecord.Create("G", FamilyControlFeature.ParentalGateExternalLink, false, false);
+            var r = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGateExternalLink, false, false);
             Assert.IsFalse(r.IsThirdPartySdk);
         }
 
@@ -136,22 +136,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanEnableFeature_WonderPop_Lowercase_ThirdPartySdk_NotBlocked()
+        public void CanEnableFeature_WonderPop_Lowercase_ThirdPartySdk_UnknownGame()
         {
-            // "wonder_pop" (lowercase) does not match "Wonder_Pop" with Ordinal comparison
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = FamilyControlRecord.Create("wonder_pop", FamilyControlFeature.ThirdPartyAdSdk, false, false);
             var policy = FamilyFriendlyPolicy.Default;
             var result = FamilyFriendlyControlsGate.CanEnableFeature("wonder_pop", record, policy, out var reason);
             Assert.IsFalse(result);
-            Assert.AreEqual("ThirdPartySdkDisabled", reason); // Guard 2, not Guard 1
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanEnableFeature_SafePolicy_ThirdPartySdkDisabled_OtherGame_Blocked()
         {
-            var record = FamilyControlRecord.Create("OtherGame", FamilyControlFeature.ThirdPartyAdSdk, false, false);
+            var record = FamilyControlRecord.Create("Garage_Legends", FamilyControlFeature.ThirdPartyAdSdk, false, false);
             var policy = FamilyFriendlyPolicy.Default; // AllowThirdPartySdks=false
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("OtherGame", record, policy, out var reason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Garage_Legends", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ThirdPartySdkDisabled", reason);
         }
@@ -159,9 +159,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_ParentalGateRequired_NoConsent_Blocked()
         {
-            var record = FamilyControlRecord.Create("G", FamilyControlFeature.ParentalGateExternalLink, false, false);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGateExternalLink, false, false);
             var policy = FamilyFriendlyPolicy.Default;
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("G", record, policy, out var reason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ParentalGateRequired", reason);
         }
@@ -169,9 +169,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_ParentalGate_HasConsent_Eligible()
         {
-            var record = FamilyControlRecord.Create("G", FamilyControlFeature.ParentalGateExternalLink, true, false);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGateExternalLink, true, false);
             var policy = FamilyFriendlyPolicy.Default;
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("G", record, policy, out var reason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -179,9 +179,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_KidsCategory_SocialBlocked()
         {
-            var record = FamilyControlRecord.Create("G", FamilyControlFeature.SocialFeature, false, true);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.SocialFeature, false, true);
             var policy = FamilyFriendlyPolicy.Default;
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("G", record, policy, out var reason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("SocialBlockedInKidsCategory", reason);
         }
@@ -189,9 +189,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_KidsCategory_ChatBlocked()
         {
-            var record = FamilyControlRecord.Create("G", FamilyControlFeature.ChatFeature, false, true);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ChatFeature, false, true);
             var policy = FamilyFriendlyPolicy.Default;
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("G", record, policy, out var reason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("SocialBlockedInKidsCategory", reason);
         }
@@ -199,9 +199,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_AllowThirdPartySdks_True_NonWonderPop_Eligible()
         {
-            var record = FamilyControlRecord.Create("OtherGame", FamilyControlFeature.ThirdPartyAdSdk, false, false);
+            var record = FamilyControlRecord.Create("Garage_Legends", FamilyControlFeature.ThirdPartyAdSdk, false, false);
             var policy = FamilyFriendlyPolicy.Create(true, false, false, "permissive policy");
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("OtherGame", record, policy, out var reason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Garage_Legends", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -211,14 +211,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresParentalGate_Helper_Purchase_True()
         {
-            var record = FamilyControlRecord.Create("G", FamilyControlFeature.ParentalGatePurchase, false, false);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGatePurchase, false, false);
             Assert.IsTrue(FamilyFriendlyControlsGate.RequiresParentalGate(record));
         }
 
         [Test]
         public void IsThirdPartySdk_Helper_AdSdk_True()
         {
-            var record = FamilyControlRecord.Create("G", FamilyControlFeature.ThirdPartyAdSdk, false, false);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ThirdPartyAdSdk, false, false);
             Assert.IsTrue(FamilyFriendlyControlsGate.IsThirdPartySdk(record));
         }
 
@@ -228,8 +228,8 @@ namespace Match3.Engine.Tests.Editor
         public void FamilyControlLog_Record_And_Count()
         {
             var log = new FamilyControlLog();
-            log.Record("GameA", "ChatFeature");
-            log.Record("GameA", "SocialFeature");
+            log.Record("Coral_Rescue", "ChatFeature");
+            log.Record("Coral_Rescue", "SocialFeature");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -237,16 +237,16 @@ namespace Match3.Engine.Tests.Editor
         public void FamilyControlLog_HasEntry_True()
         {
             var log = new FamilyControlLog();
-            log.Record("GameA", "ChatFeature");
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", "ChatFeature");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void FamilyControlLog_Clear_ResetsCount()
         {
             var log = new FamilyControlLog();
-            log.Record("GameA", "ChatFeature");
+            log.Record("Coral_Rescue", "ChatFeature");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -262,9 +262,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_DefaultStructPolicy_FailsClosed()
         {
-            var record = FamilyControlRecord.Create("GameA", FamilyControlFeature.ParentalGateExternalLink, false, false);
-            var expected = FamilyFriendlyControlsGate.CanEnableFeature("GameA", record, FamilyFriendlyPolicy.Default, out var expectedReason);
-            var result = FamilyFriendlyControlsGate.CanEnableFeature("GameA", record, default(FamilyFriendlyPolicy), out var reason);
+            var record = FamilyControlRecord.Create("Coral_Rescue", FamilyControlFeature.ParentalGateExternalLink, false, false);
+            var expected = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, FamilyFriendlyPolicy.Default, out var expectedReason);
+            var result = FamilyFriendlyControlsGate.CanEnableFeature("Coral_Rescue", record, default(FamilyFriendlyPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("ParentalGateRequired", expectedReason);
@@ -284,8 +284,8 @@ namespace Match3.Engine.Tests.Editor
         public void FamilyControlLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new FamilyControlLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -297,9 +297,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -310,6 +310,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(FamilyFriendlyControlsGate.CanEnableFeature(gameId, default(FamilyControlRecord), default(FamilyFriendlyPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(FamilyFriendlyControlsGate.CanEnableFeature(gameId, default(FamilyControlRecord), default(FamilyFriendlyPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

@@ -27,14 +27,14 @@ namespace Match3.Engine.Tests.Editor
         public void EventRecord_SchemaVersionZero_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                EventRecord.Create("Game1", AnalyticsEvent.SessionStart, 0));
+                EventRecord.Create("Coral_Rescue", AnalyticsEvent.SessionStart, 0));
         }
 
         [Test]
         public void EventRecord_SchemaVersionNegative_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                EventRecord.Create("Game1", AnalyticsEvent.SessionStart, -1));
+                EventRecord.Create("Coral_Rescue", AnalyticsEvent.SessionStart, -1));
         }
 
         [Test]
@@ -51,42 +51,42 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void EventRecord_IsRevenueEvent_AdStart_True()
         {
-            var r = EventRecord.Create("Game1", AnalyticsEvent.AdStart, 1);
+            var r = EventRecord.Create("Coral_Rescue", AnalyticsEvent.AdStart, 1);
             Assert.IsTrue(r.IsRevenueEvent);
         }
 
         [Test]
         public void EventRecord_IsRevenueEvent_AdComplete_True()
         {
-            var r = EventRecord.Create("Game1", AnalyticsEvent.AdComplete, 1);
+            var r = EventRecord.Create("Coral_Rescue", AnalyticsEvent.AdComplete, 1);
             Assert.IsTrue(r.IsRevenueEvent);
         }
 
         [Test]
         public void EventRecord_IsRevenueEvent_IapStart_True()
         {
-            var r = EventRecord.Create("Game1", AnalyticsEvent.IapStart, 1);
+            var r = EventRecord.Create("Coral_Rescue", AnalyticsEvent.IapStart, 1);
             Assert.IsTrue(r.IsRevenueEvent);
         }
 
         [Test]
         public void EventRecord_IsRevenueEvent_IapComplete_True()
         {
-            var r = EventRecord.Create("Game1", AnalyticsEvent.IapComplete, 1);
+            var r = EventRecord.Create("Coral_Rescue", AnalyticsEvent.IapComplete, 1);
             Assert.IsTrue(r.IsRevenueEvent);
         }
 
         [Test]
         public void EventRecord_IsRevenueEvent_SessionStart_False()
         {
-            var r = EventRecord.Create("Game1", AnalyticsEvent.SessionStart, 1);
+            var r = EventRecord.Create("Coral_Rescue", AnalyticsEvent.SessionStart, 1);
             Assert.IsFalse(r.IsRevenueEvent);
         }
 
         [Test]
         public void EventRecord_IsRevenueEvent_LevelWin_False()
         {
-            var r = EventRecord.Create("Game1", AnalyticsEvent.LevelWin, 1);
+            var r = EventRecord.Create("Coral_Rescue", AnalyticsEvent.LevelWin, 1);
             Assert.IsFalse(r.IsRevenueEvent);
         }
 
@@ -126,13 +126,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRecordEvent_WonderPop_Lowercase_NotBlocked()
+        public void CanRecordEvent_WonderPop_Lowercase_UnknownGame()
         {
-            // Ordinal check: "wonder_pop" != "Wonder_Pop"
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = EventRecord.Create("wonder_pop", AnalyticsEvent.SessionStart, 1);
             var policy = EventTaxonomyPolicy.Default;
-            var (eligible, _) = EventTaxonomyGate.CanRecordEvent("wonder_pop", record, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = EventTaxonomyGate.CanRecordEvent("wonder_pop", record, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // --- Guard 2: revenue events disabled ---
@@ -182,7 +183,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSchemaCompatible_Equal_True()
         {
-            var record = EventRecord.Create("Game1", AnalyticsEvent.Install, 1);
+            var record = EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1);
             var policy = new EventTaxonomyPolicy(1, false, "desc");
             Assert.IsTrue(EventTaxonomyGate.IsSchemaCompatible(record, policy));
         }
@@ -190,7 +191,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSchemaCompatible_RecordBelow_True()
         {
-            var record = EventRecord.Create("Game1", AnalyticsEvent.Install, 1);
+            var record = EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1);
             var policy = new EventTaxonomyPolicy(2, false, "desc");
             Assert.IsTrue(EventTaxonomyGate.IsSchemaCompatible(record, policy));
         }
@@ -198,7 +199,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsSchemaCompatible_RecordAbove_False()
         {
-            var record = EventRecord.Create("Game1", AnalyticsEvent.Install, 3);
+            var record = EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 3);
             var policy = new EventTaxonomyPolicy(2, false, "desc");
             Assert.IsFalse(EventTaxonomyGate.IsSchemaCompatible(record, policy));
         }
@@ -208,14 +209,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void GateIsRevenueEvent_AdStart_True()
         {
-            var record = EventRecord.Create("Game1", AnalyticsEvent.AdStart, 1);
+            var record = EventRecord.Create("Coral_Rescue", AnalyticsEvent.AdStart, 1);
             Assert.IsTrue(EventTaxonomyGate.IsRevenueEvent(record));
         }
 
         [Test]
         public void GateIsRevenueEvent_BoosterUse_False()
         {
-            var record = EventRecord.Create("Game1", AnalyticsEvent.BoosterUse, 1);
+            var record = EventRecord.Create("Coral_Rescue", AnalyticsEvent.BoosterUse, 1);
             Assert.IsFalse(EventTaxonomyGate.IsRevenueEvent(record));
         }
 
@@ -225,7 +226,7 @@ namespace Match3.Engine.Tests.Editor
         public void Registry_Register_CountIncreases()
         {
             var reg = new EventRegistry();
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1));
             Assert.AreEqual(1, reg.Count);
         }
 
@@ -241,23 +242,23 @@ namespace Match3.Engine.Tests.Editor
         public void Registry_Contains_ReturnsTrue()
         {
             var reg = new EventRegistry();
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1));
-            Assert.IsTrue(reg.Contains("Game1", AnalyticsEvent.Install));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1));
+            Assert.IsTrue(reg.Contains("Coral_Rescue", AnalyticsEvent.Install));
         }
 
         [Test]
         public void Registry_Contains_DifferentGame_ReturnsFalse()
         {
             var reg = new EventRegistry();
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1));
-            Assert.IsFalse(reg.Contains("Game2", AnalyticsEvent.Install));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1));
+            Assert.IsFalse(reg.Contains("Garage_Legends", AnalyticsEvent.Install));
         }
 
         [Test]
         public void Registry_Clear_ResetsCount()
         {
             var reg = new EventRegistry();
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1));
             reg.Clear();
             Assert.AreEqual(0, reg.Count);
         }
@@ -266,17 +267,17 @@ namespace Match3.Engine.Tests.Editor
         public void Registry_DuplicateRegistration_Throws()
         {
             var reg = new EventRegistry();
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1));
             Assert.Throws<ArgumentException>(() =>
-                reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1)));
+                reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1)));
         }
 
         [Test]
         public void Registry_SameGameDifferentEvent_AllowsBoth()
         {
             var reg = new EventRegistry();
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.Install, 1));
-            reg.Register(EventRecord.Create("Game1", AnalyticsEvent.SessionStart, 1));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.Install, 1));
+            reg.Register(EventRecord.Create("Coral_Rescue", AnalyticsEvent.SessionStart, 1));
             Assert.AreEqual(2, reg.Count);
         }
 
@@ -284,8 +285,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var (e1, expected) = EventTaxonomyGate.CanRecordEvent("GameA", EventRecord.Create("GameA", AnalyticsEvent.IapStart, 1), EventTaxonomyPolicy.Default);
-            var (e2, reason) = EventTaxonomyGate.CanRecordEvent("GameA", EventRecord.Create("GameA", AnalyticsEvent.IapStart, 1), default(EventTaxonomyPolicy));
+            var (e1, expected) = EventTaxonomyGate.CanRecordEvent("Coral_Rescue", EventRecord.Create("Coral_Rescue", AnalyticsEvent.IapStart, 1), EventTaxonomyPolicy.Default);
+            var (e2, reason) = EventTaxonomyGate.CanRecordEvent("Coral_Rescue", EventRecord.Create("Coral_Rescue", AnalyticsEvent.IapStart, 1), default(EventTaxonomyPolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -317,6 +318,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = EventTaxonomyGate.CanRecordEvent(gameId, default(EventRecord), default(EventTaxonomyPolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = EventTaxonomyGate.CanRecordEvent(gameId, default(EventRecord), default(EventTaxonomyPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

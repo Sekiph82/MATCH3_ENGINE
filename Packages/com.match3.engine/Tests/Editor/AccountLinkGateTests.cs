@@ -19,22 +19,22 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void LinkRequest_NullGuestKey_Throws()
         {
-            Assert.Throws<ArgumentException>(() => LinkRequest.Create("game1", null, "acc1"));
+            Assert.Throws<ArgumentException>(() => LinkRequest.Create("coral_rescue", null, "acc1"));
         }
 
         // 3. LinkRequest.Create rejects null AccountId
         [Test]
         public void LinkRequest_NullAccountId_Throws()
         {
-            Assert.Throws<ArgumentException>(() => LinkRequest.Create("game1", "gk1", null));
+            Assert.Throws<ArgumentException>(() => LinkRequest.Create("coral_rescue", "gk1", null));
         }
 
         // 4. LinkRequest.Create happy path stores values
         [Test]
         public void LinkRequest_Create_StoresValues()
         {
-            var req = LinkRequest.Create("MyGame", "guest-abc", "user-xyz");
-            Assert.AreEqual("MyGame",    req.GameId);
+            var req = LinkRequest.Create("Coral_Rescue", "guest-abc", "user-xyz");
+            Assert.AreEqual("Coral_Rescue",    req.GameId);
             Assert.AreEqual("guest-abc", req.GuestKey);
             Assert.AreEqual("user-xyz",  req.AccountId);
         }
@@ -77,10 +77,12 @@ namespace Match3.Engine.Tests.Editor
 
         // 9. wonder_pop (lowercase) is NOT blocked — guard is Ordinal
         [Test]
-        public void CanLink_WonderPopLowercase_IsEligible()
+        public void CanLink_WonderPopLowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var result = AccountLinkGate.CanLink("wonder_pop", AccountLinkPolicy.Default);
-            Assert.IsTrue(result.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         // 10. SilentOverwrite guard: AllowOverwrite=true + RequireUserWarning=false = prohibited
@@ -93,7 +95,7 @@ namespace Match3.Engine.Tests.Editor
             // The Guard 2 combination (AllowOverwrite && !RequireUserWarning) is the ONLY way to trigger it.
             // Safe() never produces AllowOverwrite=true, so Guard 2 is unreachable via Safe() — which is by design.
             // This test verifies Default policy (Safe) passes (is eligible for a normal game).
-            var result = AccountLinkGate.CanLink("NormalGame", AccountLinkPolicy.Default);
+            var result = AccountLinkGate.CanLink("Coral_Rescue", AccountLinkPolicy.Default);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -137,9 +139,9 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_HasEntry()
         {
             var log = new LinkAuditLog();
-            var req = LinkRequest.Create("GameA", "gk1", "acc1");
+            var req = LinkRequest.Create("Coral_Rescue", "gk1", "acc1");
             log.Record(req, true, "linked");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         // 17. LinkAuditLog.Count increments
@@ -148,8 +150,8 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new LinkAuditLog();
             Assert.AreEqual(0, log.Count);
-            log.Record(LinkRequest.Create("G1", "gk1", "a1"), true, "ok");
-            log.Record(LinkRequest.Create("G2", "gk2", "a2"), false, "fail");
+            log.Record(LinkRequest.Create("Coral_Rescue", "gk1", "a1"), true, "ok");
+            log.Record(LinkRequest.Create("Garage_Legends", "gk2", "a2"), false, "fail");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -158,10 +160,10 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Clear_ResetsCount()
         {
             var log = new LinkAuditLog();
-            log.Record(LinkRequest.Create("G1", "gk", "a"), true, "ok");
+            log.Record(LinkRequest.Create("Coral_Rescue", "gk", "a"), true, "ok");
             log.Clear();
             Assert.AreEqual(0, log.Count);
-            Assert.IsFalse(log.HasEntry("G1"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
         // 19. LinkAuditLog.Record rejects empty reason
@@ -169,7 +171,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_EmptyReason_Throws()
         {
             var log = new LinkAuditLog();
-            var req = LinkRequest.Create("G1", "gk", "a");
+            var req = LinkRequest.Create("Coral_Rescue", "gk", "a");
             Assert.Throws<ArgumentException>(() => log.Record(req, true, string.Empty));
         }
 
@@ -186,8 +188,8 @@ namespace Match3.Engine.Tests.Editor
         public void DefaultStructPolicy_NormalizedToDefault_UserWarningRequired()
         {
             Assert.IsTrue(AccountLinkGate.MustWarnUser(default(AccountLinkPolicy)));
-            Assert.AreEqual(AccountLinkGate.CanLink("GameA", AccountLinkPolicy.Default).Reason,
-                AccountLinkGate.CanLink("GameA", default(AccountLinkPolicy)).Reason);
+            Assert.AreEqual(AccountLinkGate.CanLink("Coral_Rescue", AccountLinkPolicy.Default).Reason,
+                AccountLinkGate.CanLink("Coral_Rescue", default(AccountLinkPolicy)).Reason);
         }
 
         [Test]
@@ -206,6 +208,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = AccountLinkGate.CanLink(gameId, AccountLinkPolicy.Default);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void CanLink_UnknownOrCaseVariantGameId_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = AccountLinkGate.CanLink(gameId, AccountLinkPolicy.Default);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

@@ -25,19 +25,19 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void LevelAttempt_NegativeLevelId_Throws()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => LevelAttempt.CreateFail("GameA", -1, 1, FailCause.OutOfMoves));
+            Assert.Throws<ArgumentOutOfRangeException>(() => LevelAttempt.CreateFail("Coral_Rescue", -1, 1, FailCause.OutOfMoves));
         }
 
         [Test]
         public void LevelAttempt_ZeroAttemptNumber_Throws()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => LevelAttempt.CreateFail("GameA", 0, 0, FailCause.OutOfMoves));
+            Assert.Throws<ArgumentOutOfRangeException>(() => LevelAttempt.CreateFail("Coral_Rescue", 0, 0, FailCause.OutOfMoves));
         }
 
         [Test]
         public void LevelAttempt_NegativeAttemptNumber_Throws()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => LevelAttempt.CreateFail("GameA", 0, -1, FailCause.OutOfMoves));
+            Assert.Throws<ArgumentOutOfRangeException>(() => LevelAttempt.CreateFail("Coral_Rescue", 0, -1, FailCause.OutOfMoves));
         }
 
         // ---- CreateFail factory ----
@@ -45,14 +45,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CreateFail_SetsWasCompletedFalse()
         {
-            var a = LevelAttempt.CreateFail("GameA", 1, 1, FailCause.TimeExpired);
+            var a = LevelAttempt.CreateFail("Coral_Rescue", 1, 1, FailCause.TimeExpired);
             Assert.IsFalse(a.WasCompleted);
         }
 
         [Test]
         public void CreateFail_SetsCauseCorrectly()
         {
-            var a = LevelAttempt.CreateFail("GameA", 1, 1, FailCause.PlayerQuit);
+            var a = LevelAttempt.CreateFail("Coral_Rescue", 1, 1, FailCause.PlayerQuit);
             Assert.AreEqual(FailCause.PlayerQuit, a.Cause);
         }
 
@@ -61,15 +61,15 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CreateComplete_SetsWasCompletedTrue()
         {
-            var a = LevelAttempt.CreateComplete("GameA", 2, 3);
+            var a = LevelAttempt.CreateComplete("Coral_Rescue", 2, 3);
             Assert.IsTrue(a.WasCompleted);
         }
 
         [Test]
         public void CreateComplete_SetsExpectedFields()
         {
-            var a = LevelAttempt.CreateComplete("GameB", 5, 2);
-            Assert.AreEqual("GameB", a.GameId);
+            var a = LevelAttempt.CreateComplete("Garage_Legends", 5, 2);
+            Assert.AreEqual("Garage_Legends", a.GameId);
             Assert.AreEqual(5, a.LevelId);
             Assert.AreEqual(2, a.AttemptNumber);
         }
@@ -79,14 +79,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsBoosterDependent_AlwaysFalse_Fail()
         {
-            var a = LevelAttempt.CreateFail("GameA", 0, 1, FailCause.OutOfMoves);
+            var a = LevelAttempt.CreateFail("Coral_Rescue", 0, 1, FailCause.OutOfMoves);
             Assert.IsFalse(a.IsBoosterDependent);
         }
 
         [Test]
         public void IsBoosterDependent_AlwaysFalse_Complete()
         {
-            var a = LevelAttempt.CreateComplete("GameA", 0, 1);
+            var a = LevelAttempt.CreateComplete("Coral_Rescue", 0, 1);
             Assert.IsFalse(a.IsBoosterDependent);
         }
 
@@ -103,12 +103,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanTrackAttempt_WonderPop_Lowercase_NotBlocked()
+        public void CanTrackAttempt_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var attempt = LevelAttempt.CreateFail("wonder_pop", 1, 1, FailCause.OutOfMoves);
             var policy = FunnelPolicy.Default;
-            var (eligible, _) = LevelFunnelGate.CanTrackAttempt("wonder_pop", attempt, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = LevelFunnelGate.CanTrackAttempt("wonder_pop", attempt, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // ---- ExceedsTrackingLimit guard ----
@@ -117,8 +119,8 @@ namespace Match3.Engine.Tests.Editor
         public void CanTrackAttempt_AtLimit_Eligible()
         {
             var policy = new FunnelPolicy(10, false, "test policy");
-            var attempt = LevelAttempt.CreateFail("GameA", 1, 10, FailCause.OutOfMoves);
-            var (eligible, _) = LevelFunnelGate.CanTrackAttempt("GameA", attempt, policy);
+            var attempt = LevelAttempt.CreateFail("Coral_Rescue", 1, 10, FailCause.OutOfMoves);
+            var (eligible, _) = LevelFunnelGate.CanTrackAttempt("Coral_Rescue", attempt, policy);
             Assert.IsTrue(eligible);
         }
 
@@ -126,8 +128,8 @@ namespace Match3.Engine.Tests.Editor
         public void CanTrackAttempt_OverLimit_Blocked()
         {
             var policy = new FunnelPolicy(10, false, "test policy");
-            var attempt = LevelAttempt.CreateFail("GameA", 1, 11, FailCause.OutOfMoves);
-            var (eligible, reason) = LevelFunnelGate.CanTrackAttempt("GameA", attempt, policy);
+            var attempt = LevelAttempt.CreateFail("Coral_Rescue", 1, 11, FailCause.OutOfMoves);
+            var (eligible, reason) = LevelFunnelGate.CanTrackAttempt("Coral_Rescue", attempt, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("ExceedsTrackingLimit", reason);
         }
@@ -137,14 +139,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsCompletionAttempt_WasCompleted_True()
         {
-            var a = LevelAttempt.CreateComplete("GameA", 1, 1);
+            var a = LevelAttempt.CreateComplete("Coral_Rescue", 1, 1);
             Assert.IsTrue(LevelFunnelGate.IsCompletionAttempt(a));
         }
 
         [Test]
         public void IsCompletionAttempt_WasFailed_False()
         {
-            var a = LevelAttempt.CreateFail("GameA", 1, 1, FailCause.OutOfMoves);
+            var a = LevelAttempt.CreateFail("Coral_Rescue", 1, 1, FailCause.OutOfMoves);
             Assert.IsFalse(LevelFunnelGate.IsCompletionAttempt(a));
         }
 
@@ -273,8 +275,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var (e1, expected) = LevelFunnelGate.CanTrackAttempt("GameA", LevelAttempt.CreateComplete("GameA", 1, 51), FunnelPolicy.Default);
-            var (e2, reason) = LevelFunnelGate.CanTrackAttempt("GameA", LevelAttempt.CreateComplete("GameA", 1, 51), default(FunnelPolicy));
+            var (e1, expected) = LevelFunnelGate.CanTrackAttempt("Coral_Rescue", LevelAttempt.CreateComplete("Coral_Rescue", 1, 51), FunnelPolicy.Default);
+            var (e2, reason) = LevelFunnelGate.CanTrackAttempt("Coral_Rescue", LevelAttempt.CreateComplete("Coral_Rescue", 1, 51), default(FunnelPolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -306,6 +308,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = LevelFunnelGate.CanTrackAttempt(gameId, default(LevelAttempt), default(FunnelPolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = LevelFunnelGate.CanTrackAttempt(gameId, default(LevelAttempt), default(FunnelPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

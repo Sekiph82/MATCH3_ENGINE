@@ -83,9 +83,11 @@ namespace Match3.Engine.Runtime.Identity
 
         public static MigrationEligibility CanMigrate(string gameId, MigrationPolicy policy)
         {
-            // Fail closed: a missing game context is never eligible
+            // Fail closed: a missing or non-catalog game context is never eligible
             if (string.IsNullOrEmpty(gameId))
                 return MigrationEligibility.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return MigrationEligibility.Ineligible("UnknownGame");
 
             policy = Normalize(policy);
 

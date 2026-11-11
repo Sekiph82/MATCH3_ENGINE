@@ -186,6 +186,10 @@ namespace Match3.Engine.Runtime.LiveOps
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
             string control = def.ControlVariant;
 
+            // Fail closed: only catalog game IDs (Ordinal) are eligible (ctx rejects null/empty).
+            if (!GameProfileCatalog.IsKnownId(ctx.GameId))
+                return new ExperimentAssignment(ExperimentAssignmentKind.NotEligible, control, "UnknownGame");
+
             if (def.State == ExperimentState.RolledBack)
                 return new ExperimentAssignment(ExperimentAssignmentKind.NotEligible, control, "RolledBack");
             if (def.State != ExperimentState.Running)

@@ -82,6 +82,8 @@ namespace Match3.Engine.Runtime.Identity
 
             if (string.IsNullOrEmpty(gameId))
                 return new QueueEligibilityResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new QueueEligibilityResult(false, "UnknownGame");
 
             if (!string.Equals(gameId, entry.GameId, StringComparison.Ordinal))
                 return new QueueEligibilityResult(false, "GameIdMismatch");

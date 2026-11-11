@@ -12,13 +12,13 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Record_NullOrderId_Throws()
         {
-            Assert.Throws<ArgumentException>(() => FulfillmentRecord.Pending(null, "GameA"));
+            Assert.Throws<ArgumentException>(() => FulfillmentRecord.Pending(null, "Coral_Rescue"));
         }
 
         [Test]
         public void Record_EmptyOrderId_Throws()
         {
-            Assert.Throws<ArgumentException>(() => FulfillmentRecord.Pending("", "GameA"));
+            Assert.Throws<ArgumentException>(() => FulfillmentRecord.Pending("", "Coral_Rescue"));
         }
 
         [Test]
@@ -38,7 +38,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void PendingFactory_IsGrantedFalse_IsAcknowledgedFalse()
         {
-            var r = FulfillmentRecord.Pending("order-1", "GameA");
+            var r = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
             Assert.IsFalse(r.IsGranted);
             Assert.IsFalse(r.IsAcknowledged);
         }
@@ -46,7 +46,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void GrantedFactory_IsGrantedTrue_IsAcknowledgedFalse()
         {
-            var r = FulfillmentRecord.Granted("order-1", "GameA");
+            var r = FulfillmentRecord.Granted("order-1", "Coral_Rescue");
             Assert.IsTrue(r.IsGranted);
             Assert.IsFalse(r.IsAcknowledged);
         }
@@ -54,7 +54,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AcknowledgedFactory_BothTrue()
         {
-            var r = FulfillmentRecord.Acknowledged("order-1", "GameA");
+            var r = FulfillmentRecord.Acknowledged("order-1", "Coral_Rescue");
             Assert.IsTrue(r.IsGranted);
             Assert.IsTrue(r.IsAcknowledged);
         }
@@ -71,22 +71,22 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanGrantReward_AlreadyGranted_ReturnsFalse()
         {
-            var r = FulfillmentRecord.Granted("order-1", "GameA");
-            Assert.IsFalse(FulfillmentGate.CanGrantReward("GameA", r));
+            var r = FulfillmentRecord.Granted("order-1", "Coral_Rescue");
+            Assert.IsFalse(FulfillmentGate.CanGrantReward("Coral_Rescue", r));
         }
 
         [Test]
         public void CanGrantReward_AlreadyAcknowledged_ReturnsFalse()
         {
-            var r = FulfillmentRecord.Acknowledged("order-1", "GameA");
-            Assert.IsFalse(FulfillmentGate.CanGrantReward("GameA", r));
+            var r = FulfillmentRecord.Acknowledged("order-1", "Coral_Rescue");
+            Assert.IsFalse(FulfillmentGate.CanGrantReward("Coral_Rescue", r));
         }
 
         [Test]
         public void CanGrantReward_FreshPendingRecord_ReturnsTrue()
         {
-            var r = FulfillmentRecord.Pending("order-1", "GameA");
-            Assert.IsTrue(FulfillmentGate.CanGrantReward("GameA", r));
+            var r = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
+            Assert.IsTrue(FulfillmentGate.CanGrantReward("Coral_Rescue", r));
         }
 
         // --- FulfillmentGate.ShouldAcknowledge ---
@@ -94,21 +94,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ShouldAcknowledge_GrantedNotAcknowledged_ReturnsTrue()
         {
-            var r = FulfillmentRecord.Granted("order-1", "GameA");
+            var r = FulfillmentRecord.Granted("order-1", "Coral_Rescue");
             Assert.IsTrue(FulfillmentGate.ShouldAcknowledge(r));
         }
 
         [Test]
         public void ShouldAcknowledge_Acknowledged_ReturnsFalse()
         {
-            var r = FulfillmentRecord.Acknowledged("order-1", "GameA");
+            var r = FulfillmentRecord.Acknowledged("order-1", "Coral_Rescue");
             Assert.IsFalse(FulfillmentGate.ShouldAcknowledge(r));
         }
 
         [Test]
         public void ShouldAcknowledge_Pending_ReturnsFalse()
         {
-            var r = FulfillmentRecord.Pending("order-1", "GameA");
+            var r = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
             Assert.IsFalse(FulfillmentGate.ShouldAcknowledge(r));
         }
 
@@ -117,21 +117,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsAlreadyFulfilled_Acknowledged_ReturnsTrue()
         {
-            var r = FulfillmentRecord.Acknowledged("order-1", "GameA");
+            var r = FulfillmentRecord.Acknowledged("order-1", "Coral_Rescue");
             Assert.IsTrue(FulfillmentGate.IsAlreadyFulfilled(r));
         }
 
         [Test]
         public void IsAlreadyFulfilled_Granted_ReturnsFalse()
         {
-            var r = FulfillmentRecord.Granted("order-1", "GameA");
+            var r = FulfillmentRecord.Granted("order-1", "Coral_Rescue");
             Assert.IsFalse(FulfillmentGate.IsAlreadyFulfilled(r));
         }
 
         [Test]
         public void IsAlreadyFulfilled_Pending_ReturnsFalse()
         {
-            var r = FulfillmentRecord.Pending("order-1", "GameA");
+            var r = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
             Assert.IsFalse(FulfillmentGate.IsAlreadyFulfilled(r));
         }
 
@@ -140,14 +140,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AssertGrantedBeforeAcknowledge_PendingRecord_Throws()
         {
-            var r = FulfillmentRecord.Pending("order-1", "GameA");
+            var r = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
             Assert.Throws<InvalidOperationException>(() => FulfillmentGate.AssertGrantedBeforeAcknowledge(r));
         }
 
         [Test]
         public void AssertGrantedBeforeAcknowledge_GrantedRecord_DoesNotThrow()
         {
-            var r = FulfillmentRecord.Granted("order-1", "GameA");
+            var r = FulfillmentRecord.Granted("order-1", "Coral_Rescue");
             Assert.DoesNotThrow(() => FulfillmentGate.AssertGrantedBeforeAcknowledge(r));
         }
 
@@ -171,7 +171,7 @@ namespace Match3.Engine.Tests.Editor
         public void Ledger_RecordPending_ThenTryGetRecord_ReturnsFound()
         {
             var ledger = new FulfillmentLedger();
-            var r = FulfillmentRecord.Pending("order-1", "GameA");
+            var r = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
             ledger.RecordPending(r);
             Assert.IsTrue(ledger.TryGetRecord("order-1", out var found));
             Assert.AreEqual("order-1", found.OrderId);
@@ -181,8 +181,8 @@ namespace Match3.Engine.Tests.Editor
         public void Ledger_RecordGranted_IncreasesCount()
         {
             var ledger = new FulfillmentLedger();
-            ledger.RecordGranted(FulfillmentRecord.Granted("order-1", "GameA"));
-            ledger.RecordGranted(FulfillmentRecord.Granted("order-2", "GameA"));
+            ledger.RecordGranted(FulfillmentRecord.Granted("order-1", "Coral_Rescue"));
+            ledger.RecordGranted(FulfillmentRecord.Granted("order-2", "Coral_Rescue"));
             Assert.AreEqual(2, ledger.Count);
         }
 
@@ -190,7 +190,7 @@ namespace Match3.Engine.Tests.Editor
         public void Ledger_Clear_ResetsCount()
         {
             var ledger = new FulfillmentLedger();
-            ledger.RecordPending(FulfillmentRecord.Pending("order-1", "GameA"));
+            ledger.RecordPending(FulfillmentRecord.Pending("order-1", "Coral_Rescue"));
             ledger.Clear();
             Assert.AreEqual(0, ledger.Count);
         }
@@ -199,9 +199,9 @@ namespace Match3.Engine.Tests.Editor
         public void Ledger_RecordPending_AlreadyGrantedOrder_Throws()
         {
             var ledger = new FulfillmentLedger();
-            ledger.RecordGranted(FulfillmentRecord.Granted("order-1", "GameA"));
+            ledger.RecordGranted(FulfillmentRecord.Granted("order-1", "Coral_Rescue"));
             Assert.Throws<ArgumentException>(() =>
-                ledger.RecordPending(FulfillmentRecord.Pending("order-1", "GameA")));
+                ledger.RecordPending(FulfillmentRecord.Pending("order-1", "Coral_Rescue")));
         }
 
 
@@ -231,6 +231,17 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(FulfillmentGate.CanGrantReward(gameId, default(FulfillmentRecord)));
             }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_MatchingPendingRecord_NeverGranted()
+        {
+            // The record carries the same (non-catalog) ID, so only the UnknownGame guard can refuse the grant.
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop" })
+                Assert.IsFalse(FulfillmentGate.CanGrantReward(gameId, FulfillmentRecord.Pending("order-1", gameId)), gameId);
+            // Control: every non-Wonder_Pop catalog game with a pending record is grantable.
+            foreach (var gameId in new[] { "Coral_Rescue", "Garage_Legends", "Dino_Islands", "The_Fractured_Realms" })
+                Assert.IsTrue(FulfillmentGate.CanGrantReward(gameId, FulfillmentRecord.Pending("order-1", gameId)), gameId);
         }
     }
 }

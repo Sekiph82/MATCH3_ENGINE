@@ -24,34 +24,34 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ConflictRecord_Create_NegativeLocalRevision_ThrowsArgumentOutOfRangeException()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => ConflictRecord.Create("GameA", -1, 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => ConflictRecord.Create("Coral_Rescue", -1, 0));
         }
 
         [Test]
         public void ConflictRecord_Create_NegativeRemoteRevision_ThrowsArgumentOutOfRangeException()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => ConflictRecord.Create("GameA", 0, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => ConflictRecord.Create("Coral_Rescue", 0, -1));
         }
 
         [Test]
         public void ConflictRecord_HasDivergence_SameRevisions_ReturnsFalse()
         {
-            var record = ConflictRecord.Create("GameA", 5, 5);
+            var record = ConflictRecord.Create("Coral_Rescue", 5, 5);
             Assert.IsFalse(record.HasDivergence);
         }
 
         [Test]
         public void ConflictRecord_HasDivergence_DifferentRevisions_ReturnsTrue()
         {
-            var record = ConflictRecord.Create("GameA", 3, 7);
+            var record = ConflictRecord.Create("Coral_Rescue", 3, 7);
             Assert.IsTrue(record.HasDivergence);
         }
 
         [Test]
         public void ConflictRecord_Create_ValidArgs_SetsProperties()
         {
-            var record = ConflictRecord.Create("GameB", 1, 2);
-            Assert.AreEqual("GameB", record.GameId);
+            var record = ConflictRecord.Create("Garage_Legends", 1, 2);
+            Assert.AreEqual("Garage_Legends", record.GameId);
             Assert.AreEqual(1, record.LocalRevision);
             Assert.AreEqual(2, record.RemoteRevision);
         }
@@ -109,14 +109,17 @@ namespace Match3.Engine.Tests.Editor
             var policy = new MergePolicy(MergeStrategy.LocalWins, "allow all");
             var result = MergeConflictGate.CanAutoResolve("wonder_pop", conflict, policy);
             Assert.AreNotEqual("WonderPopMergeProhibited", result.Reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
         public void CanAutoResolve_RequireUserConfirmation_IsIneligible_Guard2()
         {
-            var conflict = ConflictRecord.Create("GameA", 1, 2);
+            var conflict = ConflictRecord.Create("Coral_Rescue", 1, 2);
             var policy = new MergePolicy(MergeStrategy.LocalWins, "needs confirmation");
-            var result = MergeConflictGate.CanAutoResolve("GameA", conflict, policy);
+            var result = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("UserConfirmationRequired", result.Reason);
         }
@@ -124,9 +127,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanAutoResolve_ManualStrategy_IsIneligible_Guard3()
         {
-            var conflict = ConflictRecord.Create("GameA", 1, 2);
+            var conflict = ConflictRecord.Create("Coral_Rescue", 1, 2);
             var policy = new MergePolicy(MergeStrategy.ManualRequired, "manual only");
-            var result = MergeConflictGate.CanAutoResolve("GameA", conflict, policy);
+            var result = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("UserConfirmationRequired", result.Reason);
         }
@@ -134,9 +137,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanAutoResolve_LocalWins_NoConfirmation_Divergent_NoSilentOverwrite()
         {
-            var conflict = ConflictRecord.Create("GameA", 1, 2);
+            var conflict = ConflictRecord.Create("Coral_Rescue", 1, 2);
             var policy = new MergePolicy(MergeStrategy.LocalWins, "auto ok");
-            var result = MergeConflictGate.CanAutoResolve("GameA", conflict, policy);
+            var result = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("UserConfirmationRequired", result.Reason);
         }
@@ -144,9 +147,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanAutoResolve_RemoteWins_NoConfirmation_Divergent_NoSilentOverwrite()
         {
-            var conflict = ConflictRecord.Create("GameB", 2, 3);
+            var conflict = ConflictRecord.Create("Garage_Legends", 2, 3);
             var policy = new MergePolicy(MergeStrategy.RemoteWins, "auto remote");
-            var result = MergeConflictGate.CanAutoResolve("GameB", conflict, policy);
+            var result = MergeConflictGate.CanAutoResolve("Garage_Legends", conflict, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("UserConfirmationRequired", result.Reason);
         }
@@ -156,11 +159,11 @@ namespace Match3.Engine.Tests.Editor
         {
             // Two devices editing offline from the same base can both reach revision N+1:
             // equal revisions do not prove a lossless merge.
-            var conflict = ConflictRecord.Create("GameB", 3, 3);
+            var conflict = ConflictRecord.Create("Garage_Legends", 3, 3);
 #pragma warning disable 0618
             var mostRelaxed = new MergePolicy(MergeStrategy.RemoteWins, false, "most relaxed");
 #pragma warning restore 0618
-            var result = MergeConflictGate.CanAutoResolve("GameB", conflict, mostRelaxed);
+            var result = MergeConflictGate.CanAutoResolve("Garage_Legends", conflict, mostRelaxed);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("UserConfirmationRequired", result.Reason);
         }
@@ -169,9 +172,9 @@ namespace Match3.Engine.Tests.Editor
         public void CanAutoResolve_AnyConflict_RequiresConfirmationUnderEveryPolicy()
         {
             foreach (var policy in AllConstructiblePolicies)
-                foreach (var conflict in new[] { ConflictRecord.Create("GameA", 0, 0), ConflictRecord.Create("GameA", 5, 5), ConflictRecord.Create("GameA", 4, 7) })
+                foreach (var conflict in new[] { ConflictRecord.Create("Coral_Rescue", 0, 0), ConflictRecord.Create("Coral_Rescue", 5, 5), ConflictRecord.Create("Coral_Rescue", 4, 7) })
                 {
-                    var result = MergeConflictGate.CanAutoResolve("GameA", conflict, policy);
+                    var result = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, policy);
                     Assert.IsFalse(result.IsEligible);
                     Assert.AreEqual("UserConfirmationRequired", result.Reason);
                     Assert.IsTrue(MergeConflictGate.RequiresConfirmation(policy));
@@ -204,17 +207,17 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanAutoResolve_Divergent_NeverAutoResolvedUnderAnyPolicy()
         {
-            var conflict = ConflictRecord.Create("GameA", 4, 7);
+            var conflict = ConflictRecord.Create("Coral_Rescue", 4, 7);
             foreach (var policy in AllConstructiblePolicies)
-                Assert.IsFalse(MergeConflictGate.CanAutoResolve("GameA", conflict, policy).IsEligible);
+                Assert.IsFalse(MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, policy).IsEligible);
         }
 
         [Test]
         public void CanAutoResolve_DefaultStructPolicy_FailsClosed()
         {
-            var conflict = ConflictRecord.Create("GameA", 0, 0);
-            var expected = MergeConflictGate.CanAutoResolve("GameA", conflict, MergePolicy.Default);
-            var result = MergeConflictGate.CanAutoResolve("GameA", conflict, default(MergePolicy));
+            var conflict = ConflictRecord.Create("Coral_Rescue", 0, 0);
+            var expected = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, MergePolicy.Default);
+            var result = MergeConflictGate.CanAutoResolve("Coral_Rescue", conflict, default(MergePolicy));
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual(expected.Reason, result.Reason);
             Assert.AreEqual("UserConfirmationRequired", result.Reason);
@@ -279,14 +282,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsDivergent_SameRevisions_ReturnsFalse()
         {
-            var conflict = ConflictRecord.Create("GameA", 4, 4);
+            var conflict = ConflictRecord.Create("Coral_Rescue", 4, 4);
             Assert.IsFalse(MergeConflictGate.IsDivergent(conflict));
         }
 
         [Test]
         public void IsDivergent_DifferentRevisions_ReturnsTrue()
         {
-            var conflict = ConflictRecord.Create("GameA", 1, 9);
+            var conflict = ConflictRecord.Create("Coral_Rescue", 1, 9);
             Assert.IsTrue(MergeConflictGate.IsDivergent(conflict));
         }
 
@@ -296,7 +299,7 @@ namespace Match3.Engine.Tests.Editor
         public void MergeAuditLog_Record_NullReason_ThrowsArgumentException()
         {
             var log = new MergeAuditLog();
-            var record = ConflictRecord.Create("GameA", 0, 1);
+            var record = ConflictRecord.Create("Coral_Rescue", 0, 1);
             Assert.Throws<ArgumentException>(() => log.Record(record, MergeStrategy.LocalWins, null));
         }
 
@@ -304,7 +307,7 @@ namespace Match3.Engine.Tests.Editor
         public void MergeAuditLog_Record_EmptyReason_ThrowsArgumentException()
         {
             var log = new MergeAuditLog();
-            var record = ConflictRecord.Create("GameA", 0, 1);
+            var record = ConflictRecord.Create("Coral_Rescue", 0, 1);
             Assert.Throws<ArgumentException>(() => log.Record(record, MergeStrategy.LocalWins, ""));
         }
 
@@ -312,7 +315,7 @@ namespace Match3.Engine.Tests.Editor
         public void MergeAuditLog_Record_IncreasesCount()
         {
             var log = new MergeAuditLog();
-            var record = ConflictRecord.Create("GameA", 0, 1);
+            var record = ConflictRecord.Create("Coral_Rescue", 0, 1);
             log.Record(record, MergeStrategy.LocalWins, "applied local");
             Assert.AreEqual(1, log.Count);
         }
@@ -321,7 +324,7 @@ namespace Match3.Engine.Tests.Editor
         public void MergeAuditLog_Clear_ResetsCount()
         {
             var log = new MergeAuditLog();
-            var record = ConflictRecord.Create("GameA", 0, 1);
+            var record = ConflictRecord.Create("Coral_Rescue", 0, 1);
             log.Record(record, MergeStrategy.LocalWins, "applied local");
             log.Clear();
             Assert.AreEqual(0, log.Count);
@@ -331,9 +334,9 @@ namespace Match3.Engine.Tests.Editor
         public void MergeAuditLog_HasEntry_ReturnsTrueAfterRecord()
         {
             var log = new MergeAuditLog();
-            var record = ConflictRecord.Create("GameA", 0, 1);
+            var record = ConflictRecord.Create("Coral_Rescue", 0, 1);
             log.Record(record, MergeStrategy.RemoteWins, "applied remote");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -347,9 +350,9 @@ namespace Match3.Engine.Tests.Editor
         public void MergeAuditLog_MultipleEntries_CountMatches()
         {
             var log = new MergeAuditLog();
-            log.Record(ConflictRecord.Create("GameA", 1, 2), MergeStrategy.LocalWins, "r1");
-            log.Record(ConflictRecord.Create("GameB", 3, 4), MergeStrategy.RemoteWins, "r2");
-            log.Record(ConflictRecord.Create("GameC", 5, 6), MergeStrategy.ManualRequired, "r3");
+            log.Record(ConflictRecord.Create("Coral_Rescue", 1, 2), MergeStrategy.LocalWins, "r1");
+            log.Record(ConflictRecord.Create("Garage_Legends", 3, 4), MergeStrategy.RemoteWins, "r2");
+            log.Record(ConflictRecord.Create("Dino_Islands", 5, 6), MergeStrategy.ManualRequired, "r3");
             Assert.AreEqual(3, log.Count);
         }
 
@@ -362,6 +365,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = MergeConflictGate.CanAutoResolve(gameId, default(ConflictRecord), default(MergePolicy));
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = MergeConflictGate.CanAutoResolve(gameId, default(ConflictRecord), default(MergePolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

@@ -26,20 +26,20 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DeletionRequest_NullRequestorId_Throws()
         {
-            Assert.Throws<ArgumentException>(() => DeletionRequest.Create("GameA", DeletionScope.AccountOnly, null));
+            Assert.Throws<ArgumentException>(() => DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, null));
         }
 
         [Test]
         public void DeletionRequest_EmptyRequestorId_Throws()
         {
-            Assert.Throws<ArgumentException>(() => DeletionRequest.Create("GameA", DeletionScope.AccountOnly, ""));
+            Assert.Throws<ArgumentException>(() => DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, ""));
         }
 
         [Test]
         public void DeletionRequest_ValidArgs_CreatesSuccessfully()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.Full, "req1");
-            Assert.AreEqual("GameA", r.GameId);
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.Full, "req1");
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(DeletionScope.Full, r.Scope);
             Assert.AreEqual("req1", r.RequestorId);
         }
@@ -49,21 +49,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsFullDeletion_Full_ReturnsTrue()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.Full, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.Full, "req1");
             Assert.IsTrue(r.IsFullDeletion);
         }
 
         [Test]
         public void IsFullDeletion_AccountOnly_ReturnsFalse()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             Assert.IsFalse(r.IsFullDeletion);
         }
 
         [Test]
         public void IsFullDeletion_AccountAndCloudSave_ReturnsFalse()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountAndCloudSave, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountAndCloudSave, "req1");
             Assert.IsFalse(r.IsFullDeletion);
         }
 
@@ -109,18 +109,21 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanInitiateDeletion_WonderPop_Lowercase_NotBlocked()
+        public void CanInitiateDeletion_WonderPop_Lowercase_UnknownGame()
         {
-            // Ordinal: "wonder_pop" != "Wonder_Pop"
-            var (eligible, _) = DeletionFlowGate.CanInitiateDeletion("wonder_pop", DeletionPolicy.Default);
-            Assert.IsTrue(eligible);
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
+            var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion("wonder_pop", DeletionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
-        public void CanInitiateDeletion_WonderPop_MixedCase_NotBlocked()
+        public void CanInitiateDeletion_WonderPop_MixedCase_UnknownGame()
         {
-            var (eligible, _) = DeletionFlowGate.CanInitiateDeletion("WONDER_POP", DeletionPolicy.Default);
-            Assert.IsTrue(eligible);
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
+            var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion("WONDER_POP", DeletionPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // ---- Guard 2: SilentDeletionProhibited ----
@@ -139,7 +142,7 @@ namespace Match3.Engine.Tests.Editor
             // The DeletionPolicy struct's Safe factory prevents AllowSilentDelete=true via public API.
             // Guard 2 is unreachable via public API because Safe() hardcodes AllowSilentDelete=false.
             // This is by design (defense in depth). Verify that Default policy is eligible for a normal game.
-            var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion("GameA", DeletionPolicy.Default);
+            var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion("Coral_Rescue", DeletionPolicy.Default);
             Assert.IsTrue(eligible);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -163,21 +166,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsFullScopeDeletion_FullScope_ReturnsTrue()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.Full, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.Full, "req1");
             Assert.IsTrue(DeletionFlowGate.IsFullScopeDeletion(r));
         }
 
         [Test]
         public void IsFullScopeDeletion_AccountOnly_ReturnsFalse()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             Assert.IsFalse(DeletionFlowGate.IsFullScopeDeletion(r));
         }
 
         [Test]
         public void IsFullScopeDeletion_AccountAndCloudSave_ReturnsFalse()
         {
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountAndCloudSave, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountAndCloudSave, "req1");
             Assert.IsFalse(DeletionFlowGate.IsFullScopeDeletion(r));
         }
 
@@ -187,7 +190,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_NullReason_Throws()
         {
             var log = new DeletionAuditLog();
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             Assert.Throws<ArgumentException>(() => log.Record(r, true, null));
         }
 
@@ -195,7 +198,7 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_Record_EmptyReason_Throws()
         {
             var log = new DeletionAuditLog();
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             Assert.Throws<ArgumentException>(() => log.Record(r, true, ""));
         }
 
@@ -204,7 +207,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new DeletionAuditLog();
             Assert.AreEqual(0, log.Count);
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             log.Record(r, true, "approved");
             Assert.AreEqual(1, log.Count);
         }
@@ -213,38 +216,38 @@ namespace Match3.Engine.Tests.Editor
         public void AuditLog_HasEntry_ReturnsTrueForRecordedGame()
         {
             var log = new DeletionAuditLog();
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             log.Record(r, true, "approved");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void AuditLog_HasEntry_ReturnsFalseForUnrecordedGame()
         {
             var log = new DeletionAuditLog();
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void AuditLog_Clear_ResetsCount()
         {
             var log = new DeletionAuditLog();
-            var r = DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1");
+            var r = DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1");
             log.Record(r, true, "approved");
             log.Clear();
             Assert.AreEqual(0, log.Count);
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void AuditLog_MultipleEntries_CountCorrect()
         {
             var log = new DeletionAuditLog();
-            log.Record(DeletionRequest.Create("GameA", DeletionScope.AccountOnly, "req1"), true, "r1");
-            log.Record(DeletionRequest.Create("GameB", DeletionScope.Full, "req2"), false, "r2");
-            log.Record(DeletionRequest.Create("GameC", DeletionScope.AccountAndCloudSave, "req3"), true, "r3");
+            log.Record(DeletionRequest.Create("Coral_Rescue", DeletionScope.AccountOnly, "req1"), true, "r1");
+            log.Record(DeletionRequest.Create("Garage_Legends", DeletionScope.Full, "req2"), false, "r2");
+            log.Record(DeletionRequest.Create("Dino_Islands", DeletionScope.AccountAndCloudSave, "req3"), true, "r3");
             Assert.AreEqual(3, log.Count);
-            Assert.IsTrue(log.HasEntry("GameB"));
+            Assert.IsTrue(log.HasEntry("Garage_Legends"));
         }
 
 
@@ -252,8 +255,8 @@ namespace Match3.Engine.Tests.Editor
         public void DefaultStructPolicy_NormalizedToDefault_ConfirmationRequired()
         {
             Assert.IsTrue(DeletionFlowGate.RequiresConfirmation(default(DeletionPolicy)));
-            Assert.AreEqual(DeletionFlowGate.CanInitiateDeletion("GameA", DeletionPolicy.Default),
-                DeletionFlowGate.CanInitiateDeletion("GameA", default(DeletionPolicy)));
+            Assert.AreEqual(DeletionFlowGate.CanInitiateDeletion("Coral_Rescue", DeletionPolicy.Default),
+                DeletionFlowGate.CanInitiateDeletion("Coral_Rescue", default(DeletionPolicy)));
         }
 
         [Test]
@@ -272,6 +275,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion(gameId, DeletionPolicy.Default);
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void CanInitiateDeletion_UnknownOrCaseVariantGameId_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = DeletionFlowGate.CanInitiateDeletion(gameId, DeletionPolicy.Default);
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

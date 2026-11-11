@@ -24,36 +24,36 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ExperienceRecord_Create_Valid_Succeeds()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, false);
-            Assert.AreEqual("GameA", record.GameId);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, false);
+            Assert.AreEqual("Coral_Rescue", record.GameId);
             Assert.AreEqual(ExperienceEventKind.HintShown, record.EventKind);
         }
 
         [Test]
         public void ExperienceRecord_IsEligiblePlayer_NotTestBot_NotConsentDenied_True()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, false);
             Assert.IsTrue(record.IsEligiblePlayer);
         }
 
         [Test]
         public void ExperienceRecord_IsEligiblePlayer_IsTestBot_False()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, false);
             Assert.IsFalse(record.IsEligiblePlayer);
         }
 
         [Test]
         public void ExperienceRecord_IsEligiblePlayer_IsConsentDenied_False()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, true);
             Assert.IsFalse(record.IsEligiblePlayer);
         }
 
         [Test]
         public void ExperienceRecord_IsEligiblePlayer_BothFlags_False()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, true);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, true);
             Assert.IsFalse(record.IsEligiblePlayer);
         }
 
@@ -90,21 +90,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRecordEvent_WonderPop_Lowercase_NotBlocked()
+        public void CanRecordEvent_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = ExperienceRecord.Create("wonder_pop", ExperienceEventKind.HintShown, false, false);
             var policy = ExperienceFairnessPolicy.Default;
             bool result = ExperienceFairnessGate.CanRecordEvent("wonder_pop", record, policy, out string reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanRecordEvent_TestBot_SafePolicy_Blocked()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, false);
             var policy = ExperienceFairnessPolicy.Safe("Safe");
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+            bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("TestBotExcluded", reason);
         }
@@ -112,10 +113,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_TestBot_AllowTestBotsPolicy_Eligible()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, false);
             var policy = ExperienceFairnessPolicy.AllowTestBots("Allow test bots");
             Assert.IsTrue(policy.AllowTestBotEvents);
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+            bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -124,20 +125,20 @@ namespace Match3.Engine.Tests.Editor
         public void CanRecordEvent_AllowTestBots_DoesNotAdmitConsentDeniedPlayer()
         {
             var policy = ExperienceFairnessPolicy.AllowTestBots("Allow test bots");
-            var consentDeniedBot = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, true);
-            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", consentDeniedBot, policy, out string reason));
+            var consentDeniedBot = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, true);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", consentDeniedBot, policy, out string reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
-            var consentDeniedPlayer = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
-            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", consentDeniedPlayer, policy, out reason));
+            var consentDeniedPlayer = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, true);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", consentDeniedPlayer, policy, out reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
         public void CanRecordEvent_ConsentDenied_SafePolicy_Blocked()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, true);
             var policy = ExperienceFairnessPolicy.Safe("Safe");
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+            bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
@@ -145,20 +146,20 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_ConsentDenied_MostRelaxedPolicy_StillBlocked()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, true);
             var policy = ExperienceFairnessPolicy.AllowTestBots("Most relaxed constructible policy");
-            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason));
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
-            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, default(ExperienceFairnessPolicy), out reason));
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, default(ExperienceFairnessPolicy), out reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
         public void CanRecordEvent_EligiblePlayer_SafePolicy_Eligible()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, false);
             var policy = ExperienceFairnessPolicy.Safe("Safe");
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+            bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -170,8 +171,8 @@ namespace Match3.Engine.Tests.Editor
             ExperienceEventKind[] kinds = { ExperienceEventKind.LevelAbandon, ExperienceEventKind.StreakMilestone, ExperienceEventKind.DailyChallenge };
             foreach (var kind in kinds)
             {
-                var record = ExperienceRecord.Create("GameA", kind, false, false);
-                bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+                var record = ExperienceRecord.Create("Coral_Rescue", kind, false, false);
+                bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
                 Assert.IsTrue(result, "Expected eligible for " + kind);
                 Assert.AreEqual(string.Empty, reason);
             }
@@ -180,9 +181,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_LevelFirstAttemptWin_Eligible()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.LevelFirstAttemptWin, false, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.LevelFirstAttemptWin, false, false);
             var policy = ExperienceFairnessPolicy.Default;
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+            bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -190,9 +191,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_CatchUpTriggered_Eligible()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.CatchUpTriggered, false, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.CatchUpTriggered, false, false);
             var policy = ExperienceFairnessPolicy.Default;
-            bool result = ExperienceFairnessGate.CanRecordEvent("GameA", record, policy, out string reason);
+            bool result = ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -200,28 +201,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsEligiblePlayer_Helper_EligiblePlayer_True()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, false);
             Assert.IsTrue(ExperienceFairnessGate.IsEligiblePlayer(record));
         }
 
         [Test]
         public void IsEligiblePlayer_Helper_TestBot_False()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, false);
             Assert.IsFalse(ExperienceFairnessGate.IsEligiblePlayer(record));
         }
 
         [Test]
         public void IsConsentDenied_Helper_ConsentDenied_True()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, true);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, true);
             Assert.IsTrue(ExperienceFairnessGate.IsConsentDenied(record));
         }
 
         [Test]
         public void IsConsentDenied_Helper_EligiblePlayer_False()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, false, false);
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, false, false);
             Assert.IsFalse(ExperienceFairnessGate.IsConsentDenied(record));
         }
 
@@ -229,8 +230,8 @@ namespace Match3.Engine.Tests.Editor
         public void ExperienceEventLog_Record_And_Count()
         {
             var log = new ExperienceEventLog();
-            log.Record("GameA", "HintShown");
-            log.Record("GameA", "LevelAbandon");
+            log.Record("Coral_Rescue", "HintShown");
+            log.Record("Coral_Rescue", "LevelAbandon");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -238,15 +239,15 @@ namespace Match3.Engine.Tests.Editor
         public void ExperienceEventLog_HasEntry_True()
         {
             var log = new ExperienceEventLog();
-            log.Record("GameA", "HintShown");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "HintShown");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void ExperienceEventLog_Clear_ResetsCount()
         {
             var log = new ExperienceEventLog();
-            log.Record("GameA", "HintShown");
+            log.Record("Coral_Rescue", "HintShown");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -262,29 +263,29 @@ namespace Match3.Engine.Tests.Editor
         public void ExperienceEventLog_Record_NullOrEmptyEventName_Throws()
         {
             var log = new ExperienceEventLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
         public void ExperienceEventLog_HasEntry_IsOrdinal()
         {
             var log = new ExperienceEventLog();
-            log.Record("GameA", "HintShown");
-            Assert.IsFalse(log.HasEntry("gamea"));
-            Assert.IsFalse(log.HasEntry("Game"));
+            log.Record("Coral_Rescue", "HintShown");
+            Assert.IsFalse(log.HasEntry("coral_rescue"));
+            Assert.IsFalse(log.HasEntry("Coral"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
             var softHyphenLog = new ExperienceEventLog();
-            softHyphenLog.Record("Game\u00ADA", "evt");
-            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
+            softHyphenLog.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void CanRecordEvent_DefaultStructPolicy_FailsClosed()
         {
-            var record = ExperienceRecord.Create("GameA", ExperienceEventKind.HintShown, true, false);
-            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, ExperienceFairnessPolicy.Default, out string expected));
-            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("GameA", record, default(ExperienceFairnessPolicy), out string reason));
+            var record = ExperienceRecord.Create("Coral_Rescue", ExperienceEventKind.HintShown, true, false);
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, ExperienceFairnessPolicy.Default, out string expected));
+            Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent("Coral_Rescue", record, default(ExperienceFairnessPolicy), out string reason));
             Assert.AreEqual(expected, reason);
             Assert.AreEqual("TestBotExcluded", reason);
         }
@@ -313,6 +314,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent(gameId, default(ExperienceRecord), default(ExperienceFairnessPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(ExperienceFairnessGate.CanRecordEvent(gameId, default(ExperienceRecord), default(ExperienceFairnessPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

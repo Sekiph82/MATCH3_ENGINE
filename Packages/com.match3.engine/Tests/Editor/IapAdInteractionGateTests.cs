@@ -16,7 +16,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void NoPurchase_RewardedAvailable()
         {
-            var state = NoAdsPurchaseState.NoPurchase("TestGame");
+            var state = NoAdsPurchaseState.NoPurchase("Coral_Rescue");
             Assert.IsTrue(state.RewardedAdStillAvailable);
             Assert.AreEqual(NoAdsScope.None, state.Scope);
         }
@@ -24,7 +24,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ForcedAdsDisabled_RewardedStillAvailable()
         {
-            var state = NoAdsPurchaseState.ForcedAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.ForcedAdsDisabled("Coral_Rescue");
             Assert.IsTrue(state.RewardedAdStillAvailable);
             Assert.AreEqual(NoAdsScope.DisablesForcedAds, state.Scope);
         }
@@ -32,7 +32,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void AllAdsDisabled_RewardedNotAvailable()
         {
-            var state = NoAdsPurchaseState.AllAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.AllAdsDisabled("Coral_Rescue");
             Assert.IsFalse(state.RewardedAdStillAvailable);
             Assert.AreEqual(NoAdsScope.DisablesAllAds, state.Scope);
         }
@@ -40,7 +40,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CheckRewarded_BaseIneligible_PreservesReason()
         {
-            var state = NoAdsPurchaseState.ForcedAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.ForcedAdsDisabled("Coral_Rescue");
             var baseIneligible = AdEligibilityResult.Ineligible("ConsentNotGranted");
             var result = IapAdInteractionGate.CheckRewardedEligibility(state, baseIneligible);
             Assert.IsFalse(result.IsEligible);
@@ -50,7 +50,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CheckRewarded_AllAdsDisabled_ReturnsDisabledReason()
         {
-            var state = NoAdsPurchaseState.AllAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.AllAdsDisabled("Coral_Rescue");
             var baseEligible = AdEligibilityResult.Eligible();
             var result = IapAdInteractionGate.CheckRewardedEligibility(state, baseEligible);
             Assert.IsFalse(result.IsEligible);
@@ -60,7 +60,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CheckRewarded_NoPurchase_ReturnsBaseEligible()
         {
-            var state = NoAdsPurchaseState.NoPurchase("TestGame");
+            var state = NoAdsPurchaseState.NoPurchase("Coral_Rescue");
             var baseEligible = AdEligibilityResult.Eligible();
             var result = IapAdInteractionGate.CheckRewardedEligibility(state, baseEligible);
             Assert.IsTrue(result.IsEligible);
@@ -69,28 +69,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsFormatSuppressed_Rewarded_DisablesForcedAds_NotSuppressed()
         {
-            var state = NoAdsPurchaseState.ForcedAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.ForcedAdsDisabled("Coral_Rescue");
             Assert.IsFalse(IapAdInteractionGate.IsFormatSuppressed(AdFormatKind.Rewarded, state));
         }
 
         [Test]
         public void IsFormatSuppressed_Rewarded_DisablesAllAds_Suppressed()
         {
-            var state = NoAdsPurchaseState.AllAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.AllAdsDisabled("Coral_Rescue");
             Assert.IsTrue(IapAdInteractionGate.IsFormatSuppressed(AdFormatKind.Rewarded, state));
         }
 
         [Test]
         public void IsFormatSuppressed_Interstitial_DisablesForcedAds_Suppressed()
         {
-            var state = NoAdsPurchaseState.ForcedAdsDisabled("TestGame");
+            var state = NoAdsPurchaseState.ForcedAdsDisabled("Coral_Rescue");
             Assert.IsTrue(IapAdInteractionGate.IsFormatSuppressed(AdFormatKind.Interstitial, state));
         }
 
         [Test]
         public void IsFormatSuppressed_Banner_None_NotSuppressed()
         {
-            var state = NoAdsPurchaseState.NoPurchase("TestGame");
+            var state = NoAdsPurchaseState.NoPurchase("Coral_Rescue");
             Assert.IsFalse(IapAdInteractionGate.IsFormatSuppressed(AdFormatKind.Banner, state));
         }
     }

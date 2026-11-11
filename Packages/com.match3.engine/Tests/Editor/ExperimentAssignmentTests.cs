@@ -239,8 +239,13 @@ namespace Match3.Engine.Tests.Editor
                 AssertNotEligible(ExperimentAssigner.Assign(d, new PlayerExperimentContext("Coral_Rescue", p, true, true)), "ChildProfileNoTargeting");
                 AssertNotEligible(ExperimentAssigner.Assign(d, new PlayerExperimentContext("Coral_Rescue", p, false, false)), "NoConsent");
             }
-            // Ordinal: only the exact Wonder_Pop id triggers the title rule; a near-miss still needs consent etc.
-            Assert.AreNotEqual("WonderPopNoTargeting", ExperimentAssigner.Assign(d, Adult("p1", "wonder_pop")).Reason);
+            // Ordinal: only the exact Wonder_Pop id triggers the title rule; near-misses and other non-catalog
+            // IDs are not catalog games and fail closed as UnknownGame (checked before state/consent).
+            foreach (var g in new[] { "wonder_pop", "WONDER_POP", "Unknown_Game", "coral_rescue", " Coral_Rescue" })
+            {
+                AssertNotEligible(ExperimentAssigner.Assign(d, Adult("p1", g)), "UnknownGame");
+                AssertNotEligible(ExperimentAssigner.Assign(Def(ExperimentState.RolledBack), Adult("p1", g)), "UnknownGame");
+            }
         }
 
         private static void AssertNotEligible(ExperimentAssignment a, string reason)

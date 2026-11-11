@@ -32,21 +32,21 @@ namespace Match3.Engine.Tests.Editor
         public void FeatureFlagRecord_Create_FlagVersionZero_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                FeatureFlagRecord.Create("G", LiveOpsFeature.TimedMode, 0, true, false));
+                FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, 0, true, false));
         }
 
         [Test]
         public void FeatureFlagRecord_Create_FlagVersionNegative_Throws()
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                FeatureFlagRecord.Create("G", LiveOpsFeature.TimedMode, -1, true, false));
+                FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, -1, true, false));
         }
 
         [Test]
         public void FeatureFlagRecord_Create_Valid_Succeeds()
         {
-            var r = FeatureFlagRecord.Create("TestGame", LiveOpsFeature.TimedMode, 1, true, false);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, 1, true, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(LiveOpsFeature.TimedMode, r.Feature);
             Assert.AreEqual(1, r.FlagVersion);
             Assert.IsTrue(r.IsEnabled);
@@ -56,37 +56,37 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void FeatureFlagRecord_IsRestrictedFeature_TournamentMode_True()
         {
-            Assert.IsTrue(FeatureFlagRecord.Create("G", LiveOpsFeature.TournamentMode, 1, true, true).IsRestrictedFeature);
+            Assert.IsTrue(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TournamentMode, 1, true, true).IsRestrictedFeature);
         }
 
         [Test]
         public void FeatureFlagRecord_IsRestrictedFeature_WeeklyPersonalBest_True()
         {
-            Assert.IsTrue(FeatureFlagRecord.Create("G", LiveOpsFeature.WeeklyPersonalBest, 1, true, true).IsRestrictedFeature);
+            Assert.IsTrue(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.WeeklyPersonalBest, 1, true, true).IsRestrictedFeature);
         }
 
         [Test]
         public void FeatureFlagRecord_IsRestrictedFeature_TimedMode_False()
         {
-            Assert.IsFalse(FeatureFlagRecord.Create("G", LiveOpsFeature.TimedMode, 1, true, false).IsRestrictedFeature);
+            Assert.IsFalse(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, 1, true, false).IsRestrictedFeature);
         }
 
         [Test]
         public void FeatureFlagRecord_IsDefaultOff_Disabled_True()
         {
-            Assert.IsTrue(FeatureFlagRecord.Create("G", LiveOpsFeature.TimedMode, 1, false, false).IsDefaultOff);
+            Assert.IsTrue(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, 1, false, false).IsDefaultOff);
         }
 
         [Test]
         public void FeatureFlagRecord_IsDefaultOff_RestrictedEnabled_True()
         {
-            Assert.IsTrue(FeatureFlagRecord.Create("G", LiveOpsFeature.TournamentMode, 1, true, true).IsDefaultOff);
+            Assert.IsTrue(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TournamentMode, 1, true, true).IsDefaultOff);
         }
 
         [Test]
         public void FeatureFlagRecord_IsDefaultOff_NonRestrictedEnabled_False()
         {
-            Assert.IsFalse(FeatureFlagRecord.Create("G", LiveOpsFeature.TimedMode, 1, true, false).IsDefaultOff);
+            Assert.IsFalse(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, 1, true, false).IsDefaultOff);
         }
 
         // FeatureFlagPolicy
@@ -152,7 +152,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFlag_DefaultStructPolicy_FailsClosed()
         {
-            Assert.IsFalse(Eval("OtherGame", LiveOpsFeature.TournamentMode, true, false, default(FeatureFlagPolicy), out string reason));
+            Assert.IsFalse(Eval("Garage_Legends", LiveOpsFeature.TournamentMode, true, false, default(FeatureFlagPolicy), out string reason));
             Assert.AreEqual("RestrictedFeatureRequiresConsent", reason);
         }
 
@@ -199,66 +199,66 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanEnableFlag_WonderPop_Lowercase_Tournament_NotBlockedByGuard1()
+        public void CanEnableFlag_WonderPop_Lowercase_Tournament_UnknownGame()
         {
-            // Ordinal match on canonical ID: "wonder_pop" skips Guard 1 and reaches the consent guard.
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             Assert.IsFalse(Eval("wonder_pop", LiveOpsFeature.TournamentMode, true, false, FeatureFlagPolicy.Default, out string reason));
-            Assert.AreEqual("RestrictedFeatureRequiresConsent", reason);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanEnableFlag_KillSwitch_Disabled_Blocked()
         {
-            Assert.IsFalse(Eval("OtherGame", LiveOpsFeature.EndlessMode, false, false, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsFalse(Eval("Garage_Legends", LiveOpsFeature.EndlessMode, false, false, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual("FeatureFlagDisabled", reason);
         }
 
         [Test]
         public void CanEnableFlag_GuardOrder_DisabledRestrictedNoConsent_ReportsDisabled()
         {
-            Assert.IsFalse(Eval("OtherGame", LiveOpsFeature.TournamentMode, false, false, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsFalse(Eval("Garage_Legends", LiveOpsFeature.TournamentMode, false, false, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual("FeatureFlagDisabled", reason);
         }
 
         [Test]
         public void CanEnableFlag_NonWonderPop_Tournament_NoConsent_Blocked()
         {
-            Assert.IsFalse(Eval("OtherGame", LiveOpsFeature.TournamentMode, true, false, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsFalse(Eval("Garage_Legends", LiveOpsFeature.TournamentMode, true, false, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual("RestrictedFeatureRequiresConsent", reason);
         }
 
         [Test]
         public void CanEnableFlag_NonWonderPop_Tournament_WithConsent_Eligible()
         {
-            Assert.IsTrue(Eval("OtherGame", LiveOpsFeature.TournamentMode, true, true, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsTrue(Eval("Garage_Legends", LiveOpsFeature.TournamentMode, true, true, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
         public void CanEnableFlag_WeeklyPersonalBest_WithConsent_Eligible()
         {
-            Assert.IsTrue(Eval("OtherGame", LiveOpsFeature.WeeklyPersonalBest, true, true, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsTrue(Eval("Garage_Legends", LiveOpsFeature.WeeklyPersonalBest, true, true, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
         public void CanEnableFlag_NonWonderPop_TimedMode_Enabled_Eligible()
         {
-            Assert.IsTrue(Eval("OtherGame", LiveOpsFeature.TimedMode, true, false, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsTrue(Eval("Garage_Legends", LiveOpsFeature.TimedMode, true, false, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
         public void CanEnableFlag_NonWonderPop_SeasonalEvent_Enabled_HasConsent_Eligible()
         {
-            Assert.IsTrue(Eval("OtherGame", LiveOpsFeature.SeasonalEvent, true, true, FeatureFlagPolicy.Default, out string reason));
+            Assert.IsTrue(Eval("Garage_Legends", LiveOpsFeature.SeasonalEvent, true, true, FeatureFlagPolicy.Default, out string reason));
             Assert.AreEqual(string.Empty, reason);
         }
 
         [Test]
         public void CanEnableFlag_PermissivePolicy_RestrictedNoConsent_Eligible()
         {
-            Assert.IsTrue(Eval("OtherGame", LiveOpsFeature.TournamentMode, true, false, FeatureFlagPolicy.Permissive("relaxed"), out string reason));
+            Assert.IsTrue(Eval("Garage_Legends", LiveOpsFeature.TournamentMode, true, false, FeatureFlagPolicy.Permissive("relaxed"), out string reason));
             Assert.AreEqual(string.Empty, reason);
         }
 
@@ -267,25 +267,25 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsRestrictedFeature_Helper_TournamentMode_True()
         {
-            Assert.IsTrue(FeatureFlagGate.IsRestrictedFeature(FeatureFlagRecord.Create("G", LiveOpsFeature.TournamentMode, 1, true, true)));
+            Assert.IsTrue(FeatureFlagGate.IsRestrictedFeature(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TournamentMode, 1, true, true)));
         }
 
         [Test]
         public void IsRestrictedFeature_Helper_CatchUpReward_False()
         {
-            Assert.IsFalse(FeatureFlagGate.IsRestrictedFeature(FeatureFlagRecord.Create("G", LiveOpsFeature.CatchUpReward, 1, true, false)));
+            Assert.IsFalse(FeatureFlagGate.IsRestrictedFeature(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.CatchUpReward, 1, true, false)));
         }
 
         [Test]
         public void IsDefaultOff_Helper_Restricted_True()
         {
-            Assert.IsTrue(FeatureFlagGate.IsDefaultOff(FeatureFlagRecord.Create("G", LiveOpsFeature.TournamentMode, 1, true, true)));
+            Assert.IsTrue(FeatureFlagGate.IsDefaultOff(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TournamentMode, 1, true, true)));
         }
 
         [Test]
         public void IsDefaultOff_Helper_Enabled_NonRestricted_False()
         {
-            Assert.IsFalse(FeatureFlagGate.IsDefaultOff(FeatureFlagRecord.Create("G", LiveOpsFeature.TimedMode, 1, true, false)));
+            Assert.IsFalse(FeatureFlagGate.IsDefaultOff(FeatureFlagRecord.Create("Coral_Rescue", LiveOpsFeature.TimedMode, 1, true, false)));
         }
 
         // FeatureFlagLog
@@ -294,8 +294,8 @@ namespace Match3.Engine.Tests.Editor
         public void FeatureFlagLog_Record_And_Count()
         {
             var log = new FeatureFlagLog();
-            log.Record("GameA", "TimedMode");
-            log.Record("GameA", "EndlessMode");
+            log.Record("Coral_Rescue", "TimedMode");
+            log.Record("Coral_Rescue", "EndlessMode");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -303,21 +303,21 @@ namespace Match3.Engine.Tests.Editor
         public void FeatureFlagLog_HasEntry_True()
         {
             var log = new FeatureFlagLog();
-            log.Record("GameA", "TimedMode");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "TimedMode");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void FeatureFlagLog_HasEntry_EmptyLog_False()
         {
-            Assert.IsFalse(new FeatureFlagLog().HasEntry("GameA"));
+            Assert.IsFalse(new FeatureFlagLog().HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void FeatureFlagLog_Clear_ResetsCount()
         {
             var log = new FeatureFlagLog();
-            log.Record("GameA", "TimedMode");
+            log.Record("Coral_Rescue", "TimedMode");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -337,13 +337,13 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void FeatureFlagLog_Record_NullFeatureName_Throws()
         {
-            Assert.Throws<ArgumentException>(() => new FeatureFlagLog().Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => new FeatureFlagLog().Record("Coral_Rescue", null));
         }
 
         [Test]
         public void FeatureFlagLog_Record_EmptyFeatureName_Throws()
         {
-            Assert.Throws<ArgumentException>(() => new FeatureFlagLog().Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => new FeatureFlagLog().Record("Coral_Rescue", ""));
         }
 
 
@@ -354,6 +354,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(FeatureFlagGate.CanEnableFlag(gameId, default(FeatureFlagRecord), default(FeatureFlagPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(FeatureFlagGate.CanEnableFlag(gameId, default(FeatureFlagRecord), default(FeatureFlagPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

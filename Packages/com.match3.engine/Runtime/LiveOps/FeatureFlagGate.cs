@@ -80,6 +80,11 @@ namespace Match3.Engine.Runtime.LiveOps
                 reason = "GameIdMissing";
                 return false;
             }
+            if (!GameProfileCatalog.IsKnownId(gameId))
+            {
+                reason = "UnknownGame";
+                return false;
+            }
 
             if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
             {

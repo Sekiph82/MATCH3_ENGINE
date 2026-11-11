@@ -22,50 +22,50 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void TitleAgeRecord_Create_Valid_Succeeds()
         {
-            var record = TitleAgeRecord.Create("TestGame", AgeClassification.Teen);
-            Assert.AreEqual("TestGame", record.GameId);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.Teen);
+            Assert.AreEqual("Coral_Rescue", record.GameId);
             Assert.AreEqual(AgeClassification.Teen, record.Classification);
         }
 
         [Test]
         public void TitleAgeRecord_IsFamilyAppropriate_AllAges_True()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.AllAges);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.AllAges);
             Assert.IsTrue(record.IsFamilyAppropriate);
         }
 
         [Test]
         public void TitleAgeRecord_IsFamilyAppropriate_FamilyFriendly_True()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.FamilyFriendly);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.FamilyFriendly);
             Assert.IsTrue(record.IsFamilyAppropriate);
         }
 
         [Test]
         public void TitleAgeRecord_IsFamilyAppropriate_Teen_False()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.Teen);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.Teen);
             Assert.IsFalse(record.IsFamilyAppropriate);
         }
 
         [Test]
         public void TitleAgeRecord_IsFamilyAppropriate_MatureOnly_False()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.MatureOnly);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.MatureOnly);
             Assert.IsFalse(record.IsFamilyAppropriate);
         }
 
         [Test]
         public void TitleAgeRecord_IsMatureContent_MatureOnly_True()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.MatureOnly);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.MatureOnly);
             Assert.IsTrue(record.IsMatureContent);
         }
 
         [Test]
         public void TitleAgeRecord_IsMatureContent_AllAges_False()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.AllAges);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.AllAges);
             Assert.IsFalse(record.IsMatureContent);
         }
 
@@ -102,23 +102,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanEnableFeature_WonderPop_Lowercase_NotBlocked()
+        public void CanEnableFeature_WonderPop_Lowercase_UnknownGame()
         {
-            // Ordinal: "wonder_pop" != "Wonder_Pop" so guard 1 does not fire
-            // Safe policy blocks behavioral profiling, so guard 2 fires
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = TitleAgeRecord.Create("wonder_pop", AgeClassification.AllAges);
             var policy = AgePrivacyPolicy.Default;
             bool result = AgePrivacyMatrixGate.CanEnableFeature("wonder_pop", record, policy, out string reason);
             Assert.IsFalse(result);
-            Assert.AreEqual("BehavioralProfilingDisabled", reason);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanEnableFeature_SafePolicy_BehavioralProfilingDisabled_AllAges_Blocked()
         {
-            var record = TitleAgeRecord.Create("GameA", AgeClassification.AllAges);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.AllAges);
             var policy = AgePrivacyPolicy.Safe("safe");
-            bool result = AgePrivacyMatrixGate.CanEnableFeature("GameA", record, policy, out string reason);
+            bool result = AgePrivacyMatrixGate.CanEnableFeature("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("BehavioralProfilingDisabled", reason);
         }
@@ -126,9 +125,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_SafePolicy_BehavioralProfilingDisabled_FamilyFriendly_Blocked()
         {
-            var record = TitleAgeRecord.Create("GameB", AgeClassification.FamilyFriendly);
+            var record = TitleAgeRecord.Create("Garage_Legends", AgeClassification.FamilyFriendly);
             var policy = AgePrivacyPolicy.Safe("safe");
-            bool result = AgePrivacyMatrixGate.CanEnableFeature("GameB", record, policy, out string reason);
+            bool result = AgePrivacyMatrixGate.CanEnableFeature("Garage_Legends", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("BehavioralProfilingDisabled", reason);
         }
@@ -136,9 +135,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_AllowBehavioralProfiling_AllAges_MatureBlocked_False_Eligible()
         {
-            var record = TitleAgeRecord.Create("GameC", AgeClassification.AllAges);
+            var record = TitleAgeRecord.Create("Dino_Islands", AgeClassification.AllAges);
             var policy = AgePrivacyPolicy.Permissive("permissive", blockMatureContent: false);
-            bool result = AgePrivacyMatrixGate.CanEnableFeature("GameC", record, policy, out string reason);
+            bool result = AgePrivacyMatrixGate.CanEnableFeature("Dino_Islands", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -146,9 +145,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_AllowBehavioralProfiling_MatureOnly_BlockMature_True_Blocked()
         {
-            var record = TitleAgeRecord.Create("GameD", AgeClassification.MatureOnly);
+            var record = TitleAgeRecord.Create("The_Fractured_Realms", AgeClassification.MatureOnly);
             var policy = AgePrivacyPolicy.Permissive("permissive-block-mature", blockMatureContent: true);
-            bool result = AgePrivacyMatrixGate.CanEnableFeature("GameD", record, policy, out string reason);
+            bool result = AgePrivacyMatrixGate.CanEnableFeature("The_Fractured_Realms", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("MatureContentBlocked", reason);
         }
@@ -156,9 +155,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_AllowBehavioralProfiling_MatureOnly_BlockMature_False_Eligible()
         {
-            var record = TitleAgeRecord.Create("GameE", AgeClassification.MatureOnly);
+            var record = TitleAgeRecord.Create("The_Fractured_Realms", AgeClassification.MatureOnly);
             var policy = AgePrivacyPolicy.Permissive("permissive-allow-mature", blockMatureContent: false);
-            bool result = AgePrivacyMatrixGate.CanEnableFeature("GameE", record, policy, out string reason);
+            bool result = AgePrivacyMatrixGate.CanEnableFeature("The_Fractured_Realms", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -166,9 +165,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_AllowBehavioralProfiling_Teen_BlockMature_True_Eligible()
         {
-            var record = TitleAgeRecord.Create("GameF", AgeClassification.Teen);
+            var record = TitleAgeRecord.Create("Dino_Islands", AgeClassification.Teen);
             var policy = AgePrivacyPolicy.Permissive("permissive-block-mature", blockMatureContent: true);
-            bool result = AgePrivacyMatrixGate.CanEnableFeature("GameF", record, policy, out string reason);
+            bool result = AgePrivacyMatrixGate.CanEnableFeature("Dino_Islands", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -176,28 +175,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsFamilyAppropriate_Helper_FamilyFriendly_True()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.FamilyFriendly);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.FamilyFriendly);
             Assert.IsTrue(AgePrivacyMatrixGate.IsFamilyAppropriate(record));
         }
 
         [Test]
         public void IsFamilyAppropriate_Helper_Teen_False()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.Teen);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.Teen);
             Assert.IsFalse(AgePrivacyMatrixGate.IsFamilyAppropriate(record));
         }
 
         [Test]
         public void IsMatureContent_Helper_MatureOnly_True()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.MatureOnly);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.MatureOnly);
             Assert.IsTrue(AgePrivacyMatrixGate.IsMatureContent(record));
         }
 
         [Test]
         public void IsMatureContent_Helper_AllAges_False()
         {
-            var record = TitleAgeRecord.Create("G", AgeClassification.AllAges);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.AllAges);
             Assert.IsFalse(AgePrivacyMatrixGate.IsMatureContent(record));
         }
 
@@ -205,8 +204,8 @@ namespace Match3.Engine.Tests.Editor
         public void AgePrivacyLog_Record_And_Count()
         {
             var log = new AgePrivacyLog();
-            log.Record("GameA", "FeatureX");
-            log.Record("GameB", "FeatureY");
+            log.Record("Coral_Rescue", "FeatureX");
+            log.Record("Garage_Legends", "FeatureY");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -214,15 +213,15 @@ namespace Match3.Engine.Tests.Editor
         public void AgePrivacyLog_HasEntry_True()
         {
             var log = new AgePrivacyLog();
-            log.Record("GameA", "FeatureX");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "FeatureX");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void AgePrivacyLog_Clear_ResetsCount()
         {
             var log = new AgePrivacyLog();
-            log.Record("GameA", "FeatureX");
+            log.Record("Coral_Rescue", "FeatureX");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -238,9 +237,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableFeature_DefaultStructPolicy_FailsClosed()
         {
-            var record = TitleAgeRecord.Create("GameA", AgeClassification.AllAges);
-            var expected = AgePrivacyMatrixGate.CanEnableFeature("GameA", record, AgePrivacyPolicy.Default, out var expectedReason);
-            var result = AgePrivacyMatrixGate.CanEnableFeature("GameA", record, default(AgePrivacyPolicy), out var reason);
+            var record = TitleAgeRecord.Create("Coral_Rescue", AgeClassification.AllAges);
+            var expected = AgePrivacyMatrixGate.CanEnableFeature("Coral_Rescue", record, AgePrivacyPolicy.Default, out var expectedReason);
+            var result = AgePrivacyMatrixGate.CanEnableFeature("Coral_Rescue", record, default(AgePrivacyPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("BehavioralProfilingDisabled", expectedReason);
@@ -260,8 +259,8 @@ namespace Match3.Engine.Tests.Editor
         public void AgePrivacyLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new AgePrivacyLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -273,9 +272,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -286,6 +285,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(AgePrivacyMatrixGate.CanEnableFeature(gameId, default(TitleAgeRecord), default(AgePrivacyPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(AgePrivacyMatrixGate.CanEnableFeature(gameId, default(TitleAgeRecord), default(AgePrivacyPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

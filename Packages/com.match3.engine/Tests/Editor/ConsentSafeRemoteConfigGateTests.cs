@@ -26,8 +26,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RemoteConfigRecord_Create_Valid_Succeeds()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.Anonymous, true, false);
-            Assert.AreEqual("TestGame", record.GameId);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.Anonymous, true, false);
+            Assert.AreEqual("Coral_Rescue", record.GameId);
             Assert.AreEqual(RemoteConfigScope.Anonymous, record.Scope);
             Assert.IsTrue(record.HasUserConsent);
             Assert.IsFalse(record.ContainsUserIdentifier);
@@ -36,42 +36,42 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RemoteConfigRecord_IsConsentSafe_NoIdentifier_True()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.Anonymous, false, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.Anonymous, false, false);
             Assert.IsTrue(record.IsConsentSafe);
         }
 
         [Test]
         public void RemoteConfigRecord_IsConsentSafe_IdentifierWithConsent_True()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.ConsentedUser, true, true);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.ConsentedUser, true, true);
             Assert.IsTrue(record.IsConsentSafe);
         }
 
         [Test]
         public void RemoteConfigRecord_IsConsentSafe_IdentifierNoConsent_False()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.ConsentedUser, false, true);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.ConsentedUser, false, true);
             Assert.IsFalse(record.IsConsentSafe);
         }
 
         [Test]
         public void RemoteConfigRecord_IsAnonymous_Anonymous_True()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.Anonymous, false, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.Anonymous, false, false);
             Assert.IsTrue(record.IsAnonymous);
         }
 
         [Test]
         public void RemoteConfigRecord_IsAnonymous_AggregateOnly_True()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.AggregateOnly, false, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.AggregateOnly, false, false);
             Assert.IsTrue(record.IsAnonymous);
         }
 
         [Test]
         public void RemoteConfigRecord_IsAnonymous_ConsentedUser_False()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.ConsentedUser, true, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.ConsentedUser, true, false);
             Assert.IsFalse(record.IsAnonymous);
         }
 
@@ -124,7 +124,7 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanFetchRemoteConfig_WonderPop_Lowercase_NotBlocked()
+        public void CanFetchRemoteConfig_WonderPop_Lowercase_UnknownGame()
         {
             var record = RemoteConfigRecord.Create("wonder_pop", RemoteConfigScope.Anonymous, false, true);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
@@ -133,14 +133,17 @@ namespace Match3.Engine.Tests.Editor
             var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("wonder_pop", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreNotEqual("WonderPopUserIdentifierProhibited", reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanFetchRemoteConfig_UserIdentifierNoConsent_Blocked()
         {
-            var record = RemoteConfigRecord.Create("OtherGame", RemoteConfigScope.PlatformDefault, false, true);
+            var record = RemoteConfigRecord.Create("Garage_Legends", RemoteConfigScope.PlatformDefault, false, true);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("OtherGame", record, policy, out string reason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Garage_Legends", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("UserIdentifierRequiresConsent", reason);
         }
@@ -148,9 +151,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFetchRemoteConfig_UserIdentifierWithConsent_Eligible()
         {
-            var record = RemoteConfigRecord.Create("OtherGame", RemoteConfigScope.ConsentedUser, true, true);
+            var record = RemoteConfigRecord.Create("Garage_Legends", RemoteConfigScope.ConsentedUser, true, true);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("OtherGame", record, policy, out string reason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Garage_Legends", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -158,9 +161,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFetchRemoteConfig_ConsentedScopeNoConsent_Blocked()
         {
-            var record = RemoteConfigRecord.Create("OtherGame", RemoteConfigScope.ConsentedUser, false, false);
+            var record = RemoteConfigRecord.Create("Garage_Legends", RemoteConfigScope.ConsentedUser, false, false);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("OtherGame", record, policy, out string reason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Garage_Legends", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ConsentedScopeRequiresConsent", reason);
         }
@@ -168,9 +171,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFetchRemoteConfig_ConsentedScopeWithConsent_Eligible()
         {
-            var record = RemoteConfigRecord.Create("OtherGame", RemoteConfigScope.ConsentedUser, true, false);
+            var record = RemoteConfigRecord.Create("Garage_Legends", RemoteConfigScope.ConsentedUser, true, false);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("OtherGame", record, policy, out string reason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Garage_Legends", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -178,9 +181,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFetchRemoteConfig_AnonymousScope_SafePolicy_Eligible()
         {
-            var record = RemoteConfigRecord.Create("OtherGame", RemoteConfigScope.Anonymous, false, false);
+            var record = RemoteConfigRecord.Create("Garage_Legends", RemoteConfigScope.Anonymous, false, false);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("OtherGame", record, policy, out string reason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Garage_Legends", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -188,9 +191,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFetchRemoteConfig_EmergencyKillSwitch_Eligible()
         {
-            var record = RemoteConfigRecord.Create("OtherGame", RemoteConfigScope.EmergencyKillSwitch, false, false);
+            var record = RemoteConfigRecord.Create("Garage_Legends", RemoteConfigScope.EmergencyKillSwitch, false, false);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("OtherGame", record, policy, out string reason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Garage_Legends", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -200,28 +203,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsConsentSafe_Helper_NoIdentifier_True()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.Anonymous, false, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.Anonymous, false, false);
             Assert.IsTrue(ConsentSafeRemoteConfigGate.IsConsentSafe(record));
         }
 
         [Test]
         public void IsConsentSafe_Helper_IdentifierNoConsent_False()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.ConsentedUser, false, true);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.ConsentedUser, false, true);
             Assert.IsFalse(ConsentSafeRemoteConfigGate.IsConsentSafe(record));
         }
 
         [Test]
         public void IsAnonymous_Helper_AggregateOnly_True()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.AggregateOnly, false, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.AggregateOnly, false, false);
             Assert.IsTrue(ConsentSafeRemoteConfigGate.IsAnonymous(record));
         }
 
         [Test]
         public void IsAnonymous_Helper_ConsentedUser_False()
         {
-            var record = RemoteConfigRecord.Create("TestGame", RemoteConfigScope.ConsentedUser, true, false);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.ConsentedUser, true, false);
             Assert.IsFalse(ConsentSafeRemoteConfigGate.IsAnonymous(record));
         }
 
@@ -232,8 +235,8 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new RemoteConfigLog();
             Assert.AreEqual(0, log.Count);
-            log.Record("TestGame", "Anonymous");
-            log.Record("TestGame", "AggregateOnly");
+            log.Record("Coral_Rescue", "Anonymous");
+            log.Record("Coral_Rescue", "AggregateOnly");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -241,17 +244,17 @@ namespace Match3.Engine.Tests.Editor
         public void RemoteConfigLog_HasEntry_True()
         {
             var log = new RemoteConfigLog();
-            log.Record("TestGame", "Anonymous");
-            Assert.IsTrue(log.HasEntry("TestGame"));
-            Assert.IsFalse(log.HasEntry("OtherGame"));
+            log.Record("Coral_Rescue", "Anonymous");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void RemoteConfigLog_Clear_ResetsCount()
         {
             var log = new RemoteConfigLog();
-            log.Record("TestGame", "Anonymous");
-            log.Record("TestGame", "AggregateOnly");
+            log.Record("Coral_Rescue", "Anonymous");
+            log.Record("Coral_Rescue", "AggregateOnly");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -260,9 +263,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFetchRemoteConfig_DefaultStructPolicy_FailsClosed()
         {
-            var record = RemoteConfigRecord.Create("GameA", RemoteConfigScope.Anonymous, false, true);
-            var expected = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("GameA", record, ConsentSafeRemoteConfigPolicy.Default, out var expectedReason);
-            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("GameA", record, default(ConsentSafeRemoteConfigPolicy), out var reason);
+            var record = RemoteConfigRecord.Create("Coral_Rescue", RemoteConfigScope.Anonymous, false, true);
+            var expected = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Coral_Rescue", record, ConsentSafeRemoteConfigPolicy.Default, out var expectedReason);
+            var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("Coral_Rescue", record, default(ConsentSafeRemoteConfigPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("UserIdentifierRequiresConsent", expectedReason);
@@ -282,8 +285,8 @@ namespace Match3.Engine.Tests.Editor
         public void RemoteConfigLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new RemoteConfigLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -295,9 +298,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -308,6 +311,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(ConsentSafeRemoteConfigGate.CanFetchRemoteConfig(gameId, default(RemoteConfigRecord), default(ConsentSafeRemoteConfigPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(ConsentSafeRemoteConfigGate.CanFetchRemoteConfig(gameId, default(RemoteConfigRecord), default(ConsentSafeRemoteConfigPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

@@ -89,6 +89,8 @@ namespace Match3.Engine.Runtime.Identity
 
             if (string.IsNullOrEmpty(gameId))
                 return new MergeEligibilityResult(false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return new MergeEligibilityResult(false, "UnknownGame");
 
             if (!string.Equals(gameId, conflict.GameId, StringComparison.Ordinal))
                 return new MergeEligibilityResult(false, "GameIdMismatch");

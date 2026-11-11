@@ -81,7 +81,9 @@ namespace Match3.Engine.Runtime.Economy
             return policy.AllowOfflineNonPremium;
         }
 
-        public static bool RequiresServerSync(LedgerPolicy policy) => policy.ServerAuthoritative;
+        // default(LedgerPolicy) (no description) is treated as Default: server sync required.
+        public static bool RequiresServerSync(LedgerPolicy policy) =>
+            policy.PolicyDescription == null || policy.ServerAuthoritative;
     }
 
     public sealed class PlayerWallet

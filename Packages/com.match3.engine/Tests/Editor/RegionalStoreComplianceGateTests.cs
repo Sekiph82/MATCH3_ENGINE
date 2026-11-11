@@ -22,8 +22,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ComplianceRecord_Create_Valid_Succeeds()
         {
-            var r = ComplianceRecord.Create("TestGame", StoreRegion.EuropeanUnion, true, false);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.EuropeanUnion, true, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(StoreRegion.EuropeanUnion, r.Region);
             Assert.IsTrue(r.HasPolicyDeclaration);
             Assert.IsFalse(r.RequiresLegalReview);
@@ -32,35 +32,35 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ComplianceRecord_IsCompliant_HasDeclaration_NoLegal_True()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, true, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, true, false);
             Assert.IsTrue(r.IsCompliant);
         }
 
         [Test]
         public void ComplianceRecord_IsCompliant_NoDeclaration_False()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, false, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, false, false);
             Assert.IsFalse(r.IsCompliant);
         }
 
         [Test]
         public void ComplianceRecord_IsCompliant_HasDeclaration_RequiresLegal_False()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, true, true);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, true, true);
             Assert.IsFalse(r.IsCompliant);
         }
 
         [Test]
         public void ComplianceRecord_NeedsDeclaration_NoDeclaration_True()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, false, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, false, false);
             Assert.IsTrue(r.NeedsDeclaration);
         }
 
         [Test]
         public void ComplianceRecord_NeedsDeclaration_HasDeclaration_False()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, true, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, true, false);
             Assert.IsFalse(r.NeedsDeclaration);
         }
 
@@ -119,21 +119,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanActivateForRegion_WonderPop_Lowercase_NotBlocked()
+        public void CanActivateForRegion_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = ComplianceRecord.Create("wonder_pop", StoreRegion.China, false, false);
             var policy = RegionalCompliancePolicy.Default;
             var result = RegionalStoreComplianceGate.CanActivateForRegion("wonder_pop", record, policy, out var reason);
             Assert.IsFalse(result);
-            Assert.AreEqual("PolicyDeclarationMissing", reason);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanActivateForRegion_NoDeclaration_SafePolicy_Blocked()
         {
-            var record = ComplianceRecord.Create("OtherGame", StoreRegion.UnitedStates, false, false);
+            var record = ComplianceRecord.Create("Garage_Legends", StoreRegion.UnitedStates, false, false);
             var policy = RegionalCompliancePolicy.Default;
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("OtherGame", record, policy, out var reason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Garage_Legends", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("PolicyDeclarationMissing", reason);
         }
@@ -141,9 +142,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateForRegion_HasDeclaration_NoLegal_Eligible()
         {
-            var record = ComplianceRecord.Create("OtherGame", StoreRegion.UnitedStates, true, false);
+            var record = ComplianceRecord.Create("Garage_Legends", StoreRegion.UnitedStates, true, false);
             var policy = RegionalCompliancePolicy.Default;
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("OtherGame", record, policy, out var reason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Garage_Legends", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -151,9 +152,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateForRegion_LegalReviewPending_NoDeclaration_Blocked()
         {
-            var record = ComplianceRecord.Create("OtherGame", StoreRegion.SouthKorea, false, true);
+            var record = ComplianceRecord.Create("Garage_Legends", StoreRegion.SouthKorea, false, true);
             var policy = RegionalCompliancePolicy.Default;
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("OtherGame", record, policy, out var reason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Garage_Legends", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.IsTrue(reason == "PolicyDeclarationMissing" || reason == "LegalReviewPending");
         }
@@ -161,9 +162,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateForRegion_LegalReviewPending_HasDeclaration_Eligible()
         {
-            var record = ComplianceRecord.Create("OtherGame", StoreRegion.SouthKorea, true, true);
+            var record = ComplianceRecord.Create("Garage_Legends", StoreRegion.SouthKorea, true, true);
             var policy = RegionalCompliancePolicy.Default;
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("OtherGame", record, policy, out var reason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Garage_Legends", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -171,9 +172,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateForRegion_GlobalDefault_HasDeclaration_Eligible()
         {
-            var record = ComplianceRecord.Create("AnyGame", StoreRegion.GlobalDefault, true, false);
+            var record = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, true, false);
             var policy = RegionalCompliancePolicy.Default;
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("AnyGame", record, policy, out var reason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -181,9 +182,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateForRegion_Brazil_HasDeclaration_Eligible()
         {
-            var record = ComplianceRecord.Create("AnyGame", StoreRegion.Brazil, true, false);
+            var record = ComplianceRecord.Create("Coral_Rescue", StoreRegion.Brazil, true, false);
             var policy = RegionalCompliancePolicy.Default;
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("AnyGame", record, policy, out var reason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -191,28 +192,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsCompliant_Helper_HasDeclaration_NoLegal_True()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, true, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, true, false);
             Assert.IsTrue(RegionalStoreComplianceGate.IsCompliant(r));
         }
 
         [Test]
         public void IsCompliant_Helper_NoDeclaration_False()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, false, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, false, false);
             Assert.IsFalse(RegionalStoreComplianceGate.IsCompliant(r));
         }
 
         [Test]
         public void NeedsDeclaration_Helper_NoDeclaration_True()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, false, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, false, false);
             Assert.IsTrue(RegionalStoreComplianceGate.NeedsDeclaration(r));
         }
 
         [Test]
         public void NeedsDeclaration_Helper_HasDeclaration_False()
         {
-            var r = ComplianceRecord.Create("G1", StoreRegion.GlobalDefault, true, false);
+            var r = ComplianceRecord.Create("Coral_Rescue", StoreRegion.GlobalDefault, true, false);
             Assert.IsFalse(RegionalStoreComplianceGate.NeedsDeclaration(r));
         }
 
@@ -220,8 +221,8 @@ namespace Match3.Engine.Tests.Editor
         public void ComplianceLog_Record_And_Count()
         {
             var log = new ComplianceLog();
-            log.Record("GameA", "EU");
-            log.Record("GameB", "US");
+            log.Record("Coral_Rescue", "EU");
+            log.Record("Garage_Legends", "US");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -229,16 +230,16 @@ namespace Match3.Engine.Tests.Editor
         public void ComplianceLog_HasEntry_True()
         {
             var log = new ComplianceLog();
-            log.Record("GameA", "EU");
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", "EU");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void ComplianceLog_Clear_ResetsCount()
         {
             var log = new ComplianceLog();
-            log.Record("GameA", "EU");
+            log.Record("Coral_Rescue", "EU");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -247,9 +248,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanActivateForRegion_DefaultStructPolicy_FailsClosed()
         {
-            var record = ComplianceRecord.Create("GameA", StoreRegion.EuropeanUnion, false, false);
-            var expected = RegionalStoreComplianceGate.CanActivateForRegion("GameA", record, RegionalCompliancePolicy.Default, out var expectedReason);
-            var result = RegionalStoreComplianceGate.CanActivateForRegion("GameA", record, default(RegionalCompliancePolicy), out var reason);
+            var record = ComplianceRecord.Create("Coral_Rescue", StoreRegion.EuropeanUnion, false, false);
+            var expected = RegionalStoreComplianceGate.CanActivateForRegion("Coral_Rescue", record, RegionalCompliancePolicy.Default, out var expectedReason);
+            var result = RegionalStoreComplianceGate.CanActivateForRegion("Coral_Rescue", record, default(RegionalCompliancePolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("PolicyDeclarationMissing", expectedReason);
@@ -269,8 +270,8 @@ namespace Match3.Engine.Tests.Editor
         public void ComplianceLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new ComplianceLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -282,9 +283,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -295,6 +296,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(RegionalStoreComplianceGate.CanActivateForRegion(gameId, default(ComplianceRecord), default(RegionalCompliancePolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(RegionalStoreComplianceGate.CanActivateForRegion(gameId, default(ComplianceRecord), default(RegionalCompliancePolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

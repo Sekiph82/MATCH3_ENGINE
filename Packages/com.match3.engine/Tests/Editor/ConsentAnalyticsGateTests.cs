@@ -27,22 +27,22 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ConsentRecord_Create_IsNotRevoked()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent);
             Assert.IsFalse(r.IsRevoked);
         }
 
         [Test]
         public void ConsentRecord_Create_StoresBasisAndGameId()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.LegitimateInterest);
-            Assert.AreEqual("GameA", r.GameId);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.LegitimateInterest);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(ConsentBasis.LegitimateInterest, r.Basis);
         }
 
         [Test]
         public void ConsentRecord_Revoke_SetsIsRevoked()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent);
             var revoked = ConsentRecord.Revoke(r);
             Assert.IsTrue(revoked.IsRevoked);
         }
@@ -50,9 +50,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ConsentRecord_Revoke_PreservesBasisAndGameId()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.LegitimateInterest);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.LegitimateInterest);
             var revoked = ConsentRecord.Revoke(r);
-            Assert.AreEqual("GameA", revoked.GameId);
+            Assert.AreEqual("Coral_Rescue", revoked.GameId);
             Assert.AreEqual(ConsentBasis.LegitimateInterest, revoked.Basis);
         }
 
@@ -61,21 +61,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsAnalyticsAllowed_ExplicitConsent_NotRevoked_IsTrue()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent);
             Assert.IsTrue(r.IsAnalyticsAllowed);
         }
 
         [Test]
         public void IsAnalyticsAllowed_LegitimateInterest_NotRevoked_IsTrue()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.LegitimateInterest);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.LegitimateInterest);
             Assert.IsTrue(r.IsAnalyticsAllowed);
         }
 
         [Test]
         public void IsAnalyticsAllowed_ChildSafe_NotRevoked_IsFalse()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.ChildSafe);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ChildSafe);
             Assert.IsFalse(r.IsAnalyticsAllowed);
             Assert.IsFalse(ConsentAnalyticsGate.IsConsentActive(r));
         }
@@ -83,14 +83,14 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsAnalyticsAllowed_NoneRequired_IsFalse()
         {
-            var r = ConsentRecord.Create("GameA", ConsentBasis.NoneRequired);
+            var r = ConsentRecord.Create("Coral_Rescue", ConsentBasis.NoneRequired);
             Assert.IsFalse(r.IsAnalyticsAllowed);
         }
 
         [Test]
         public void IsAnalyticsAllowed_ExplicitConsent_Revoked_IsFalse()
         {
-            var r = ConsentRecord.Revoke(ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent));
+            var r = ConsentRecord.Revoke(ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent));
             Assert.IsFalse(r.IsAnalyticsAllowed);
         }
 
@@ -138,13 +138,14 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanCollect_WonderPopLowercase_IsNotBlocked_OrdinalCheck()
+        public void CanCollect_WonderPopLowercase_IsUnknownGame_OrdinalCheck()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = ConsentRecord.Create("wonder_pop", ConsentBasis.ExplicitConsent);
             var policy = ConsentPolicy.Safe("desc");
-            // Ordinal: lowercase "wonder_pop" is not the Wonder_Pop guard; ExplicitConsent → eligible
             var result = ConsentAnalyticsGate.CanCollectAnalytics("wonder_pop", record, policy, out var reason);
-            Assert.IsTrue(result);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         // ---- Guard 2: ConsentRevoked ----
@@ -152,9 +153,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollect_RevokedConsent_IsBlocked()
         {
-            var record = ConsentRecord.Revoke(ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent));
+            var record = ConsentRecord.Revoke(ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent));
             var policy = ConsentPolicy.Safe("desc");
-            var result = ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason);
+            var result = ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ConsentRevoked", reason);
         }
@@ -164,9 +165,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollect_RequireExplicit_LegitimateInterest_IsBlocked()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.LegitimateInterest);
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.LegitimateInterest);
             var policy = ConsentPolicy.Safe("desc"); // RequireExplicitConsent=true
-            var result = ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason);
+            var result = ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ExplicitConsentRequired", reason);
         }
@@ -174,9 +175,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollect_RequireExplicit_ExplicitConsent_Passes()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent);
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent);
             var policy = ConsentPolicy.Safe("desc");
-            var result = ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out _);
+            var result = ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, policy, out _);
             Assert.IsTrue(result);
         }
 
@@ -188,10 +189,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollect_ChildSafe_BlockedUnderEveryConstructiblePolicy()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.ChildSafe);
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ChildSafe);
             foreach (var policy in AllConstructiblePolicies)
             {
-                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason));
+                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, policy, out var reason));
                 Assert.AreEqual("ChildSafeAnalyticsDisabled", reason);
             }
         }
@@ -199,10 +200,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollect_NoneRequired_BlockedUnderEveryConstructiblePolicy()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.NoneRequired);
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.NoneRequired);
             foreach (var policy in AllConstructiblePolicies)
             {
-                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, policy, out var reason));
+                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, policy, out var reason));
                 Assert.AreEqual("ExplicitConsentRequired", reason);
             }
         }
@@ -210,8 +211,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanCollect_NoneRequired_UnderDefault_IsBlocked()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.NoneRequired);
-            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, ConsentPolicy.Default, out var reason));
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.NoneRequired);
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, ConsentPolicy.Default, out var reason));
             Assert.AreEqual("ExplicitConsentRequired", reason);
         }
 
@@ -219,9 +220,9 @@ namespace Match3.Engine.Tests.Editor
         public void CanCollect_DefaultStructPolicy_FailsClosed()
         {
             // default(ConsentPolicy) is normalized to ConsentPolicy.Default: explicit consent still required.
-            var record = ConsentRecord.Create("GameA", ConsentBasis.LegitimateInterest);
-            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, ConsentPolicy.Default, out var expected));
-            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("GameA", record, default(ConsentPolicy), out var reason));
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.LegitimateInterest);
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, ConsentPolicy.Default, out var expected));
+            Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics("Coral_Rescue", record, default(ConsentPolicy), out var reason));
             Assert.AreEqual(expected, reason);
             Assert.AreEqual("ExplicitConsentRequired", reason);
             Assert.IsTrue(ConsentAnalyticsGate.RequiresExplicitConsent(default(ConsentPolicy)));
@@ -255,21 +256,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsConsentActive_ActiveRecord_ReturnsTrue()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent);
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent);
             Assert.IsTrue(ConsentAnalyticsGate.IsConsentActive(record));
         }
 
         [Test]
         public void IsConsentActive_RevokedRecord_ReturnsFalse()
         {
-            var record = ConsentRecord.Revoke(ConsentRecord.Create("GameA", ConsentBasis.ExplicitConsent));
+            var record = ConsentRecord.Revoke(ConsentRecord.Create("Coral_Rescue", ConsentBasis.ExplicitConsent));
             Assert.IsFalse(ConsentAnalyticsGate.IsConsentActive(record));
         }
 
         [Test]
         public void IsConsentActive_NoneRequired_ReturnsFalse()
         {
-            var record = ConsentRecord.Create("GameA", ConsentBasis.NoneRequired);
+            var record = ConsentRecord.Create("Coral_Rescue", ConsentBasis.NoneRequired);
             Assert.IsFalse(ConsentAnalyticsGate.IsConsentActive(record));
         }
 
@@ -293,22 +294,22 @@ namespace Match3.Engine.Tests.Editor
         public void ConsentAuditLog_Record_NullAction_ThrowsArgumentException()
         {
             var log = new ConsentAuditLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
         }
 
         [Test]
         public void ConsentAuditLog_Record_EmptyAction_ThrowsArgumentException()
         {
             var log = new ConsentAuditLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
         public void ConsentAuditLog_Record_IncreasesCount()
         {
             var log = new ConsentAuditLog();
-            log.Record("GameA", "granted");
-            log.Record("GameB", "revoked");
+            log.Record("Coral_Rescue", "granted");
+            log.Record("Garage_Legends", "revoked");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -316,23 +317,23 @@ namespace Match3.Engine.Tests.Editor
         public void ConsentAuditLog_HasEntry_ReturnsTrueForKnownGameId()
         {
             var log = new ConsentAuditLog();
-            log.Record("GameA", "granted");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "granted");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void ConsentAuditLog_HasEntry_ReturnsFalseForUnknownGameId()
         {
             var log = new ConsentAuditLog();
-            log.Record("GameA", "granted");
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", "granted");
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void ConsentAuditLog_Clear_ResetsCountToZero()
         {
             var log = new ConsentAuditLog();
-            log.Record("GameA", "granted");
+            log.Record("Coral_Rescue", "granted");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -341,9 +342,9 @@ namespace Match3.Engine.Tests.Editor
         public void ConsentAuditLog_HasEntry_AfterClear_ReturnsFalse()
         {
             var log = new ConsentAuditLog();
-            log.Record("GameA", "granted");
+            log.Record("Coral_Rescue", "granted");
             log.Clear();
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -354,6 +355,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics(gameId, default(ConsentRecord), default(ConsentPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(ConsentAnalyticsGate.CanCollectAnalytics(gameId, default(ConsentRecord), default(ConsentPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

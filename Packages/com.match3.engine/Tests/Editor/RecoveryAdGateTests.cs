@@ -37,7 +37,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var policy = RecoveryOfferPolicy.Default;
             var result = RecoveryAdGate.CheckRecoveryEligibility(
-                "Some_Game", AdConsentStatus.Granted, policy, NonKidProfile);
+                "Coral_Rescue", AdConsentStatus.Granted, policy, NonKidProfile);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("RecoveryOfferDisabled", result.Reason);
         }
@@ -169,6 +169,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = RecoveryAdGate.CheckRecoveryEligibility(gameId, AdConsentStatus.Granted, RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraMoves, "enabled"), NonKidProfile);
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void RecoveryGate_UnknownOrCaseVariantGameId_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = RecoveryAdGate.CheckRecoveryEligibility(gameId, AdConsentStatus.Granted, RecoveryOfferPolicy.Enabled(RewardPlacementKind.ExtraMoves, "enabled"), NonKidProfile);
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
 

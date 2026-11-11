@@ -95,6 +95,8 @@ namespace Match3.Engine.Runtime.Analytics
 
             if (string.IsNullOrEmpty(gameId))
                 return PipelineGateResult.Ineligible("GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return PipelineGateResult.Ineligible("UnknownGame");
 
             if (!string.Equals(gameId, batch.GameId, StringComparison.Ordinal))
                 return PipelineGateResult.Ineligible("GameIdMismatch");

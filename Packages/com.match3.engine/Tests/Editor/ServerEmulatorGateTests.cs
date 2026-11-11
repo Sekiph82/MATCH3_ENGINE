@@ -83,6 +83,18 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual("UnknownGame", reason);
         }
 
+        // 8b. Positive control: a catalog, non-Wonder_Pop game under the offline Default policy is eligible
+        [Test]
+        public void CanRunScenario_CoralRescue_DefaultPolicy_Eligible()
+        {
+            foreach (EmulatorScenario scenario in System.Enum.GetValues(typeof(EmulatorScenario)))
+            {
+                var (eligible, reason) = ServerEmulatorGate.CanRunScenario("Coral_Rescue", scenario, ServerEmulatorPolicy.Default);
+                Assert.IsTrue(eligible, scenario.ToString());
+                Assert.AreEqual(string.Empty, reason, scenario.ToString());
+            }
+        }
+
         // 9. CanRunScenario real backend blocked
         [Test]
         public void CanRunScenario_RealBackendPolicy_Ineligible()

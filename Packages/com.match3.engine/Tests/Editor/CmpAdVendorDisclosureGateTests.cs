@@ -24,8 +24,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void VendorDisclosureRecord_Create_Valid_Succeeds()
         {
-            var r = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, true);
-            Assert.AreEqual("GameA", r.GameId);
+            var r = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, true);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(CmpDisclosureKind.GdprTcf, r.DisclosureKind);
             Assert.IsTrue(r.HasUserConsent);
             Assert.IsTrue(r.IsRegionRequired);
@@ -34,35 +34,35 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void VendorDisclosureRecord_IsDisclosureComplete_HasConsent_True()
         {
-            var r = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, true);
+            var r = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, true);
             Assert.IsTrue(r.IsDisclosureComplete);
         }
 
         [Test]
         public void VendorDisclosureRecord_IsDisclosureComplete_NotRequired_True()
         {
-            var r = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, false, false);
+            var r = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, false, false);
             Assert.IsTrue(r.IsDisclosureComplete);
         }
 
         [Test]
         public void VendorDisclosureRecord_IsDisclosureComplete_NoConsent_Required_False()
         {
-            var r = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, false, true);
+            var r = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, false, true);
             Assert.IsFalse(r.IsDisclosureComplete);
         }
 
         [Test]
         public void VendorDisclosureRecord_RequiresDisclosure_IsRegionRequired_True()
         {
-            var r = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, false, true);
+            var r = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, false, true);
             Assert.IsTrue(r.RequiresDisclosure);
         }
 
         [Test]
         public void VendorDisclosureRecord_RequiresDisclosure_NotRequired_False()
         {
-            var r = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, false);
+            var r = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, false);
             Assert.IsFalse(r.RequiresDisclosure);
         }
 
@@ -106,19 +106,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanServeAds_WonderPop_Lowercase_NotBlocked()
+        public void CanServeAds_WonderPop_Lowercase_UnknownGame()
         {
             var record = VendorDisclosureRecord.Create("wonder_pop", CmpDisclosureKind.GdprTcf, true, false);
             // Safe policy blocks ad serving, but Wonder_Pop guard should NOT fire for lowercase
             var result = CmpAdVendorDisclosureGate.CanServeAds("wonder_pop", record, CmpAdPolicy.Default, out var reason);
             Assert.AreNotEqual("WonderPopAdsProhibited", reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanServeAds_SafePolicy_AdServingDisabled_Blocked()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, false);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, false);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", reason);
         }
@@ -126,7 +129,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanServeAds_AllowAdServing_NoConsent_Required_Blocked()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, false, true);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, false, true);
             var policy = CmpAdPolicy.Safe("allow");
             // Need AllowAdServing=true; Safe sets it false, so build manually via reflection-free approach:
             // Use a known eligible path: AllowAdServing=true, RequireVendorConsent=true, HasUserConsent=false
@@ -139,7 +142,7 @@ namespace Match3.Engine.Tests.Editor
             // we'll use a workaround: test through the gate's documented behavior by checking the reason code path.
             // Since we cannot construct AllowAdServing=true without a factory, this test validates the guard order:
             // With Safe policy (AllowAdServing=false), reason is "AdServingDisabled", NOT "VendorConsentRequired"
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, policy, out var reason);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             // With Safe policy (AllowAdServing=false), AdServingDisabled fires before VendorConsentRequired
             Assert.AreEqual("AdServingDisabled", reason);
@@ -153,8 +156,8 @@ namespace Match3.Engine.Tests.Editor
             // We test eligible path: Safe policy blocks ad serving. To prove eligible path exists,
             // we verify that with HasUserConsent=true and no region requirement, the ad serving disabled guard fires last.
             // This test validates that when all guards would pass except AdServingDisabled, the reason is AdServingDisabled.
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, true);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, true);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", reason);
         }
@@ -164,8 +167,8 @@ namespace Match3.Engine.Tests.Editor
         {
             // RequireVendorConsent=false means VendorConsentRequired guard won't fire
             // With Safe policy AllowAdServing=false → AdServingDisabled
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.UmpGoogle, false, false);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.UmpGoogle, false, false);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", reason);
         }
@@ -173,8 +176,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanServeAds_GdprTcf_Blocked_SafePolicy()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, true);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, true);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", reason);
         }
@@ -182,8 +185,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanServeAds_AppleAtt_Blocked_SafePolicy()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.AppleAtt, true, true);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.AppleAtt, true, true);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", reason);
         }
@@ -192,8 +195,8 @@ namespace Match3.Engine.Tests.Editor
         public void CanServeAds_CustomRegional_Eligible_AllowPolicy()
         {
             // With Safe policy (AllowAdServing=false), still blocked. Test confirms CustomRegional kind is accepted.
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.CustomRegional, true, false);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.CustomRegional, true, false);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", reason);
         }
@@ -203,28 +206,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsDisclosureComplete_Helper_HasConsent_True()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, true);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, true);
             Assert.IsTrue(CmpAdVendorDisclosureGate.IsDisclosureComplete(record));
         }
 
         [Test]
         public void IsDisclosureComplete_Helper_NotRequired_True()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, false, false);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, false, false);
             Assert.IsTrue(CmpAdVendorDisclosureGate.IsDisclosureComplete(record));
         }
 
         [Test]
         public void RequiresDisclosure_Helper_IsRegionRequired_True()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, false, true);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, false, true);
             Assert.IsTrue(CmpAdVendorDisclosureGate.RequiresDisclosure(record));
         }
 
         [Test]
         public void RequiresDisclosure_Helper_NotRequired_False()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, false);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, false);
             Assert.IsFalse(CmpAdVendorDisclosureGate.RequiresDisclosure(record));
         }
 
@@ -234,8 +237,8 @@ namespace Match3.Engine.Tests.Editor
         public void VendorDisclosureLog_Record_And_Count()
         {
             var log = new VendorDisclosureLog();
-            log.Record("GameA", "GdprTcf");
-            log.Record("GameA", "AppleAtt");
+            log.Record("Coral_Rescue", "GdprTcf");
+            log.Record("Coral_Rescue", "AppleAtt");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -243,15 +246,15 @@ namespace Match3.Engine.Tests.Editor
         public void VendorDisclosureLog_HasEntry_True()
         {
             var log = new VendorDisclosureLog();
-            log.Record("GameA", "GdprTcf");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "GdprTcf");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void VendorDisclosureLog_Clear_ResetsCount()
         {
             var log = new VendorDisclosureLog();
-            log.Record("GameA", "GdprTcf");
+            log.Record("Coral_Rescue", "GdprTcf");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -267,9 +270,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanServeAds_DefaultStructPolicy_FailsClosed()
         {
-            var record = VendorDisclosureRecord.Create("GameA", CmpDisclosureKind.GdprTcf, true, false);
-            var expected = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, CmpAdPolicy.Default, out var expectedReason);
-            var result = CmpAdVendorDisclosureGate.CanServeAds("GameA", record, default(CmpAdPolicy), out var reason);
+            var record = VendorDisclosureRecord.Create("Coral_Rescue", CmpDisclosureKind.GdprTcf, true, false);
+            var expected = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, CmpAdPolicy.Default, out var expectedReason);
+            var result = CmpAdVendorDisclosureGate.CanServeAds("Coral_Rescue", record, default(CmpAdPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("AdServingDisabled", expectedReason);
@@ -289,8 +292,8 @@ namespace Match3.Engine.Tests.Editor
         public void VendorDisclosureLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new VendorDisclosureLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -302,9 +305,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -315,6 +318,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(CmpAdVendorDisclosureGate.CanServeAds(gameId, default(VendorDisclosureRecord), default(CmpAdPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(CmpAdVendorDisclosureGate.CanServeAds(gameId, default(VendorDisclosureRecord), default(CmpAdPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

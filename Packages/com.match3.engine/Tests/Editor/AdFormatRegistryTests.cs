@@ -36,7 +36,7 @@ namespace Match3.Engine.Tests.Editor
         public void AdFormatRegistry_IsEnabled_UnregisteredFormat_ReturnsFalse()
         {
             var reg = new AdFormatRegistry();
-            Assert.IsFalse(reg.IsEnabled("AnyGame", AdFormatKind.Banner));
+            Assert.IsFalse(reg.IsEnabled("Coral_Rescue", AdFormatKind.Banner));
         }
 
         [Test]
@@ -54,6 +54,19 @@ namespace Match3.Engine.Tests.Editor
             var reg = new AdFormatRegistry();
             reg.Register(AdFormatConfig.Enabled(AdFormatKind.Banner, "Garage_Legends"));
             Assert.IsTrue(reg.IsEnabled("Garage_Legends", AdFormatKind.Banner));
+        }
+
+        [Test]
+        public void AdFormatRegistry_IsEnabled_NonCatalogOrMissingGame_ReturnsFalse()
+        {
+            var reg = new AdFormatRegistry();
+            foreach (var gameId in new[] { "Unknown_Game", "garage_legends", "GARAGE_LEGENDS", " Garage_Legends" })
+            {
+                reg.Register(AdFormatConfig.Enabled(AdFormatKind.Banner, gameId));
+                Assert.IsFalse(reg.IsEnabled(gameId, AdFormatKind.Banner), gameId);
+            }
+            Assert.IsFalse(reg.IsEnabled(null, AdFormatKind.Banner));
+            Assert.IsFalse(reg.IsEnabled(string.Empty, AdFormatKind.Banner));
         }
 
         [Test]

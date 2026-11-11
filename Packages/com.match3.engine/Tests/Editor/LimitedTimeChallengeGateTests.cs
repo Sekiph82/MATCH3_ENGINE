@@ -40,8 +40,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ChallengeEventRecord_Create_Valid_Succeeds()
         {
-            var r = ChallengeEventRecord.Create("TestGame", ChallengeEventType.SeasonalContent, true, true, false);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.SeasonalContent, true, true, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(ChallengeEventType.SeasonalContent, r.EventType);
             Assert.IsTrue(r.IsWithinWindow);
             Assert.IsTrue(r.HasFallback);
@@ -51,35 +51,35 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void ChallengeEventRecord_RequiresFallback_ExpiredNoFallback_True()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.EventReward, false, false, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.EventReward, false, false, false);
             Assert.IsTrue(r.RequiresFallback);
         }
 
         [Test]
         public void ChallengeEventRecord_RequiresFallback_WithinWindow_False()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.EventReward, true, false, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.EventReward, true, false, false);
             Assert.IsFalse(r.RequiresFallback);
         }
 
         [Test]
         public void ChallengeEventRecord_RequiresFallback_ExpiredHasFallback_False()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.EventReward, false, true, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.EventReward, false, true, false);
             Assert.IsFalse(r.RequiresFallback);
         }
 
         [Test]
         public void ChallengeEventRecord_IsExpired_NotWithinWindow_True()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.ThemeCollection, false, true, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.ThemeCollection, false, true, false);
             Assert.IsTrue(r.IsExpired);
         }
 
         [Test]
         public void ChallengeEventRecord_IsExpired_WithinWindow_False()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.ThemeCollection, true, true, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.ThemeCollection, true, true, false);
             Assert.IsFalse(r.IsExpired);
         }
 
@@ -156,73 +156,74 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanActivateEvent_WonderPop_Lowercase_PermanentMod_NotBlockedByGuard1()
+        public void CanActivateEvent_WonderPop_Lowercase_PermanentMod_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var r = ChallengeEventRecord.Create("wonder_pop", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("wonder_pop", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            AssertBlocked("wonder_pop", r, ChallengeEventPolicy.Default, "UnknownGame");
         }
 
         // CanActivateEvent — other games
         [Test]
         public void CanActivateEvent_NonWonderPop_PermanentMod_Guard2()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.EventReward, true, true, true);
+            AssertBlocked("Garage_Legends", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
         public void CanActivateEvent_NonWonderPop_PermanentMod_Expired_Guard2BeforeExpiry()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.SeasonalContent, false, false, true);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.SeasonalContent, false, false, true);
+            AssertBlocked("Garage_Legends", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
         public void CanActivateEvent_NonWonderPop_Valid_WithinWindow_Eligible()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventUiState, true, false, false);
-            AssertEligible("OtherGame", r, ChallengeEventPolicy.Default);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.EventUiState, true, false, false);
+            AssertEligible("Garage_Legends", r, ChallengeEventPolicy.Default);
         }
 
         [Test]
         public void CanActivateEvent_NonWonderPop_Expired_HasFallback_UseLastKnownGood()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.SeasonalContent, false, true, false);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.UseLastKnownGoodReason);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.SeasonalContent, false, true, false);
+            AssertBlocked("Garage_Legends", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.UseLastKnownGoodReason);
         }
 
         [Test]
         public void CanActivateEvent_NonWonderPop_Expired_NoFallback_Blocked()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.SeasonalContent, false, false, false);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.SeasonalContent, false, false, false);
+            AssertBlocked("Garage_Legends", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
         }
 
         [Test]
         public void CanActivateEvent_AnyPolicy_PermanentMod_AlwaysBlocked()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, false, true);
-            AssertBlocked("OtherGame", r, Custom, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
-            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.EventReward, true, false, true);
+            AssertBlocked("Garage_Legends", r, Custom, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            AssertBlocked("Garage_Legends", r, default(ChallengeEventPolicy), LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
         public void CanActivateEvent_AnyPolicy_Expired_NeverActivates()
         {
-            var withFallback = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.ScheduledGoal, false, true, false);
-            AssertBlocked("OtherGame", withFallback, Custom, LimitedTimeChallengeGate.UseLastKnownGoodReason);
-            AssertBlocked("OtherGame", withFallback, default(ChallengeEventPolicy), LimitedTimeChallengeGate.UseLastKnownGoodReason);
-            var noFallback = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.ScheduledGoal, false, false, false);
-            AssertBlocked("OtherGame", noFallback, Custom, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
-            AssertBlocked("OtherGame", noFallback, default(ChallengeEventPolicy), LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
+            var withFallback = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.ScheduledGoal, false, true, false);
+            AssertBlocked("Garage_Legends", withFallback, Custom, LimitedTimeChallengeGate.UseLastKnownGoodReason);
+            AssertBlocked("Garage_Legends", withFallback, default(ChallengeEventPolicy), LimitedTimeChallengeGate.UseLastKnownGoodReason);
+            var noFallback = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.ScheduledGoal, false, false, false);
+            AssertBlocked("Garage_Legends", noFallback, Custom, LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
+            AssertBlocked("Garage_Legends", noFallback, default(ChallengeEventPolicy), LimitedTimeChallengeGate.ExpiredEventRequiresFallbackReason);
         }
 
         [Test]
         public void CanActivateEvent_DefaultStructPolicy_FailsClosed()
         {
-            var r = ChallengeEventRecord.Create("OtherGame", ChallengeEventType.EventReward, true, true, true);
-            AssertBlocked("OtherGame", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
-            AssertBlocked("OtherGame", r, default(ChallengeEventPolicy), LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            var r = ChallengeEventRecord.Create("Garage_Legends", ChallengeEventType.EventReward, true, true, true);
+            AssertBlocked("Garage_Legends", r, ChallengeEventPolicy.Default, LimitedTimeChallengeGate.PermanentProgressBlockedReason);
+            AssertBlocked("Garage_Legends", r, default(ChallengeEventPolicy), LimitedTimeChallengeGate.PermanentProgressBlockedReason);
         }
 
         [Test]
@@ -243,28 +244,28 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresFallback_Helper_True()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.ScheduledGoal, false, false, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.ScheduledGoal, false, false, false);
             Assert.IsTrue(LimitedTimeChallengeGate.RequiresFallback(r));
         }
 
         [Test]
         public void RequiresFallback_Helper_False()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.ScheduledGoal, false, true, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.ScheduledGoal, false, true, false);
             Assert.IsFalse(LimitedTimeChallengeGate.RequiresFallback(r));
         }
 
         [Test]
         public void IsExpired_Helper_True()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.ScheduledGoal, false, true, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.ScheduledGoal, false, true, false);
             Assert.IsTrue(LimitedTimeChallengeGate.IsExpired(r));
         }
 
         [Test]
         public void IsExpired_Helper_False()
         {
-            var r = ChallengeEventRecord.Create("G", ChallengeEventType.ScheduledGoal, true, false, false);
+            var r = ChallengeEventRecord.Create("Coral_Rescue", ChallengeEventType.ScheduledGoal, true, false, false);
             Assert.IsFalse(LimitedTimeChallengeGate.IsExpired(r));
         }
 
@@ -273,8 +274,8 @@ namespace Match3.Engine.Tests.Editor
         public void ChallengeEventLog_Record_And_Count()
         {
             var log = new ChallengeEventLog();
-            log.Record("GameA", "ScheduledGoal");
-            log.Record("GameA", "EventReward");
+            log.Record("Coral_Rescue", "ScheduledGoal");
+            log.Record("Coral_Rescue", "EventReward");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -282,16 +283,16 @@ namespace Match3.Engine.Tests.Editor
         public void ChallengeEventLog_HasEntry_True()
         {
             var log = new ChallengeEventLog();
-            log.Record("GameA", "ScheduledGoal");
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", "ScheduledGoal");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void ChallengeEventLog_Clear_ResetsCount()
         {
             var log = new ChallengeEventLog();
-            log.Record("GameA", "ScheduledGoal");
+            log.Record("Coral_Rescue", "ScheduledGoal");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -308,21 +309,21 @@ namespace Match3.Engine.Tests.Editor
         public void ChallengeEventLog_Record_NullOrEmptyEventType_Throws()
         {
             var log = new ChallengeEventLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
         public void ChallengeEventLog_HasEntry_IsOrdinal()
         {
             var log = new ChallengeEventLog();
-            log.Record("GameA", "ScheduledGoal");
-            Assert.IsFalse(log.HasEntry("gamea"));
-            Assert.IsFalse(log.HasEntry("Game"));
+            log.Record("Coral_Rescue", "ScheduledGoal");
+            Assert.IsFalse(log.HasEntry("coral_rescue"));
+            Assert.IsFalse(log.HasEntry("Coral"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
             var softHyphenLog = new ChallengeEventLog();
-            softHyphenLog.Record("Game\u00ADA", "evt");
-            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
+            softHyphenLog.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("Coral_Rescue"));
         }
 
 
@@ -333,6 +334,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(LimitedTimeChallengeGate.CanActivateEvent(gameId, default(ChallengeEventRecord), default(ChallengeEventPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(LimitedTimeChallengeGate.CanActivateEvent(gameId, default(ChallengeEventRecord), default(ChallengeEventPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

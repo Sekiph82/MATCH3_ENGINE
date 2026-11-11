@@ -22,8 +22,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void WellbeingRecord_Create_Valid_Succeeds()
         {
-            var r = WellbeingRecord.Create("TestGame", WellbeingFeature.PlaytimeReminder, true, false);
-            Assert.AreEqual("TestGame", r.GameId);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, true, false);
+            Assert.AreEqual("Coral_Rescue", r.GameId);
             Assert.AreEqual(WellbeingFeature.PlaytimeReminder, r.Feature);
             Assert.IsTrue(r.IsOptional);
             Assert.IsFalse(r.IsUserRequested);
@@ -32,56 +32,56 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void WellbeingRecord_IsProtectiveFeature_PressureLoopDisable_True()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.PressureLoopDisable, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PressureLoopDisable, false, false);
             Assert.IsTrue(r.IsProtectiveFeature);
         }
 
         [Test]
         public void WellbeingRecord_IsProtectiveFeature_DarkPatternBlock_True()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.DarkPatternBlock, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.DarkPatternBlock, false, false);
             Assert.IsTrue(r.IsProtectiveFeature);
         }
 
         [Test]
         public void WellbeingRecord_IsProtectiveFeature_ContentRatingFilter_True()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.ContentRatingFilter, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.ContentRatingFilter, false, false);
             Assert.IsTrue(r.IsProtectiveFeature);
         }
 
         [Test]
         public void WellbeingRecord_IsProtectiveFeature_PlaytimeReminder_False()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.PlaytimeReminder, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, false, false);
             Assert.IsFalse(r.IsProtectiveFeature);
         }
 
         [Test]
         public void WellbeingRecord_IsProtectiveFeature_AgeAppropriateOffer_False()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.AgeAppropriateOffer, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.AgeAppropriateOffer, false, false);
             Assert.IsFalse(r.IsProtectiveFeature);
         }
 
         [Test]
         public void WellbeingRecord_RequiresUserConsent_OptionalNotRequested_True()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.PlaytimeReminder, true, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, true, false);
             Assert.IsTrue(r.RequiresUserConsent);
         }
 
         [Test]
         public void WellbeingRecord_RequiresUserConsent_OptionalUserRequested_False()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.PlaytimeReminder, true, true);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, true, true);
             Assert.IsFalse(r.RequiresUserConsent);
         }
 
         [Test]
         public void WellbeingRecord_RequiresUserConsent_NotOptional_False()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.PlaytimeReminder, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, false, false);
             Assert.IsFalse(r.RequiresUserConsent);
         }
 
@@ -131,24 +131,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanEnableWellbeingFeature_WonderPop_Lowercase_NotBlocked()
+        public void CanEnableWellbeingFeature_WonderPop_Lowercase_UnknownGame()
         {
-            // Ordinal comparison: "wonder_pop" != "Wonder_Pop" so Guard 1 not triggered
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = WellbeingRecord.Create("wonder_pop", WellbeingFeature.PressureLoopDisable, false, true);
             var policy = WellbeingPolicy.Safe("Test");
-            // Guard 1: gameId "wonder_pop" != "Wonder_Pop" (Ordinal) → skip
-            // Guard 2: DarkPatternBlock? No. Skip.
-            // Guard 3: EnforceWellbeingFeatures=true, RequiresUserConsent=IsOptional&&!IsUserRequested=false&&!true=false → skip
             var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("wonder_pop", record, policy, out var reason);
-            Assert.IsTrue(result);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanEnableWellbeingFeature_DarkPattern_NotUserRequested_Blocked()
         {
-            var record = WellbeingRecord.Create("AnyGame", WellbeingFeature.DarkPatternBlock, false, false);
+            var record = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.DarkPatternBlock, false, false);
             var policy = WellbeingPolicy.Default;
-            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("AnyGame", record, policy, out var reason);
+            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("DarkPatternBlockRequired", reason);
         }
@@ -156,9 +154,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableWellbeingFeature_DarkPattern_UserRequested_Eligible()
         {
-            var record = WellbeingRecord.Create("AnyGame", WellbeingFeature.DarkPatternBlock, false, true);
+            var record = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.DarkPatternBlock, false, true);
             var policy = WellbeingPolicy.Default;
-            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("AnyGame", record, policy, out var reason);
+            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -166,9 +164,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableWellbeingFeature_OptionalNotRequested_Blocked()
         {
-            var record = WellbeingRecord.Create("AnyGame", WellbeingFeature.PlaytimeReminder, true, false);
+            var record = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, true, false);
             var policy = WellbeingPolicy.Default;
-            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("AnyGame", record, policy, out var reason);
+            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsFalse(result);
             Assert.AreEqual("UserConsentRequired", reason);
         }
@@ -176,9 +174,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableWellbeingFeature_NonOptional_UserRequested_Eligible()
         {
-            var record = WellbeingRecord.Create("AnyGame", WellbeingFeature.AccessibilityControl, false, true);
+            var record = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.AccessibilityControl, false, true);
             var policy = WellbeingPolicy.Default;
-            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("AnyGame", record, policy, out var reason);
+            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -186,9 +184,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableWellbeingFeature_PlaytimeReminder_Optional_UserRequested_Eligible()
         {
-            var record = WellbeingRecord.Create("AnyGame", WellbeingFeature.PlaytimeReminder, true, true);
+            var record = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, true, true);
             var policy = WellbeingPolicy.Default;
-            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("AnyGame", record, policy, out var reason);
+            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, policy, out var reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -196,21 +194,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsProtectiveFeature_Helper_DarkPatternBlock_True()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.DarkPatternBlock, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.DarkPatternBlock, false, false);
             Assert.IsTrue(AccessibilityWellbeingGate.IsProtectiveFeature(r));
         }
 
         [Test]
         public void IsProtectiveFeature_Helper_AccessibilityControl_False()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.AccessibilityControl, false, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.AccessibilityControl, false, false);
             Assert.IsFalse(AccessibilityWellbeingGate.IsProtectiveFeature(r));
         }
 
         [Test]
         public void RequiresUserConsent_Helper_OptionalNotRequested_True()
         {
-            var r = WellbeingRecord.Create("G", WellbeingFeature.PlaytimeReminder, true, false);
+            var r = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.PlaytimeReminder, true, false);
             Assert.IsTrue(AccessibilityWellbeingGate.RequiresUserConsent(r));
         }
 
@@ -219,8 +217,8 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new WellbeingLog();
             Assert.AreEqual(0, log.Count);
-            log.Record("GameA", "PlaytimeReminder");
-            log.Record("GameA", "DarkPatternBlock");
+            log.Record("Coral_Rescue", "PlaytimeReminder");
+            log.Record("Coral_Rescue", "DarkPatternBlock");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -228,16 +226,16 @@ namespace Match3.Engine.Tests.Editor
         public void WellbeingLog_HasEntry_True()
         {
             var log = new WellbeingLog();
-            log.Record("GameA", "PlaytimeReminder");
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", "PlaytimeReminder");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void WellbeingLog_Clear_ResetsCount()
         {
             var log = new WellbeingLog();
-            log.Record("GameA", "PlaytimeReminder");
+            log.Record("Coral_Rescue", "PlaytimeReminder");
             Assert.AreEqual(1, log.Count);
             log.Clear();
             Assert.AreEqual(0, log.Count);
@@ -247,9 +245,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnableWellbeingFeature_DefaultStructPolicy_FailsClosed()
         {
-            var record = WellbeingRecord.Create("GameA", WellbeingFeature.DarkPatternBlock, false, false);
-            var expected = AccessibilityWellbeingGate.CanEnableWellbeingFeature("GameA", record, WellbeingPolicy.Default, out var expectedReason);
-            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("GameA", record, default(WellbeingPolicy), out var reason);
+            var record = WellbeingRecord.Create("Coral_Rescue", WellbeingFeature.DarkPatternBlock, false, false);
+            var expected = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, WellbeingPolicy.Default, out var expectedReason);
+            var result = AccessibilityWellbeingGate.CanEnableWellbeingFeature("Coral_Rescue", record, default(WellbeingPolicy), out var reason);
             Assert.IsFalse(expected);
             Assert.IsFalse(result);
             Assert.AreEqual("DarkPatternBlockRequired", expectedReason);
@@ -269,8 +267,8 @@ namespace Match3.Engine.Tests.Editor
         public void WellbeingLog_Record_NullOrEmptySecondArg_Throws()
         {
             var log = new WellbeingLog();
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<System.ArgumentException>(() => log.Record("GameA", string.Empty));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<System.ArgumentException>(() => log.Record("Coral_Rescue", string.Empty));
             Assert.AreEqual(0, log.Count);
         }
 
@@ -282,9 +280,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("Wonder_Pop"));
             Assert.IsFalse(log.HasEntry("wonder_pop"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
-            log.Record("Game\u00ADA", "evt");
-            Assert.IsTrue(log.HasEntry("Game\u00ADA"));
-            Assert.IsFalse(log.HasEntry("GameA"));
+            log.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsTrue(log.HasEntry("Coral\u00AD_Rescue"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
 
@@ -295,6 +293,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(AccessibilityWellbeingGate.CanEnableWellbeingFeature(gameId, default(WellbeingRecord), default(WellbeingPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(AccessibilityWellbeingGate.CanEnableWellbeingFeature(gameId, default(WellbeingRecord), default(WellbeingPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

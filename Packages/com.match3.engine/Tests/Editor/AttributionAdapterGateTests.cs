@@ -27,8 +27,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Token_Create_SetsAllProperties()
         {
-            var t = AttributionToken.Create("GameA", AttributionChannel.PaidSearch, false);
-            Assert.AreEqual("GameA", t.GameId);
+            var t = AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSearch, false);
+            Assert.AreEqual("Coral_Rescue", t.GameId);
             Assert.AreEqual(AttributionChannel.PaidSearch, t.Channel);
             Assert.IsFalse(t.TrackingAllowed);
         }
@@ -36,19 +36,19 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Token_IsOrganic_TrueOnlyForOrganic()
         {
-            Assert.IsTrue(AttributionToken.Create("G", AttributionChannel.Organic, true).IsOrganic);
-            Assert.IsFalse(AttributionToken.Create("G", AttributionChannel.PaidSearch, true).IsOrganic);
-            Assert.IsFalse(AttributionToken.Create("G", AttributionChannel.PaidSocial, true).IsOrganic);
-            Assert.IsFalse(AttributionToken.Create("G", AttributionChannel.CrossPromo, true).IsOrganic);
+            Assert.IsTrue(AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, true).IsOrganic);
+            Assert.IsFalse(AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSearch, true).IsOrganic);
+            Assert.IsFalse(AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSocial, true).IsOrganic);
+            Assert.IsFalse(AttributionToken.Create("Coral_Rescue", AttributionChannel.CrossPromo, true).IsOrganic);
         }
 
         [Test]
         public void Token_IsPaidChannel_FalseOnlyForOrganic()
         {
-            Assert.IsFalse(AttributionToken.Create("G", AttributionChannel.Organic, true).IsPaidChannel);
-            Assert.IsTrue(AttributionToken.Create("G", AttributionChannel.PaidSearch, true).IsPaidChannel);
-            Assert.IsTrue(AttributionToken.Create("G", AttributionChannel.PaidSocial, true).IsPaidChannel);
-            Assert.IsTrue(AttributionToken.Create("G", AttributionChannel.CrossPromo, true).IsPaidChannel);
+            Assert.IsFalse(AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, true).IsPaidChannel);
+            Assert.IsTrue(AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSearch, true).IsPaidChannel);
+            Assert.IsTrue(AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSocial, true).IsPaidChannel);
+            Assert.IsTrue(AttributionToken.Create("Coral_Rescue", AttributionChannel.CrossPromo, true).IsPaidChannel);
         }
 
         // --- AttributionPolicy ---
@@ -94,21 +94,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void Gate_WonderPop_OrdinalCaseSensitive_LowercaseNotBlocked()
+        public void Gate_WonderPop_OrdinalCaseSensitive_LowercaseUnknownGame()
         {
-            // "wonder_pop" lowercase must NOT match Wonder_Pop Ordinal guard
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var token = AttributionToken.Create("wonder_pop", AttributionChannel.Organic, true);
             var policy = AttributionPolicy.Safe("desc");
-            var (eligible, _) = AttributionAdapterGate.CanRecordAttribution("wonder_pop", token, policy);
-            Assert.IsTrue(eligible);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("wonder_pop", token, policy);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void Gate_TrackingNotAllowed_BlockedByGuard2()
         {
-            var token = AttributionToken.Create("GameA", AttributionChannel.Organic, false);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, false);
             var policy = AttributionPolicy.Safe("desc");
-            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("TrackingNotAllowed", reason);
         }
@@ -116,9 +117,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Gate_PaidSearch_CrossAppDisabled_BlockedByGuard3()
         {
-            var token = AttributionToken.Create("GameA", AttributionChannel.PaidSearch, true);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSearch, true);
             var policy = AttributionPolicy.Safe("desc"); // AllowCrossAppTracking=false
-            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("CrossAppTrackingDisabled", reason);
         }
@@ -126,9 +127,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Gate_PaidSocial_CrossAppDisabled_BlockedByGuard3()
         {
-            var token = AttributionToken.Create("GameA", AttributionChannel.PaidSocial, true);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSocial, true);
             var policy = AttributionPolicy.Safe("desc");
-            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("CrossAppTrackingDisabled", reason);
         }
@@ -136,9 +137,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Gate_CrossPromo_CrossAppDisabled_BlockedByGuard3()
         {
-            var token = AttributionToken.Create("GameA", AttributionChannel.CrossPromo, true);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.CrossPromo, true);
             var policy = AttributionPolicy.Safe("desc");
-            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+            var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
             Assert.IsFalse(eligible);
             Assert.AreEqual("CrossAppTrackingDisabled", reason);
         }
@@ -147,9 +148,9 @@ namespace Match3.Engine.Tests.Editor
         public void Gate_Organic_CrossAppDisabled_IsEligible()
         {
             // Organic is not a paid channel — Guard 3 must NOT fire
-            var token = AttributionToken.Create("GameA", AttributionChannel.Organic, true);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, true);
             var policy = AttributionPolicy.Safe("desc"); // AllowCrossAppTracking=false
-            var (eligible, _) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+            var (eligible, _) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
             Assert.IsTrue(eligible);
         }
 
@@ -160,10 +161,10 @@ namespace Match3.Engine.Tests.Editor
         public void Gate_PaidSearch_BlockedUnderEveryConstructiblePolicy()
         {
             // No factory can enable cross-app tracking; default(struct) normalizes to Default.
-            var token = AttributionToken.Create("GameA", AttributionChannel.PaidSearch, true);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSearch, true);
             foreach (var policy in AllConstructiblePolicies)
             {
-                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("CrossAppTrackingDisabled", reason);
             }
@@ -172,10 +173,10 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Gate_NoConsent_BlockedUnderEveryConstructiblePolicy()
         {
-            var token = AttributionToken.Create("GameA", AttributionChannel.Organic, false);
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, false);
             foreach (var policy in AllConstructiblePolicies)
             {
-                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, policy);
+                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, policy);
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("TrackingNotAllowed", reason);
                 Assert.IsTrue(AttributionAdapterGate.RequiresConsent(policy));
@@ -185,9 +186,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void Gate_DefaultStructPolicy_FailsClosed()
         {
-            var token = AttributionToken.Create("GameA", AttributionChannel.PaidSocial, true);
-            var (e1, expected) = AttributionAdapterGate.CanRecordAttribution("GameA", token, AttributionPolicy.Default);
-            var (e2, reason) = AttributionAdapterGate.CanRecordAttribution("GameA", token, default(AttributionPolicy));
+            var token = AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSocial, true);
+            var (e1, expected) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, AttributionPolicy.Default);
+            var (e2, reason) = AttributionAdapterGate.CanRecordAttribution("Coral_Rescue", token, default(AttributionPolicy));
             Assert.IsFalse(e1);
             Assert.IsFalse(e2);
             Assert.AreEqual(expected, reason);
@@ -216,8 +217,8 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsOrganicInstall_ReturnsTokenIsOrganic()
         {
-            var organic = AttributionToken.Create("G", AttributionChannel.Organic, true);
-            var paid = AttributionToken.Create("G", AttributionChannel.PaidSearch, true);
+            var organic = AttributionToken.Create("Coral_Rescue", AttributionChannel.Organic, true);
+            var paid = AttributionToken.Create("Coral_Rescue", AttributionChannel.PaidSearch, true);
             Assert.IsTrue(AttributionAdapterGate.IsOrganicInstall(organic));
             Assert.IsFalse(AttributionAdapterGate.IsOrganicInstall(paid));
         }
@@ -250,9 +251,9 @@ namespace Match3.Engine.Tests.Editor
         {
             var log = new AttributionLog();
             Assert.AreEqual(0, log.Count);
-            log.Record("GameA", AttributionChannel.Organic);
+            log.Record("Coral_Rescue", AttributionChannel.Organic);
             Assert.AreEqual(1, log.Count);
-            log.Record("GameB", AttributionChannel.PaidSearch);
+            log.Record("Garage_Legends", AttributionChannel.PaidSearch);
             Assert.AreEqual(2, log.Count);
         }
 
@@ -260,19 +261,19 @@ namespace Match3.Engine.Tests.Editor
         public void Log_HasEntry_ReturnsTrueForRecordedGame()
         {
             var log = new AttributionLog();
-            log.Record("GameA", AttributionChannel.Organic);
-            Assert.IsTrue(log.HasEntry("GameA"));
-            Assert.IsFalse(log.HasEntry("GameB"));
+            log.Record("Coral_Rescue", AttributionChannel.Organic);
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
+            Assert.IsFalse(log.HasEntry("Garage_Legends"));
         }
 
         [Test]
         public void Log_Clear_ResetsCountAndEntries()
         {
             var log = new AttributionLog();
-            log.Record("GameA", AttributionChannel.Organic);
+            log.Record("Coral_Rescue", AttributionChannel.Organic);
             log.Clear();
             Assert.AreEqual(0, log.Count);
-            Assert.IsFalse(log.HasEntry("GameA"));
+            Assert.IsFalse(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
@@ -293,6 +294,17 @@ namespace Match3.Engine.Tests.Editor
                 var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution(gameId, default(AttributionToken), default(AttributionPolicy));
                 Assert.IsFalse(eligible);
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var (eligible, reason) = AttributionAdapterGate.CanRecordAttribution(gameId, default(AttributionToken), default(AttributionPolicy));
+                Assert.IsFalse(eligible);
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

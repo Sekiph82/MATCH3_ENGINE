@@ -259,6 +259,8 @@ namespace Match3.Engine.Runtime.LiveOps
             if (rule == null) throw new ArgumentNullException(nameof(rule));
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
 
+            // Fail closed: only catalog game IDs (Ordinal) are eligible (ctx rejects null/empty).
+            if (!GameProfileCatalog.IsKnownId(ctx.GameId)) return new RolloutDecision(false, "UnknownGame");
             if (ctx.IsChildProfile) return new RolloutDecision(false, "ChildProfileExcluded");
             if (!rule.HasGame(ctx.GameId)) return new RolloutDecision(false, "GameNotInRule");
             if (!SemVer.TryParse(ctx.AppVersion, out var app)) return new RolloutDecision(false, "InvalidAppVersion");

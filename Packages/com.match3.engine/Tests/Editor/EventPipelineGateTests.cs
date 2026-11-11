@@ -25,13 +25,13 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void PipelineBatch_ZeroBatchSize_ThrowsArgumentOutOfRangeException()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => PipelineBatch.Create("GameA", PipelineBackend.NoOp, 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => PipelineBatch.Create("Coral_Rescue", PipelineBackend.NoOp, 0));
         }
 
         [Test]
         public void PipelineBatch_NegativeBatchSize_ThrowsArgumentOutOfRangeException()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => PipelineBatch.Create("GameA", PipelineBackend.NoOp, -5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => PipelineBatch.Create("Coral_Rescue", PipelineBackend.NoOp, -5));
         }
 
         // ---- PipelinePolicy validation ----
@@ -81,6 +81,9 @@ namespace Match3.Engine.Tests.Editor
             var result = EventPipelineGate.CanFlushBatch("wonder_pop", batch, policy);
             // Guard 1 must not fire; it may still fail Guard 2 (remote) or be eligible
             Assert.AreNotEqual("WonderPopPipelineProhibited", result.Reason);
+            // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("UnknownGame", result.Reason);
         }
 
         [Test]
@@ -98,9 +101,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFlushBatch_Remote_AllowRemoteFalse_IsIneligible()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.Remote, 1);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.Remote, 1);
             var policy = PipelinePolicy.Default; // AllowRemoteFlush = false
-            var result = EventPipelineGate.CanFlushBatch("GameA", batch, policy);
+            var result = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("RemoteFlushDisabled", result.Reason);
         }
@@ -108,9 +111,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFlushBatch_Remote_AllowRemoteTrue_PassesGuard2()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.Remote, 5);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.Remote, 5);
             var policy = PipelinePolicy.Create(50, true, "remote enabled");
-            var result = EventPipelineGate.CanFlushBatch("GameA", batch, policy);
+            var result = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, policy);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -119,9 +122,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFlushBatch_BatchSizeExceedsMax_IsIneligible()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.LocalBuffer, 51);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.LocalBuffer, 51);
             var policy = PipelinePolicy.Default; // MaxBatchSize = 50
-            var result = EventPipelineGate.CanFlushBatch("GameA", batch, policy);
+            var result = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, policy);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual("BatchSizeExceeded", result.Reason);
         }
@@ -129,9 +132,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanFlushBatch_BatchSizeEqualsMax_IsEligible()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.LocalBuffer, 50);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.LocalBuffer, 50);
             var policy = PipelinePolicy.Default;
-            var result = EventPipelineGate.CanFlushBatch("GameA", batch, policy);
+            var result = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, policy);
             Assert.IsTrue(result.IsEligible);
         }
 
@@ -140,21 +143,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void IsWithinBatchLimit_EqualToMax_ReturnsTrue()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.NoOp, 50);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.NoOp, 50);
             Assert.IsTrue(EventPipelineGate.IsWithinBatchLimit(batch, PipelinePolicy.Default));
         }
 
         [Test]
         public void IsWithinBatchLimit_ExceedsMax_ReturnsFalse()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.NoOp, 51);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.NoOp, 51);
             Assert.IsFalse(EventPipelineGate.IsWithinBatchLimit(batch, PipelinePolicy.Default));
         }
 
         [Test]
         public void IsWithinBatchLimit_BelowMax_ReturnsTrue()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.NoOp, 1);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.NoOp, 1);
             Assert.IsTrue(EventPipelineGate.IsWithinBatchLimit(batch, PipelinePolicy.Default));
         }
 
@@ -163,21 +166,21 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void RequiresRemoteProvider_Remote_ReturnsTrue()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.Remote, 1);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.Remote, 1);
             Assert.IsTrue(EventPipelineGate.RequiresRemoteProvider(batch));
         }
 
         [Test]
         public void RequiresRemoteProvider_LocalBuffer_ReturnsFalse()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.LocalBuffer, 1);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.LocalBuffer, 1);
             Assert.IsFalse(EventPipelineGate.RequiresRemoteProvider(batch));
         }
 
         [Test]
         public void RequiresRemoteProvider_NoOp_ReturnsFalse()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.NoOp, 1);
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.NoOp, 1);
             Assert.IsFalse(EventPipelineGate.RequiresRemoteProvider(batch));
         }
 
@@ -187,8 +190,8 @@ namespace Match3.Engine.Tests.Editor
         public void PipelineQueue_EnqueueAndCount()
         {
             var q = new PipelineQueue();
-            q.Enqueue("GameA", "LevelStart");
-            q.Enqueue("GameA", "LevelEnd");
+            q.Enqueue("Coral_Rescue", "LevelStart");
+            q.Enqueue("Coral_Rescue", "LevelEnd");
             Assert.AreEqual(2, q.Count);
         }
 
@@ -196,8 +199,8 @@ namespace Match3.Engine.Tests.Editor
         public void PipelineQueue_Flush_ReturnsItemsAndClears()
         {
             var q = new PipelineQueue();
-            q.Enqueue("GameA", "evt1");
-            q.Enqueue("GameA", "evt2");
+            q.Enqueue("Coral_Rescue", "evt1");
+            q.Enqueue("Coral_Rescue", "evt2");
             var items = q.Flush();
             Assert.AreEqual(2, items.Count);
             Assert.AreEqual(0, q.Count);
@@ -207,7 +210,7 @@ namespace Match3.Engine.Tests.Editor
         public void PipelineQueue_Clear_ResetsCount()
         {
             var q = new PipelineQueue();
-            q.Enqueue("GameA", "evt1");
+            q.Enqueue("Coral_Rescue", "evt1");
             q.Clear();
             Assert.AreEqual(0, q.Count);
         }
@@ -230,14 +233,14 @@ namespace Match3.Engine.Tests.Editor
         public void PipelineQueue_NullEventName_ThrowsArgumentException()
         {
             var q = new PipelineQueue();
-            Assert.Throws<ArgumentException>(() => q.Enqueue("GameA", null));
+            Assert.Throws<ArgumentException>(() => q.Enqueue("Coral_Rescue", null));
         }
 
         [Test]
         public void PipelineQueue_EmptyEventName_ThrowsArgumentException()
         {
             var q = new PipelineQueue();
-            Assert.Throws<ArgumentException>(() => q.Enqueue("GameA", ""));
+            Assert.Throws<ArgumentException>(() => q.Enqueue("Coral_Rescue", ""));
         }
 
         [Test]
@@ -253,9 +256,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void DefaultStructPolicy_FailsClosed()
         {
-            var batch = PipelineBatch.Create("GameA", PipelineBackend.Remote, 10);
-            var expected = EventPipelineGate.CanFlushBatch("GameA", batch, PipelinePolicy.Default);
-            var result = EventPipelineGate.CanFlushBatch("GameA", batch, default(PipelinePolicy));
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.Remote, 10);
+            var expected = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, PipelinePolicy.Default);
+            var result = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, default(PipelinePolicy));
             Assert.IsFalse(expected.IsEligible);
             Assert.IsFalse(result.IsEligible);
             Assert.AreEqual(expected.Reason, result.Reason);
@@ -291,6 +294,17 @@ namespace Match3.Engine.Tests.Editor
                 var result = EventPipelineGate.CanFlushBatch(gameId, default(PipelineBatch), default(PipelinePolicy));
                 Assert.IsFalse(result.IsEligible);
                 Assert.AreEqual("GameIdMissing", result.Reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                var result = EventPipelineGate.CanFlushBatch(gameId, default(PipelineBatch), default(PipelinePolicy));
+                Assert.IsFalse(result.IsEligible);
+                Assert.AreEqual("UnknownGame", result.Reason);
             }
         }
     }

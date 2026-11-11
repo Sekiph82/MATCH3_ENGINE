@@ -68,9 +68,11 @@ namespace Match3.Engine.Runtime.Identity
 
         public static (bool eligible, string reason) CanInitiateDeletion(string gameId, DeletionPolicy policy)
         {
-            // Fail closed: a missing game context is never eligible
+            // Fail closed: a missing or non-catalog game context is never eligible
             if (string.IsNullOrEmpty(gameId))
                 return (false, "GameIdMissing");
+            if (!GameProfileCatalog.IsKnownId(gameId))
+                return (false, "UnknownGame");
 
             policy = Normalize(policy);
 

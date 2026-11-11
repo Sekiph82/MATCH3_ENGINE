@@ -24,36 +24,36 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void PresentationRecord_Create_Valid_Succeeds()
         {
-            var record = PresentationRecord.Create("TestGame", PresentationEventKind.BannerDisplayed, false, false);
-            Assert.AreEqual("TestGame", record.GameId);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.BannerDisplayed, false, false);
+            Assert.AreEqual("Coral_Rescue", record.GameId);
             Assert.AreEqual(PresentationEventKind.BannerDisplayed, record.EventKind);
         }
 
         [Test]
         public void PresentationRecord_IsEligibleSession_NotTestSession_NotConsentDenied_True()
         {
-            var record = PresentationRecord.Create("TestGame", PresentationEventKind.PopupShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, false);
             Assert.IsTrue(record.IsEligibleSession);
         }
 
         [Test]
         public void PresentationRecord_IsEligibleSession_IsTestSession_False()
         {
-            var record = PresentationRecord.Create("TestGame", PresentationEventKind.PopupShown, true, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, false);
             Assert.IsFalse(record.IsEligibleSession);
         }
 
         [Test]
         public void PresentationRecord_IsEligibleSession_IsConsentDenied_False()
         {
-            var record = PresentationRecord.Create("TestGame", PresentationEventKind.PopupShown, false, true);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, true);
             Assert.IsFalse(record.IsEligibleSession);
         }
 
         [Test]
         public void PresentationRecord_IsEligibleSession_BothFlags_False()
         {
-            var record = PresentationRecord.Create("TestGame", PresentationEventKind.PopupShown, true, true);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, true);
             Assert.IsFalse(record.IsEligibleSession);
         }
 
@@ -90,21 +90,22 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void CanRecordEvent_WonderPop_Lowercase_NotBlocked()
+        public void CanRecordEvent_WonderPop_Lowercase_UnknownGame()
         {
+            // Ordinal catalog lookup: a case variant of Wonder_Pop is not a catalog ID, so it fails closed with UnknownGame (never eligible, never the Wonder_Pop reason).
             var record = PresentationRecord.Create("wonder_pop", PresentationEventKind.BannerDisplayed, false, false);
             var policy = PresentationAnalyticsPolicy.Default;
             var result = PresentationAnalyticsGate.CanRecordEvent("wonder_pop", record, policy, out string reason);
-            Assert.IsTrue(result);
-            Assert.AreEqual(string.Empty, reason);
+            Assert.IsFalse(result);
+            Assert.AreEqual("UnknownGame", reason);
         }
 
         [Test]
         public void CanRecordEvent_TestSession_SafePolicy_Blocked()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, false);
             var policy = PresentationAnalyticsPolicy.Default;
-            var result = PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason);
+            var result = PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("TestSessionExcluded", reason);
         }
@@ -112,9 +113,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_TestSession_AllowPolicy_Eligible()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, false);
             var policy = PresentationAnalyticsPolicy.AllowTest("Allow test sessions");
-            var result = PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason);
+            var result = PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -122,9 +123,9 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_ConsentDenied_SafePolicy_Blocked()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, true);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, true);
             var policy = PresentationAnalyticsPolicy.Default;
-            var result = PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason);
+            var result = PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
@@ -132,29 +133,29 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_ConsentDenied_MostRelaxedPolicy_StillBlocked()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, true);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, true);
             var policy = PresentationAnalyticsPolicy.AllowTest("Most relaxed constructible policy");
-            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason));
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
-            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, default(PresentationAnalyticsPolicy), out reason));
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, default(PresentationAnalyticsPolicy), out reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
         public void CanRecordEvent_AllowTestSessions_DoesNotAdmitConsentDeniedTestSession()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, true);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, true);
             var policy = PresentationAnalyticsPolicy.AllowTest("Allow test sessions");
-            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason));
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason));
             Assert.AreEqual("ConsentDeniedExcluded", reason);
         }
 
         [Test]
         public void CanRecordEvent_EligibleSession_SafePolicy_Eligible()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, false);
             var policy = PresentationAnalyticsPolicy.Default;
-            var result = PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out string reason);
+            var result = PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out string reason);
             Assert.IsTrue(result);
             Assert.AreEqual(string.Empty, reason);
         }
@@ -162,52 +163,52 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRecordEvent_TutorialShown_Eligible()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.TutorialShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.TutorialShown, false, false);
             var policy = PresentationAnalyticsPolicy.Default;
-            Assert.IsTrue(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out _));
+            Assert.IsTrue(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out _));
         }
 
         [Test]
         public void CanRecordEvent_RewardVideoShown_Eligible()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.RewardVideoShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.RewardVideoShown, false, false);
             var policy = PresentationAnalyticsPolicy.Default;
-            Assert.IsTrue(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out _));
+            Assert.IsTrue(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out _));
         }
 
         [Test]
         public void CanRecordEvent_SeasonPassShown_Eligible()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.SeasonPassShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.SeasonPassShown, false, false);
             var policy = PresentationAnalyticsPolicy.Default;
-            Assert.IsTrue(PresentationAnalyticsGate.CanRecordEvent("GameA", record, policy, out _));
+            Assert.IsTrue(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, policy, out _));
         }
 
         [Test]
         public void IsEligibleSession_Helper_EligibleSession_True()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, false);
             Assert.IsTrue(PresentationAnalyticsGate.IsEligibleSession(record));
         }
 
         [Test]
         public void IsEligibleSession_Helper_TestSession_False()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, false);
             Assert.IsFalse(PresentationAnalyticsGate.IsEligibleSession(record));
         }
 
         [Test]
         public void IsConsentDenied_Helper_ConsentDenied_True()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, true);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, true);
             Assert.IsTrue(PresentationAnalyticsGate.IsConsentDenied(record));
         }
 
         [Test]
         public void IsConsentDenied_Helper_EligibleSession_False()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, false, false);
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, false, false);
             Assert.IsFalse(PresentationAnalyticsGate.IsConsentDenied(record));
         }
 
@@ -215,8 +216,8 @@ namespace Match3.Engine.Tests.Editor
         public void PresentationEventLog_Record_And_Count()
         {
             var log = new PresentationEventLog();
-            log.Record("GameA", "BannerDisplayed");
-            log.Record("GameA", "PopupShown");
+            log.Record("Coral_Rescue", "BannerDisplayed");
+            log.Record("Coral_Rescue", "PopupShown");
             Assert.AreEqual(2, log.Count);
         }
 
@@ -224,15 +225,15 @@ namespace Match3.Engine.Tests.Editor
         public void PresentationEventLog_HasEntry_True()
         {
             var log = new PresentationEventLog();
-            log.Record("GameA", "BannerDisplayed");
-            Assert.IsTrue(log.HasEntry("GameA"));
+            log.Record("Coral_Rescue", "BannerDisplayed");
+            Assert.IsTrue(log.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void PresentationEventLog_Clear_ResetsCount()
         {
             var log = new PresentationEventLog();
-            log.Record("GameA", "BannerDisplayed");
+            log.Record("Coral_Rescue", "BannerDisplayed");
             log.Clear();
             Assert.AreEqual(0, log.Count);
         }
@@ -248,29 +249,29 @@ namespace Match3.Engine.Tests.Editor
         public void PresentationEventLog_Record_NullOrEmptyEventName_Throws()
         {
             var log = new PresentationEventLog();
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", null));
-            Assert.Throws<ArgumentException>(() => log.Record("GameA", ""));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", null));
+            Assert.Throws<ArgumentException>(() => log.Record("Coral_Rescue", ""));
         }
 
         [Test]
         public void PresentationEventLog_HasEntry_IsOrdinal()
         {
             var log = new PresentationEventLog();
-            log.Record("GameA", "BannerDisplayed");
-            Assert.IsFalse(log.HasEntry("gamea"));
-            Assert.IsFalse(log.HasEntry("Game"));
+            log.Record("Coral_Rescue", "BannerDisplayed");
+            Assert.IsFalse(log.HasEntry("coral_rescue"));
+            Assert.IsFalse(log.HasEntry("Coral"));
             // Soft hyphen (U+00AD) is ignorable under culture-sensitive comparison; Ordinal must not match it.
             var softHyphenLog = new PresentationEventLog();
-            softHyphenLog.Record("Game\u00ADA", "evt");
-            Assert.IsFalse(softHyphenLog.HasEntry("GameA"));
+            softHyphenLog.Record("Coral\u00AD_Rescue", "evt");
+            Assert.IsFalse(softHyphenLog.HasEntry("Coral_Rescue"));
         }
 
         [Test]
         public void CanRecordEvent_DefaultStructPolicy_FailsClosed()
         {
-            var record = PresentationRecord.Create("GameA", PresentationEventKind.PopupShown, true, false);
-            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, PresentationAnalyticsPolicy.Default, out string expected));
-            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("GameA", record, default(PresentationAnalyticsPolicy), out string reason));
+            var record = PresentationRecord.Create("Coral_Rescue", PresentationEventKind.PopupShown, true, false);
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, PresentationAnalyticsPolicy.Default, out string expected));
+            Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent("Coral_Rescue", record, default(PresentationAnalyticsPolicy), out string reason));
             Assert.AreEqual(expected, reason);
             Assert.AreEqual("TestSessionExcluded", reason);
         }
@@ -299,6 +300,16 @@ namespace Match3.Engine.Tests.Editor
             {
                 Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent(gameId, default(PresentationRecord), default(PresentationAnalyticsPolicy), out var reason));
                 Assert.AreEqual("GameIdMissing", reason);
+            }
+        }
+
+        [Test]
+        public void UnknownOrCaseVariantGameId_DefaultRecord_UnknownGame()
+        {
+            foreach (var gameId in new[] { "Unknown_Game", "coral_rescue", "CORAL_RESCUE", " Coral_Rescue", "Coral_Rescue ", "wonder_pop", "WONDER_POP" })
+            {
+                Assert.IsFalse(PresentationAnalyticsGate.CanRecordEvent(gameId, default(PresentationRecord), default(PresentationAnalyticsPolicy), out var reason));
+                Assert.AreEqual("UnknownGame", reason);
             }
         }
     }

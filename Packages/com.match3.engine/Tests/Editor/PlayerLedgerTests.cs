@@ -100,6 +100,8 @@ namespace Match3.Engine.Tests.Editor
         public void Gate_RequiresServerSync_AlwaysTrue()
         {
             Assert.IsTrue(PlayerLedgerGate.RequiresServerSync(LedgerPolicy.Default));
+            // default(LedgerPolicy) is normalized to the safe value (server sync required).
+            Assert.IsTrue(PlayerLedgerGate.RequiresServerSync(default(LedgerPolicy)));
         }
 
         // PlayerWallet tests

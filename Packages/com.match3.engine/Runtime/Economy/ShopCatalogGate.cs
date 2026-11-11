@@ -85,8 +85,9 @@ namespace Match3.Engine.Runtime.Economy
             return EligibilityResult.Eligible();
         }
 
+        // default(ShopCatalogPolicy) (no description) is treated as Default: the store price is authoritative.
         public static bool IsPlatformPriceAuthoritative(ShopCatalogPolicy policy) =>
-            policy.PlatformTaxHandledByStore;
+            policy.PolicyDescription == null || policy.PlatformTaxHandledByStore;
 
         public static bool CanShowNoAds(string gameId, ShopCatalogPolicy policy)
         {
