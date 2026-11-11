@@ -28,6 +28,83 @@ namespace Match3.Engine.Tests.Editor
 
         private static TrustedUtcAnchor At(DateTime utc) => TrustedUtcAnchor.Server(utc);
 
+        private static VerifiedProgressionResult Won(string id, string game = "Coral_Rescue", bool won = true,
+            bool verified = true, string profile = Player) =>
+            new VerifiedProgressionResult(id, game, profile, "classic", "lvl.1", "lvl.1", won, false, true,
+                100, won ? 1 : 0, 1, 0, "2026-W43", verified);
+
+        // A verified win completed at the server-anchored instant `at`.
+        private static RewardLedgerGrantResult Win(ComebackCatchUpService s, DateTime at, string id, string game = "Coral_Rescue") =>
+            s.RecordWin(At(at), Won(id, game), at);
+
+        [Test]
+        public void RecordWin_RequiresVerifiedWonOwnResultCompletedInsideWindow()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            var now = At(Return.AddHours(2));
+            var at = Return.AddHours(1);
+#pragma warning disable CS0618
+            Assert.That(s.RecordWin(now, "win-1").Reason, Is.EqualTo(C.VerifiedWinRequired), "string overload fails closed");
+#pragma warning restore CS0618
+            Assert.That(s.RecordWin(now, null, at).Reason, Is.EqualTo(C.UnverifiedWin));
+            Assert.That(s.RecordWin(now, Won("x", verified: false), at).Reason, Is.EqualTo(C.UnverifiedWin));
+            Assert.That(s.RecordWin(now, Won("x", won: false), at).Reason, Is.EqualTo(C.NotAWin));
+            Assert.That(s.RecordWin(now, Won("x", profile: "player-2"), at).Reason, Is.EqualTo(C.WinOwnerMismatch));
+            Assert.That(s.RecordWin(now, Won("x", game: "Dino_Islands"), at).Reason, Is.EqualTo(C.WinOwnerMismatch));
+            Assert.That(s.RecordWin(now, Won("x"), Return.AddHours(-1)).Reason, Is.EqualTo(C.CompletionOutsideWindow), "before window");
+            Assert.That(s.RecordWin(now, Won("x"), Return.AddHours(3)).Reason, Is.EqualTo(C.CompletionOutsideWindow), "after server now");
+            Assert.That(s.RecordWin(now, Won("x"), new DateTime(2026, 10, 21, 11, 0, 0, DateTimeKind.Local)).Reason, Is.EqualTo(C.NonUtcTime));
+            Assert.That(ledger.Count, Is.EqualTo(0));
+            var ok = s.RecordWin(now, Won("x"), at);
+            Assert.That(ok.Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
+            Assert.That(ok.Record.Reference, Is.EqualTo("x"), "result id is the ledger reference");
+            Assert.That(s.RecordWin(At(Return.AddHours(3)), Won("x"), at).Outcome, Is.EqualTo(RewardLedgerOutcome.Duplicate));
+        }
+
+        [Test]
+        public void PersistedState_Validated_EditedFreshWindowCannotOpenMoreGrants()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            for (var i = 1; i <= 3; i++) Win(s, Return.AddHours(i), "win-" + i);
+            ComebackCatchUpService Restore(CatchUpWindowState st) =>
+                new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, st);
+
+            // Edited state: a fresh windowId (absence one day after the recorded one) with no ledger evidence.
+            var fresh = LastActive.AddDays(1);
+            var edited = new CatchUpWindowState("w" + fresh.Ticks, Return.AddDays(1), Return.AddDays(8), false);
+            Assert.Throws<ArgumentException>(() => Restore(edited));
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("bogus", Return, Return.AddDays(7), false)));
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w0" + LastActive.Ticks, Return, Return.AddDays(7), false)));
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w" + LastActive.Ticks, LastActive.AddDays(5),
+                LastActive.AddDays(12), false)), "opened before the absence was genuine");
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w" + LastActive.Ticks, Return, Return.AddDays(8), false)),
+                "longer than the policy window");
+            Assert.That(ledger.Count, Is.EqualTo(3));
+            Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(300));
+
+            // The genuine persisted state restores fine and stays capped.
+            var restored = Restore(s.State);
+            Assert.That(Win(restored, Return.AddHours(5), "win-9").Reason, Is.EqualTo(C.WinCapReached));
+        }
+
+        [Test]
+        public void PersistedState_SignalDerivedFromLedgerHistory_OnRestore()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            Win(s, Return.AddHours(1), "win-1");
+            var unsent = new CatchUpWindowState(s.State.WindowId, s.State.OpenedUtc, s.State.EndsUtc, false);
+            var restored = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, unsent);
+            Assert.That(restored.State.SignalSent, Is.True);
+            Assert.That(restored.Evaluate(At(Return.AddHours(2)), Last).EmitEligibleSignal, Is.False);
+            // Without ledger evidence the persisted flag is authoritative.
+            var notYet = new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false,
+                new CatchUpWindowState("w" + LastActive.Ticks, Return, Return.AddDays(7), false));
+            Assert.That(notYet.Evaluate(At(Return.AddHours(1)), Last).EmitEligibleSignal, Is.True);
+        }
+
         [Test]
         public void GenuineAbsence_OpensWindow_TransparentExplanation_SignalOnce()
         {
@@ -68,7 +145,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(s.Evaluate(At(Return), default(TrustedUtcAnchor)).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
             Assert.That(s.State, Is.Null);
             s.Evaluate(At(Return), Last);
-            Assert.That(s.RecordWin(TrustedUtcAnchor.DeviceClock(Return.AddHours(1)), "win-1").Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
+            Assert.That(s.RecordWin(TrustedUtcAnchor.DeviceClock(Return.AddHours(1)), Won("win-1"), Return.AddHours(1)).Reason, Is.EqualTo(C.TrustedTimeAnchorRequired));
             Assert.That(ledger.Count, Is.EqualTo(0));
         }
 
@@ -87,7 +164,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(s.Evaluate(At(LastActive.AddDays(-1)), Last).Reason, Is.EqualTo(C.ClockRollbackDetected));
             s.Evaluate(At(Return), Last);
             Assert.That(s.Evaluate(At(Return.AddDays(-1)), Last).Reason, Is.EqualTo(C.ClockRollbackDetected));
-            Assert.That(s.RecordWin(At(Return.AddDays(-1)), "win-1").Reason, Is.EqualTo(C.ClockRollbackDetected));
+            Assert.That(Win(s, Return.AddDays(-1), "win-1").Reason, Is.EqualTo(C.ClockRollbackDetected));
             Assert.That(ledger.Count, Is.EqualTo(0));
         }
 
@@ -97,11 +174,11 @@ namespace Match3.Engine.Tests.Editor
             var s = Service(out var ledger);
             s.Evaluate(At(Return), Last);
             for (var i = 1; i <= 3; i++)
-                Assert.That(s.RecordWin(At(Return.AddHours(i)), "win-" + i).Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
-            var replay = s.RecordWin(At(Return.AddHours(5)), "win-2");
+                Assert.That(Win(s, Return.AddHours(i), "win-" + i).Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
+            var replay = Win(s, Return.AddHours(5), "win-2");
             Assert.That(replay.Outcome, Is.EqualTo(RewardLedgerOutcome.Duplicate));
             Assert.That(replay.Record.GrantedUtc, Is.EqualTo(Return.AddHours(2)));
-            Assert.That(s.RecordWin(At(Return.AddHours(6)), "win-4").Reason, Is.EqualTo(C.WinCapReached));
+            Assert.That(Win(s, Return.AddHours(6), "win-4").Reason, Is.EqualTo(C.WinCapReached));
             Assert.That(ledger.Count, Is.EqualTo(3));
             Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(300));
             Assert.That(ledger.Balance(CurrencyType.Boosters), Is.EqualTo(3));
@@ -117,8 +194,8 @@ namespace Match3.Engine.Tests.Editor
         {
             var s = Service(out var ledger);
             s.Evaluate(At(Return), Last);
-            s.RecordWin(At(Return.AddHours(1)), "win-1");
-            Assert.That(s.RecordWin(At(Return.AddDays(7)), "win-2").Reason, Is.EqualTo(C.WindowExpired));
+            Win(s, Return.AddHours(1), "win-1");
+            Assert.That(Win(s, Return.AddDays(7), "win-2").Reason, Is.EqualTo(C.WindowExpired));
             Assert.That(s.Evaluate(At(Return.AddDays(30)), Last).Reason, Is.EqualTo(C.NewAbsenceRequired));
             // Player was active during the window, then absent again for 13 days: not yet genuine.
             var active2 = Return.AddDays(2);
@@ -127,7 +204,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active));
             Assert.That(e.EmitEligibleSignal, Is.True);
             Assert.That(e.Explanation.RemainingWins, Is.EqualTo(3));
-            Assert.That(s.RecordWin(At(active2.AddDays(15).AddHours(1)), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied),
+            Assert.That(Win(s, active2.AddDays(15).AddHours(1), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied),
                 "win ids are scoped per window");
             Assert.That(ledger.Count, Is.EqualTo(2));
         }
@@ -137,8 +214,8 @@ namespace Match3.Engine.Tests.Editor
         {
             var s = Service(out var ledger);
             s.Evaluate(At(Return), Last);
-            s.RecordWin(At(Return.AddHours(1)), "win-1");
-            s.RecordWin(At(Return.AddHours(2)), "win-2");
+            Win(s, Return.AddHours(1), "win-1");
+            Win(s, Return.AddHours(2), "win-2");
             var cloud = RewardLedger.FromSnapshot(ledger.ToSnapshot()).Ledger;
 
             // Policy window length changed since: the pinned window must not move.
@@ -150,9 +227,9 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(e.Explanation.WinsEarned, Is.EqualTo(2));
             Assert.That(e.Explanation.WindowEndsUtc, Is.EqualTo(Return.AddDays(7)), "window not extended by reinstall");
             Assert.That(reinstalled.State.OpenedUtc, Is.EqualTo(Return.AddHours(1)), "start = earliest recorded win");
-            Assert.That(reinstalled.RecordWin(At(Return.AddDays(3)), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Duplicate));
-            Assert.That(reinstalled.RecordWin(At(Return.AddDays(3)), "win-3").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
-            Assert.That(reinstalled.RecordWin(At(Return.AddDays(3)), "win-4").Reason, Is.EqualTo(C.WinCapReached));
+            Assert.That(Win(reinstalled, Return.AddDays(3), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Duplicate));
+            Assert.That(Win(reinstalled, Return.AddDays(3), "win-3").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
+            Assert.That(Win(reinstalled, Return.AddDays(3), "win-4").Reason, Is.EqualTo(C.WinCapReached));
             Assert.That(cloud.Balance(CurrencyType.Coins), Is.EqualTo(300));
 
             // Reinstall after the window ended: the window is closed, not re-opened.
@@ -166,7 +243,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var s = Service(out var ledger);
             s.Evaluate(At(Return), Last);
-            s.RecordWin(At(Return.AddHours(1)), "win-1");
+            Win(s, Return.AddHours(1), "win-1");
             // Local state lost; a forged "server" last-active value is presented to get a fresh windowId.
             foreach (var forged in new[] { LastActive.AddDays(-30), LastActive.AddDays(-1), LastActive.AddDays(1), LastActive.AddDays(7) })
             {
@@ -174,7 +251,7 @@ namespace Match3.Engine.Tests.Editor
                 var e = fresh.Evaluate(At(Return.AddDays(1)), At(forged));
                 Assert.That(e.Reason, Is.EqualTo(C.RecentCatchUpWindow), forged.ToString("o"));
                 Assert.That(e.EmitEligibleSignal, Is.False);
-                Assert.That(fresh.RecordWin(At(Return.AddDays(1)), "forged-win").Reason, Is.EqualTo(C.NoActiveWindow));
+                Assert.That(Win(fresh, Return.AddDays(1), "forged-win").Reason, Is.EqualTo(C.NoActiveWindow));
             }
             Assert.That(ledger.Count, Is.EqualTo(1));
             // A genuine later absence (>= latest recorded absence + threshold, and a full threshold ago) is allowed.
@@ -188,7 +265,7 @@ namespace Match3.Engine.Tests.Editor
         {
             var s = Service(out var ledger);
             s.Evaluate(At(Return), Last);
-            s.RecordWin(At(Return.AddHours(1)), "win-1");
+            Win(s, Return.AddHours(1), "win-1");
             Assert.That(ledger.Prune(At(Return.AddDays(400))), Is.EqualTo(1));
             var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false);
             Assert.That(fresh.Evaluate(At(Return.AddDays(400)), At(LastActive.AddDays(5))).Reason, Is.EqualTo(C.RecentCatchUpWindow));
@@ -221,7 +298,7 @@ namespace Match3.Engine.Tests.Editor
                 Assert.That(e.EmitEligibleSignal, Is.False);
                 Assert.That(e.Explanation, Is.Null);
                 Assert.That(s.State, Is.Null);
-                Assert.That(s.RecordWin(At(Return), "win-1").Reason, Is.EqualTo(C.ChildProfileOff));
+                Assert.That(Win(s, Return, "win-1").Reason, Is.EqualTo(C.ChildProfileOff));
                 Assert.That(ledger.Count, Is.EqualTo(0));
             }
         }
@@ -234,7 +311,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active), e.Reason);
             Assert.That(e.EmitEligibleSignal, Is.False);
             Assert.That(s.Evaluate(At(Return.AddHours(1)), Last).EmitEligibleSignal, Is.False);
-            Assert.That(s.RecordWin(At(Return.AddHours(2)), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
+            Assert.That(Win(s, Return.AddHours(2), "win-1", "Wonder_Pop").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
             Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(100));
             Assert.That(ledger.Balance(CurrencyType.PremiumGems), Is.EqualTo(0));
         }
@@ -248,7 +325,7 @@ namespace Match3.Engine.Tests.Editor
                 var e = s.Evaluate(At(Return), Last);
                 Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Off), id);
                 Assert.That(e.Reason, Is.EqualTo(C.FeatureDisabled));
-                Assert.That(s.RecordWin(At(Return), "win-1").Reason, Is.EqualTo(C.FeatureDisabled));
+                Assert.That(Win(s, Return, "win-1").Reason, Is.EqualTo(C.FeatureDisabled));
                 Assert.That(ledger.Count, Is.EqualTo(0));
             }
         }
