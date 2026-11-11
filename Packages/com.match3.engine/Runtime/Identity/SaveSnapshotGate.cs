@@ -71,6 +71,9 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class SaveSnapshotGate
     {
+        private static SaveSchemaPolicy Normalize(SaveSchemaPolicy policy) =>
+            policy.PolicyDescription == null ? SaveSchemaPolicy.Default : policy;
+
         public readonly struct EligibilityResult
         {
             public bool IsEligible { get; }
@@ -94,10 +97,10 @@ namespace Match3.Engine.Runtime.Identity
         }
 
         public static bool RequiresServerEntitlements(SaveSchemaPolicy policy) =>
-            policy.EntitlementsServerOnly;
+            Normalize(policy).EntitlementsServerOnly;
 
         public static bool IsSchemaCompatible(SaveSnapshot snapshot, SaveSchemaPolicy policy) =>
-            snapshot.SchemaVersion <= policy.CurrentSchemaVersion;
+            snapshot.SchemaVersion <= Normalize(policy).CurrentSchemaVersion;
     }
 
     public sealed class SaveRevisionLog

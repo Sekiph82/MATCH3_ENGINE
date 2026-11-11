@@ -121,7 +121,7 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanEnqueue_WonderPop_LowercaseNotBlocked()
         {
-            var entry = OfflineEntry.Create("GameA", QueuedOperation.SaveSync, 1);
+            var entry = OfflineEntry.Create("wonder_pop", QueuedOperation.SaveSync, 1);
             var policy = OfflineQueuePolicy.Default;
             var result = OfflineQueueGate.CanEnqueue("wonder_pop", entry, policy);
             Assert.IsTrue(result.IsEligible);
@@ -263,6 +263,36 @@ namespace Match3.Engine.Tests.Editor
         {
             var q = new OfflineQueue();
             Assert.AreEqual(0, q.Count);
+        }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var entry = OfflineEntry.Create("GameA", QueuedOperation.EntitlementGrant, 1);
+            var expected = OfflineQueueGate.CanEnqueue("GameA", entry, OfflineQueuePolicy.Default);
+            var result = OfflineQueueGate.CanEnqueue("GameA", entry, default(OfflineQueuePolicy));
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual(expected.Reason, result.Reason);
+            Assert.AreEqual("EntitlementQueueDisabled", result.Reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var entry = OfflineEntry.Create("Wonder_Pop", QueuedOperation.SaveSync, 1);
+            var result = OfflineQueueGate.CanEnqueue("Coral_Rescue", entry, OfflineQueuePolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var entry = OfflineEntry.Create("Coral_Rescue", QueuedOperation.SaveSync, 1);
+            var result = OfflineQueueGate.CanEnqueue("Wonder_Pop", entry, OfflineQueuePolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
         }
     }
 }

@@ -63,8 +63,13 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class DeletionFlowGate
     {
+        private static DeletionPolicy Normalize(DeletionPolicy policy) =>
+            policy.PolicyDescription == null ? DeletionPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanInitiateDeletion(string gameId, DeletionPolicy policy)
         {
+            policy = Normalize(policy);
+
             // Guard 1 (FIRST): Wonder_Pop Ordinal check
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopDeletionProhibited");
@@ -77,7 +82,7 @@ namespace Match3.Engine.Runtime.Identity
         }
 
         public static bool RequiresConfirmation(DeletionPolicy policy) =>
-            policy.RequireExplicitConfirmation;
+            Normalize(policy).RequireExplicitConfirmation;
 
         public static bool IsFullScopeDeletion(DeletionRequest request) =>
             request.IsFullDeletion;
@@ -92,6 +97,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public void Record(DeletionRequest request, bool confirmed, string reason)
         {
+            if (string.IsNullOrEmpty(request.GameId))
+                throw new ArgumentException("Request GameId must not be null or empty.", nameof(request));
             if (string.IsNullOrEmpty(reason))
                 throw new ArgumentException("reason must not be null or empty.", nameof(reason));
             _entries.Add((request, confirmed, reason));

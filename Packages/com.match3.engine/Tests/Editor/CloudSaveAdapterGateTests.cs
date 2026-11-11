@@ -242,5 +242,22 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.IsFalse(log.HasEntry("GameY"));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var result = CloudSaveAdapterGate.CanWriteToCloud("GameA", default(CloudSavePolicy));
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual(CloudSaveAdapterGate.CanWriteToCloud("GameA", CloudSavePolicy.Default).Reason, result.Reason);
+            Assert.IsTrue(CloudSaveAdapterGate.RequiresTokenValidation(default(CloudSavePolicy)));
+        }
+
+        [Test]
+        public void CloudSaveLog_Record_DefaultToken_Throws()
+        {
+            var log = new CloudSaveLog();
+            Assert.Throws<ArgumentException>(() => log.Record(default(CloudSaveToken), false, "r"));
+        }
     }
 }

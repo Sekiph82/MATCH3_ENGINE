@@ -94,11 +94,6 @@ namespace Match3.Engine.Tests.Editor
         public void CanActivateDebug_WonderPopLowercase_NotBlocked()
         {
             var session = DebugSession.Create("wonder_pop", DebugMode.EventInspector, true);
-            var policy = new DebugPolicy(); // AllowDebugInProduction=false, RequireTestDeviceFlag=false by default struct
-            // Use a policy that allows eligible
-            var policyAllow = new DebugPolicy();
-            // Build a policy with AllowDebugInProduction=false, RequireTestDeviceFlag=false via reflection is tricky
-            // Use Safe but set isTestDevice=true so both guards pass
             var policyDesc = DebugPolicy.Safe("test");
             var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("wonder_pop", session, policyDesc);
             // isTestDevice=true satisfies both guard 3 and 4
@@ -244,6 +239,34 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(p.AllowDebugInProduction);
             Assert.IsTrue(p.RequireTestDeviceFlag);
             Assert.AreEqual("Debug tooling disabled in production; test device flag required", p.PolicyDescription);
+        }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var (e1, expected) = TelemetryDebugGate.CanActivateDebug("GameA", DebugSession.Create("GameA", DebugMode.EventInspector, false), DebugPolicy.Default);
+            var (e2, reason) = TelemetryDebugGate.CanActivateDebug("GameA", DebugSession.Create("GameA", DebugMode.EventInspector, false), default(DebugPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("ProductionDebugNotAllowed", reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Coral_Rescue", DebugSession.Create("Wonder_Pop", DebugMode.EventInspector, true), DebugPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var (eligible, reason) = TelemetryDebugGate.CanActivateDebug("Wonder_Pop", DebugSession.Create("Coral_Rescue", DebugMode.EventInspector, true), DebugPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
         }
     }
 }

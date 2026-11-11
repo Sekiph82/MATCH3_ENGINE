@@ -203,5 +203,24 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() =>
                 ledger.RecordPending(FulfillmentRecord.Pending("order-1", "GameA")));
         }
+
+
+        // FulfillmentGate has no policy (record-only gate): no DefaultStructPolicy test applies.
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var record = FulfillmentRecord.Pending("order-1", "Wonder_Pop");
+            Assert.IsFalse(FulfillmentGate.CanGrantReward("Coral_Rescue", record));
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = FulfillmentRecord.Pending("order-1", "Coral_Rescue");
+            Assert.IsFalse(FulfillmentGate.CanGrantReward("Wonder_Pop", record));
+            // Control: matching game id with the same pending record is grantable
+            Assert.IsTrue(FulfillmentGate.CanGrantReward("Coral_Rescue", record));
+        }
     }
 }

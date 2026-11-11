@@ -180,5 +180,21 @@ namespace Match3.Engine.Tests.Editor
             var log = new LinkAuditLog();
             Assert.IsFalse(log.HasEntry("NeverRecorded"));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_NormalizedToDefault_UserWarningRequired()
+        {
+            Assert.IsTrue(AccountLinkGate.MustWarnUser(default(AccountLinkPolicy)));
+            Assert.AreEqual(AccountLinkGate.CanLink("GameA", AccountLinkPolicy.Default).Reason,
+                AccountLinkGate.CanLink("GameA", default(AccountLinkPolicy)).Reason);
+        }
+
+        [Test]
+        public void LinkAuditLog_Record_DefaultRequest_Throws()
+        {
+            var log = new LinkAuditLog();
+            Assert.Throws<ArgumentException>(() => log.Record(default(LinkRequest), false, "r"));
+        }
     }
 }

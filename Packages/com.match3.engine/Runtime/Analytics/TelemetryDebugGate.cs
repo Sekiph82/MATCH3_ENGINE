@@ -62,9 +62,17 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class TelemetryDebugGate
     {
+        private static DebugPolicy Normalize(DebugPolicy policy) =>
+            policy.PolicyDescription == null ? DebugPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanActivateDebug(string gameId, DebugSession session, DebugPolicy policy)
         {
-            // Guard 1: Wonder_Pop ordinal check — structurally first
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, session.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Guard 1: Wonder_Pop ordinal check — first after the GameIdMismatch guard
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopDebugProhibited");
 
@@ -108,7 +116,7 @@ namespace Match3.Engine.Runtime.Analytics
         public bool HasEntry(string gameId)
         {
             foreach (var e in _entries)
-                if (e.gameId == gameId) return true;
+                if (string.Equals(e.gameId, gameId, StringComparison.Ordinal)) return true;
             return false;
         }
     }

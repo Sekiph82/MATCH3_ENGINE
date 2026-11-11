@@ -69,10 +69,18 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class CrashTelemetryGate
     {
+        private static CrashTelemetryPolicy Normalize(CrashTelemetryPolicy policy) =>
+            policy.PolicyDescription == null ? CrashTelemetryPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanReportCrash(
             string gameId, CrashReport report, CrashTelemetryPolicy policy)
         {
-            // Guard 1: Wonder_Pop is always ineligible (Ordinal, structurally first)
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, report.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Guard 1: Wonder_Pop is always ineligible (Ordinal, first after the GameIdMismatch guard)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopCrashProhibited");
 

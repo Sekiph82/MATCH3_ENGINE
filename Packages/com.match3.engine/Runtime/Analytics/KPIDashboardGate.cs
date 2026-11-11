@@ -55,10 +55,18 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class KPIDashboardGate
     {
+        private static DashboardPolicy Normalize(DashboardPolicy policy) =>
+            policy.PolicyDescription == null ? DashboardPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanPublishDashboard(
             string gameId, DashboardSpec spec, DashboardPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop is structurally first
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, spec.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Guard 1 (after GameIdMismatch): Wonder_Pop blocked first after the GameIdMismatch guard
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopDashboardProhibited");
 
@@ -97,7 +105,7 @@ namespace Match3.Engine.Runtime.Analytics
         public bool HasEntry(string gameId)
         {
             foreach (var e in _entries)
-                if (e.gameId == gameId) return true;
+                if (string.Equals(e.gameId, gameId, StringComparison.Ordinal)) return true;
             return false;
         }
     }

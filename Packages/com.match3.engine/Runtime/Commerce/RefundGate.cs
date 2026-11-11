@@ -77,19 +77,28 @@ namespace Match3.Engine.Runtime.Commerce
 
     public static class RefundGate
     {
+        private static RefundPolicy Normalize(RefundPolicy policy) =>
+            policy.PolicyDescription == null ? RefundPolicy.Default : policy;
+
         // ponytail: ordinal string compare; switch to hash-set if game list grows beyond ~20
         private const string WonderPopId = "Wonder_Pop";
 
         /// <summary>
         /// Determines whether an entitlement should be revoked.
         /// Guard order is structurally enforced:
+        ///   0. gameId must equal record.GameId (Ordinal), else never revoke.
         ///   1. Wonder_Pop never revokes (child-safety / policy).
         ///   2. Policy must permit revocation.
         ///   3. Record must be in an actionable state.
         /// </summary>
         public static bool ShouldRevokeEntitlement(string gameId, RefundRecord record, RefundPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop never has entitlements to revoke
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+                return false;
+
+            // Guard 1 (after GameIdMismatch): Wonder_Pop never has entitlements to revoke
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return false;
 
@@ -106,7 +115,7 @@ namespace Match3.Engine.Runtime.Commerce
 
         /// <summary>Always returns policy.RequireServerReconciliation (always true from factory).</summary>
         public static bool RequiresServerReconciliation(RefundPolicy policy) =>
-            policy.RequireServerReconciliation;
+            Normalize(policy).RequireServerReconciliation;
 
         /// <summary>Rejected or Reconciled are terminal states.</summary>
         public static bool IsRefundTerminal(RefundStatus status) =>
@@ -118,6 +127,8 @@ namespace Match3.Engine.Runtime.Commerce
         /// </summary>
         public static void AssertReconciliationRequired(RefundPolicy policy)
         {
+            policy = Normalize(policy);
+
             if (!policy.RequireServerReconciliation)
                 throw new InvalidOperationException(
                     "Policy does not require server reconciliation; this violates the fail-closed contract.");

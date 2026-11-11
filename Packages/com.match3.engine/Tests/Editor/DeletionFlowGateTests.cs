@@ -246,5 +246,21 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual(3, log.Count);
             Assert.IsTrue(log.HasEntry("GameB"));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_NormalizedToDefault_ConfirmationRequired()
+        {
+            Assert.IsTrue(DeletionFlowGate.RequiresConfirmation(default(DeletionPolicy)));
+            Assert.AreEqual(DeletionFlowGate.CanInitiateDeletion("GameA", DeletionPolicy.Default),
+                DeletionFlowGate.CanInitiateDeletion("GameA", default(DeletionPolicy)));
+        }
+
+        [Test]
+        public void DeletionAuditLog_Record_DefaultRequest_Throws()
+        {
+            var log = new DeletionAuditLog();
+            Assert.Throws<ArgumentException>(() => log.Record(default(DeletionRequest), false, "r"));
+        }
     }
 }

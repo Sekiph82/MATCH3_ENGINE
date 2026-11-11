@@ -74,10 +74,18 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class RevenueTelemetryGate
     {
+        private static RevenueTelemetryPolicy Normalize(RevenueTelemetryPolicy policy) =>
+            policy.PolicyDescription == null ? RevenueTelemetryPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanRecordRevenue(
             string gameId, RevenueEvent revenueEvent, RevenueTelemetryPolicy policy)
         {
-            // Guard 1: Wonder_Pop is always ineligible (Ordinal, structurally first)
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, revenueEvent.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Guard 1: Wonder_Pop is always ineligible (Ordinal, first after the GameIdMismatch guard)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopRevenueProhibited");
 

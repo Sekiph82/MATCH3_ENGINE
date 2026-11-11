@@ -216,5 +216,12 @@ namespace Match3.Engine.Tests.Editor
             log.Record(SaveSnapshot.Create("b", 1, 0));
             Assert.AreEqual(2, log.Count);
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_NormalizedToDefault_EntitlementsServerOnly()
+        {
+            Assert.IsTrue(SaveSnapshotGate.RequiresServerEntitlements(default(SaveSchemaPolicy)));
+        }
     }
 }

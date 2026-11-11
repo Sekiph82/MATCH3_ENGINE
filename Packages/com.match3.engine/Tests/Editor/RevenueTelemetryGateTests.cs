@@ -285,5 +285,33 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.IsFalse(log.HasEntry("GameJ"));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var (e1, expected) = RevenueTelemetryGate.CanRecordRevenue("GameA", RevenueEvent.Create("GameA", RevenueType.AdImpression, true), RevenueTelemetryPolicy.Default);
+            var (e2, reason) = RevenueTelemetryGate.CanRecordRevenue("GameA", RevenueEvent.Create("GameA", RevenueType.AdImpression, true), default(RevenueTelemetryPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("AdRevenueTelemetryDisabled", reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Coral_Rescue", RevenueEvent.Create("Wonder_Pop", RevenueType.IapPurchase, true), RevenueTelemetryPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var (eligible, reason) = RevenueTelemetryGate.CanRecordRevenue("Wonder_Pop", RevenueEvent.Create("Coral_Rescue", RevenueType.IapPurchase, true), RevenueTelemetryPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

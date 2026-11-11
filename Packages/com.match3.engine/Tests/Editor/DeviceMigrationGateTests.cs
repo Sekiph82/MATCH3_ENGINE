@@ -252,5 +252,21 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(log.HasEntry("GameB"));
             Assert.IsFalse(log.HasEntry("GameC"));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_NormalizedToDefault_CloudVerificationRequired()
+        {
+            Assert.IsTrue(DeviceMigrationGate.RequiresCloudVerification(default(MigrationPolicy)));
+            Assert.AreEqual(DeviceMigrationGate.CanMigrate("GameA", MigrationPolicy.Default).Reason,
+                DeviceMigrationGate.CanMigrate("GameA", default(MigrationPolicy)).Reason);
+        }
+
+        [Test]
+        public void MigrationAuditLog_Record_DefaultContext_Throws()
+        {
+            var log = new MigrationAuditLog();
+            Assert.Throws<ArgumentException>(() => log.Record(default(MigrationContext), false, "r"));
+        }
     }
 }

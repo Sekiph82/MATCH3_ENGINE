@@ -227,5 +227,33 @@ namespace Match3.Engine.Tests.Editor
             var log = new DashboardLog();
             Assert.Throws<ArgumentException>(() => log.Record(string.Empty, DashboardScope.PerGame));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var (e1, expected) = KPIDashboardGate.CanPublishDashboard("GameA", DashboardSpec.Create("GameA", DashboardScope.PerGame, true), DashboardPolicy.Default);
+            var (e2, reason) = KPIDashboardGate.CanPublishDashboard("GameA", DashboardSpec.Create("GameA", DashboardScope.PerGame, true), default(DashboardPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("RevenueDashboardDisabled", reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var (eligible, reason) = KPIDashboardGate.CanPublishDashboard("Coral_Rescue", DashboardSpec.Create("Wonder_Pop", DashboardScope.PerGame, false), DashboardPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var (eligible, reason) = KPIDashboardGate.CanPublishDashboard("Wonder_Pop", DashboardSpec.Create("Coral_Rescue", DashboardScope.PerGame, false), DashboardPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

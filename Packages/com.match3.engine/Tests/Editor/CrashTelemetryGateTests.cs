@@ -260,5 +260,33 @@ namespace Match3.Engine.Tests.Editor
             log.Clear();
             Assert.IsFalse(log.HasEntry("GameJ"));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var (e1, expected) = CrashTelemetryGate.CanReportCrash("GameA", CrashReport.Create("GameA", CrashSeverity.Fatal, true), CrashTelemetryPolicy.Default);
+            var (e2, reason) = CrashTelemetryGate.CanReportCrash("GameA", CrashReport.Create("GameA", CrashSeverity.Fatal, true), default(CrashTelemetryPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("CrashReportingDisabled", reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("Coral_Rescue", CrashReport.Create("Wonder_Pop", CrashSeverity.Fatal, true), CrashTelemetryPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var (eligible, reason) = CrashTelemetryGate.CanReportCrash("Wonder_Pop", CrashReport.Create("Coral_Rescue", CrashSeverity.Fatal, true), CrashTelemetryPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

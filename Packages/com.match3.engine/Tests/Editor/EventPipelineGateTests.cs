@@ -248,5 +248,38 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(p.AllowRemoteFlush);
             Assert.IsNotEmpty(p.PolicyDescription);
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var batch = PipelineBatch.Create("GameA", PipelineBackend.Remote, 10);
+            var expected = EventPipelineGate.CanFlushBatch("GameA", batch, PipelinePolicy.Default);
+            var result = EventPipelineGate.CanFlushBatch("GameA", batch, default(PipelinePolicy));
+            Assert.IsFalse(expected.IsEligible);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual(expected.Reason, result.Reason);
+            Assert.AreEqual("RemoteFlushDisabled", result.Reason);
+            Assert.AreEqual(EventPipelineGate.IsWithinBatchLimit(batch, PipelinePolicy.Default),
+                EventPipelineGate.IsWithinBatchLimit(batch, default(PipelinePolicy)));
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var batch = PipelineBatch.Create("Wonder_Pop", PipelineBackend.LocalBuffer, 1);
+            var result = EventPipelineGate.CanFlushBatch("Coral_Rescue", batch, PipelinePolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var batch = PipelineBatch.Create("Coral_Rescue", PipelineBackend.LocalBuffer, 1);
+            var result = EventPipelineGate.CanFlushBatch("Wonder_Pop", batch, PipelinePolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
     }
 }

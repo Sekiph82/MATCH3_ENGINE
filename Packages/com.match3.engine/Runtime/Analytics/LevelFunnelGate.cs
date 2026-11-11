@@ -74,10 +74,18 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class LevelFunnelGate
     {
+        private static FunnelPolicy Normalize(FunnelPolicy policy) =>
+            policy.PolicyDescription == null ? FunnelPolicy.Default : policy;
+
         public static (bool eligible, string reason) CanTrackAttempt(
             string gameId, LevelAttempt attempt, FunnelPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop ordinal check
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, attempt.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Guard 1 (after GameIdMismatch): Wonder_Pop ordinal check
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return (false, "WonderPopFunnelProhibited");
 
@@ -90,7 +98,7 @@ namespace Match3.Engine.Runtime.Analytics
 
         public static bool IsCompletionAttempt(LevelAttempt attempt) => attempt.WasCompleted;
 
-        public static bool RequiresBoosterMetrics(FunnelPolicy policy) => policy.IncludeBoosterMetrics;
+        public static bool RequiresBoosterMetrics(FunnelPolicy policy) => Normalize(policy).IncludeBoosterMetrics;
     }
 
     public sealed class FunnelAccumulator

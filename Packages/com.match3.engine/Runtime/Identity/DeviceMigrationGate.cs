@@ -78,8 +78,13 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class DeviceMigrationGate
     {
+        private static MigrationPolicy Normalize(MigrationPolicy policy) =>
+            policy.PolicyDescription == null ? MigrationPolicy.Default : policy;
+
         public static MigrationEligibility CanMigrate(string gameId, MigrationPolicy policy)
         {
+            policy = Normalize(policy);
+
             // Guard 1 (FIRST): Wonder_Pop Ordinal check
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return MigrationEligibility.Ineligible("WonderPopMigrationProhibited");
@@ -92,7 +97,7 @@ namespace Match3.Engine.Runtime.Identity
         }
 
         public static bool RequiresCloudVerification(MigrationPolicy policy) =>
-            policy.RequireCloudVerification;
+            Normalize(policy).RequireCloudVerification;
 
         public static bool IsReinstallTrigger(MigrationContext context) =>
             context.IsReinstall;
@@ -107,6 +112,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public void Record(MigrationContext context, bool succeeded, string reason)
         {
+            if (string.IsNullOrEmpty(context.GameId))
+                throw new ArgumentException("Context GameId must not be null or empty.", nameof(context));
             if (string.IsNullOrEmpty(reason))
                 throw new ArgumentException("Reason must not be null or empty.", nameof(reason));
             _entries.Add((context, succeeded, reason));

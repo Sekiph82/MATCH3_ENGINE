@@ -86,9 +86,17 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class EventPipelineGate
     {
+        private static PipelinePolicy Normalize(PipelinePolicy policy) =>
+            policy.PolicyDescription == null ? PipelinePolicy.Default : policy;
+
         public static PipelineGateResult CanFlushBatch(string gameId, PipelineBatch batch, PipelinePolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop is structurally prohibited
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, batch.GameId, StringComparison.Ordinal))
+                return PipelineGateResult.Ineligible("GameIdMismatch");
+
+            // Guard 1 (after GameIdMismatch): Wonder_Pop is structurally prohibited
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return PipelineGateResult.Ineligible("WonderPopPipelineProhibited");
 
@@ -104,7 +112,7 @@ namespace Match3.Engine.Runtime.Analytics
         }
 
         public static bool IsWithinBatchLimit(PipelineBatch batch, PipelinePolicy policy)
-            => batch.BatchSize <= policy.MaxBatchSize;
+            => batch.BatchSize <= Normalize(policy).MaxBatchSize;
 
         public static bool RequiresRemoteProvider(PipelineBatch batch)
             => batch.IsRemote;

@@ -36,6 +36,9 @@ namespace Match3.Engine.Runtime.Commerce
     {
         public static bool CanGrantReward(string gameId, FulfillmentRecord record)
         {
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+                return false;
+
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return false;
             if (record.IsGranted)

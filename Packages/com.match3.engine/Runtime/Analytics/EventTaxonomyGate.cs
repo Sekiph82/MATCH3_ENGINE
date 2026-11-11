@@ -80,6 +80,9 @@ namespace Match3.Engine.Runtime.Analytics
 
     public static class EventTaxonomyGate
     {
+        private static EventTaxonomyPolicy Normalize(EventTaxonomyPolicy policy) =>
+            policy.PolicyDescription == null ? EventTaxonomyPolicy.Default : policy;
+
         private static (bool eligible, string reason) Ineligible(string reason) =>
             (false, reason);
 
@@ -89,7 +92,12 @@ namespace Match3.Engine.Runtime.Analytics
         public static (bool eligible, string reason) CanRecordEvent(
             string gameId, EventRecord record, EventTaxonomyPolicy policy)
         {
-            // Guard 1 (FIRST): Wonder_Pop analytics are always hard-blocked (Ordinal)
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, record.GameId, StringComparison.Ordinal))
+                return (false, "GameIdMismatch");
+
+            // Guard 1 (after GameIdMismatch): Wonder_Pop analytics are always hard-blocked (Ordinal)
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return Ineligible("WonderPopAnalyticsProhibited");
 
@@ -105,7 +113,7 @@ namespace Match3.Engine.Runtime.Analytics
         }
 
         public static bool IsSchemaCompatible(EventRecord record, EventTaxonomyPolicy policy) =>
-            record.SchemaVersion <= policy.CurrentSchemaVersion;
+            record.SchemaVersion <= Normalize(policy).CurrentSchemaVersion;
 
         public static bool IsRevenueEvent(EventRecord record) =>
             record.IsRevenueEvent;

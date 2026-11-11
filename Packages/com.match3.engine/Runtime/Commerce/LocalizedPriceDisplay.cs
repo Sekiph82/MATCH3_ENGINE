@@ -90,15 +90,18 @@ namespace Match3.Engine.Runtime.Commerce
 
     /// <summary>
     /// Gate: enforces store-owned price display policy, including per-game prohibitions.
-    /// Wonder_Pop price display is always prohibited (guard 1, structurally first).
+    /// Wonder_Pop price display is always prohibited (guard 1, first after the GameIdMismatch guard).
     /// </summary>
     public static class LocalizedPriceDisplayGate
     {
+        private static PriceDisplayPolicy Normalize(PriceDisplayPolicy policy) =>
+            policy.PolicyDescription == null ? PriceDisplayPolicy.Default : policy;
+
         private const string WonderPopId = "Wonder_Pop";
 
         /// <summary>
         /// Returns Eligible only when all guards pass.
-        /// Guard 1 (FIRST): Wonder_Pop -> always Ineligible("WonderPopPriceDisplayProhibited").
+        /// Guard 1 (after GameIdMismatch): Wonder_Pop -> always Ineligible("WonderPopPriceDisplayProhibited").
         /// Guard 2: price not available -> Ineligible("PriceUnavailableFromStore").
         /// Guard 3: currency code missing -> Ineligible("NoCurrencyCode").
         /// </summary>
@@ -107,7 +110,12 @@ namespace Match3.Engine.Runtime.Commerce
             LocalizedPrice price,
             PriceDisplayPolicy policy)
         {
-            // Guard 1 — Wonder_Pop always prohibited, checked first regardless of other state
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, price.GameId, StringComparison.Ordinal))
+                return AdEligibilityResult.Ineligible("GameIdMismatch");
+
+            // Guard 1 — Wonder_Pop always prohibited, checked right after the GameIdMismatch guard
             if (string.Equals(gameId, WonderPopId, StringComparison.Ordinal))
                 return AdEligibilityResult.Ineligible("WonderPopPriceDisplayProhibited");
 

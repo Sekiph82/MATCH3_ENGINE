@@ -73,9 +73,17 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class OfflineQueueGate
     {
+        private static OfflineQueuePolicy Normalize(OfflineQueuePolicy policy) =>
+            policy.PolicyDescription == null ? OfflineQueuePolicy.Default : policy;
+
         public static QueueEligibilityResult CanEnqueue(string gameId, OfflineEntry entry, OfflineQueuePolicy policy)
         {
-            // Guard 1 FIRST (CRITICAL): Wonder_Pop is prohibited — Ordinal exact match
+            policy = Normalize(policy);
+
+            if (!string.Equals(gameId, entry.GameId, StringComparison.Ordinal))
+                return new QueueEligibilityResult(false, "GameIdMismatch");
+
+            // Guard 1 (after GameIdMismatch) (CRITICAL): Wonder_Pop is prohibited — Ordinal exact match
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new QueueEligibilityResult(false, "WonderPopQueueProhibited");
 
@@ -87,7 +95,7 @@ namespace Match3.Engine.Runtime.Identity
         }
 
         public static bool IsAtCapacity(int currentDepth, OfflineQueuePolicy policy) =>
-            currentDepth >= policy.MaxQueueDepth;
+            currentDepth >= Normalize(policy).MaxQueueDepth;
 
         public static bool RequiresSync(OfflineEntry entry) =>
             entry.Operation == QueuedOperation.SaveSync;

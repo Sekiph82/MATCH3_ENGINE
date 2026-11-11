@@ -59,6 +59,9 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class AccountLinkGate
     {
+        private static AccountLinkPolicy Normalize(AccountLinkPolicy policy) =>
+            policy.PolicyDescription == null ? AccountLinkPolicy.Default : policy;
+
         public readonly struct CanLinkResult
         {
             public bool   IsEligible { get; }
@@ -68,6 +71,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public static CanLinkResult CanLink(string gameId, AccountLinkPolicy policy)
         {
+            policy = Normalize(policy);
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is never eligible for linking
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new CanLinkResult(false, "WonderPopLinkProhibited");
@@ -83,7 +88,7 @@ namespace Match3.Engine.Runtime.Identity
             conflict != LinkConflict.None;
 
         public static bool MustWarnUser(AccountLinkPolicy policy) =>
-            policy.RequireUserWarning;
+            Normalize(policy).RequireUserWarning;
     }
 
     public sealed class LinkAuditLog
@@ -95,6 +100,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public void Record(LinkRequest request, bool succeeded, string reason)
         {
+            if (string.IsNullOrEmpty(request.GameId))
+                throw new ArgumentException("Request GameId must not be null or empty.", nameof(request));
             if (string.IsNullOrEmpty(reason))
                 throw new ArgumentException("reason must not be null or empty.", nameof(reason));
             _entries.Add((request.GameId, succeeded, reason));
@@ -105,7 +112,7 @@ namespace Match3.Engine.Runtime.Identity
         public bool HasEntry(string gameId)
         {
             foreach (var e in _entries)
-                if (e.gameId == gameId) return true;
+                if (string.Equals(e.gameId, gameId, StringComparison.Ordinal)) return true;
             return false;
         }
     }

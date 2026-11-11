@@ -268,5 +268,33 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual(0, acc.GetAttemptCount(1));
             Assert.AreEqual(0.0, acc.GetCompletionRate(1));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var (e1, expected) = LevelFunnelGate.CanTrackAttempt("GameA", LevelAttempt.CreateComplete("GameA", 1, 51), FunnelPolicy.Default);
+            var (e2, reason) = LevelFunnelGate.CanTrackAttempt("GameA", LevelAttempt.CreateComplete("GameA", 1, 51), default(FunnelPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("ExceedsTrackingLimit", reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var (eligible, reason) = LevelFunnelGate.CanTrackAttempt("Coral_Rescue", LevelAttempt.CreateComplete("Wonder_Pop", 1, 1), FunnelPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var (eligible, reason) = LevelFunnelGate.CanTrackAttempt("Wonder_Pop", LevelAttempt.CreateComplete("Coral_Rescue", 1, 1), FunnelPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

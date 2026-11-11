@@ -271,5 +271,33 @@ namespace Match3.Engine.Tests.Editor
             reg.Register(EventRecord.Create("Game1", AnalyticsEvent.SessionStart, 1));
             Assert.AreEqual(2, reg.Count);
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var (e1, expected) = EventTaxonomyGate.CanRecordEvent("GameA", EventRecord.Create("GameA", AnalyticsEvent.IapStart, 1), EventTaxonomyPolicy.Default);
+            var (e2, reason) = EventTaxonomyGate.CanRecordEvent("GameA", EventRecord.Create("GameA", AnalyticsEvent.IapStart, 1), default(EventTaxonomyPolicy));
+            Assert.IsFalse(e1);
+            Assert.IsFalse(e2);
+            Assert.AreEqual(expected, reason);
+            Assert.AreEqual("RevenueEventsDisabled", reason);
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var (eligible, reason) = EventTaxonomyGate.CanRecordEvent("Coral_Rescue", EventRecord.Create("Wonder_Pop", AnalyticsEvent.LevelStart, 1), EventTaxonomyPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var (eligible, reason) = EventTaxonomyGate.CanRecordEvent("Wonder_Pop", EventRecord.Create("Coral_Rescue", AnalyticsEvent.LevelStart, 1), EventTaxonomyPolicy.Default);
+            Assert.IsFalse(eligible);
+            Assert.AreEqual("GameIdMismatch", reason);
+        }
     }
 }

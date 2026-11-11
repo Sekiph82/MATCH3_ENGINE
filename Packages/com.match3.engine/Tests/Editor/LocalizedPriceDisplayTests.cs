@@ -211,5 +211,36 @@ namespace Match3.Engine.Tests.Editor.Commerce
             Assert.IsTrue(cache.TryGet("sku_b", out _));
             Assert.IsTrue(cache.TryGet("sku_c", out _));
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_BehavesAsDefault()
+        {
+            // PriceDisplayPolicy is store-owned only (AllowFabricatedPrices is always false); default(struct) is normalized.
+            var price = LocalizedPrice.FromStore("$0.99", "USD", "GameA", "sku");
+            var expected = LocalizedPriceDisplayGate.CanDisplayPrice("GameA", price, PriceDisplayPolicy.Default);
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice("GameA", price, default(PriceDisplayPolicy));
+            Assert.AreEqual(expected.IsEligible, result.IsEligible);
+            Assert.AreEqual(expected.Reason, result.Reason);
+            Assert.IsTrue(LocalizedPriceDisplayGate.IsStoreOwnedDisplay(default(PriceDisplayPolicy)));
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var price = LocalizedPrice.FromStore("$0.99", "USD", "Wonder_Pop", "sku");
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice("Coral_Rescue", price, PriceDisplayPolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var price = LocalizedPrice.FromStore("$0.99", "USD", "Coral_Rescue", "sku");
+            var result = LocalizedPriceDisplayGate.CanDisplayPrice("Wonder_Pop", price, PriceDisplayPolicy.Default);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("GameIdMismatch", result.Reason);
+        }
     }
 }

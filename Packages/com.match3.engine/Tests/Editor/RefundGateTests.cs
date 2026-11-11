@@ -282,5 +282,33 @@ namespace Match3.Engine.Tests.Editor
             ledger.Clear();
             Assert.AreEqual(0, ledger.Count);
         }
+
+
+        [Test]
+        public void DefaultStructPolicy_FailsClosed()
+        {
+            var record = RefundRecord.Approved("order-1", "GameA");
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("GameA", record, default(RefundPolicy)));
+            Assert.AreEqual(RefundGate.ShouldRevokeEntitlement("GameA", record, RefundPolicy.Default),
+                RefundGate.ShouldRevokeEntitlement("GameA", record, default(RefundPolicy)));
+            Assert.IsTrue(RefundGate.RequiresServerReconciliation(default(RefundPolicy)));
+            Assert.DoesNotThrow(() => RefundGate.AssertReconciliationRequired(default(RefundPolicy)));
+        }
+
+        [Test]
+        public void GameIdMismatch_Blocked()
+        {
+            var record = RefundRecord.Approved("order-1", "Wonder_Pop");
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, RefundPolicy.Active("active")));
+        }
+
+        [Test]
+        public void WonderPopParam_RecordDiffers_GameIdMismatch()
+        {
+            var record = RefundRecord.Approved("order-1", "Coral_Rescue");
+            Assert.IsFalse(RefundGate.ShouldRevokeEntitlement("Wonder_Pop", record, RefundPolicy.Active("active")));
+            // Control: matching game id with the same record and policy does revoke
+            Assert.IsTrue(RefundGate.ShouldRevokeEntitlement("Coral_Rescue", record, RefundPolicy.Active("active")));
+        }
     }
 }

@@ -71,8 +71,13 @@ namespace Match3.Engine.Runtime.Identity
 
     public static class CloudSaveAdapterGate
     {
+        private static CloudSavePolicy Normalize(CloudSavePolicy policy) =>
+            policy.PolicyDescription == null ? CloudSavePolicy.Default : policy;
+
         public static CloudSaveEligibilityResult CanWriteToCloud(string gameId, CloudSavePolicy policy)
         {
+            policy = Normalize(policy);
+
             // Guard 1 FIRST (CRITICAL): Wonder_Pop is prohibited
             if (string.Equals(gameId, "Wonder_Pop", StringComparison.Ordinal))
                 return new CloudSaveEligibilityResult(false, "WonderPopCloudWriteProhibited");
@@ -85,7 +90,7 @@ namespace Match3.Engine.Runtime.Identity
         }
 
         public static bool RequiresTokenValidation(CloudSavePolicy policy) =>
-            policy.RequireTokenValidation;
+            Normalize(policy).RequireTokenValidation;
 
         public static bool IsCloudSlot(CloudSaveToken token) =>
             token.IsCloudBacked;
@@ -98,6 +103,8 @@ namespace Match3.Engine.Runtime.Identity
 
         public void Record(CloudSaveToken token, bool succeeded, string reason)
         {
+            if (string.IsNullOrEmpty(token.GameId))
+                throw new ArgumentException("Token GameId must not be null or empty.", nameof(token));
             if (string.IsNullOrEmpty(reason))
                 throw new ArgumentException("Reason must not be null or empty.", nameof(reason));
             _entries.Add((token, succeeded, reason));
@@ -110,7 +117,7 @@ namespace Match3.Engine.Runtime.Identity
         public bool HasEntry(string gameId)
         {
             foreach (var entry in _entries)
-                if (entry.token.GameId == gameId)
+                if (string.Equals(entry.token.GameId, gameId, StringComparison.Ordinal))
                     return true;
             return false;
         }
