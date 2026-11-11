@@ -98,6 +98,16 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsTrue(result.IsEligible);
         }
 
+        [Test]
+        public void WonderPop_WithRestrictedPolicy_ReturnsWonderPopReason()
+        {
+            var policy = EntitlementPolicy.Restricted("test");
+            var kid = KidProfilePolicy.Unrestricted("test");
+            var result = NonConsumableEntitlementGate.CheckEntitlementEligibility("Wonder_Pop", policy, kid);
+            Assert.IsFalse(result.IsEligible);
+            Assert.AreEqual("WonderPopEntitlementProhibited", result.Reason);
+        }
+
         // ---- IsServerVerificationRequired ----
 
         [Test]
