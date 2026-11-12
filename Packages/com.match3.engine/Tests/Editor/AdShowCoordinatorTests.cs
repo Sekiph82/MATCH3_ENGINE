@@ -405,6 +405,105 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(typeof(AdShowCoordinator).GetMethod("CreateFromRegistry").IsPublic, Is.True);
         }
 
+        [Test]
+        public void RepeatRequestForLoadedAd_ProviderThrows_DoesNotResume()
+        {
+            var suspension = new CountingSuspension();
+            var coordinator = new AdShowCoordinator(new CountingProvider(), suspension);
+            var a = new RewardedAdLifecycle();
+            Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), a, AdConsentStatus.Granted, false), Is.True);
+            Assert.That(a.State, Is.EqualTo(RewardedAdState.Ready));
+
+            // Double-tap: RequestLoad from Ready throws inside the provider.
+            Assert.Throws<InvalidOperationException>(() =>
+                coordinator.TryShowRewardedAd(EnabledPlacement(), a, AdConsentStatus.Granted, false));
+            Assert.That(suspension.SuspendCalls, Is.EqualTo(1));
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(0));
+            Assert.That(suspension.IsSuspended, Is.True);
+
+            // a is still tracked: it can still be shown and its end resumes gameplay.
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), a, AdConsentStatus.Granted, false), Is.True);
+            coordinator.OnAdSessionEnded(a);
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ProviderThrowsOnShow_LifecycleFailed_SuspensionReleased()
+        {
+            foreach (var throwAfterNotifyShow in new[] { true, false })
+            {
+                var suspension = new CountingSuspension();
+                var coordinator = new AdShowCoordinator(new ShowThrowingProvider(throwAfterNotifyShow), suspension);
+                var lifecycle = new RewardedAdLifecycle();
+                Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false));
+                Assert.That(suspension.ResumeCalls, Is.EqualTo(1), throwAfterNotifyShow.ToString());
+                Assert.That(suspension.IsSuspended, Is.False, throwAfterNotifyShow.ToString());
+                Assert.That(lifecycle.State,
+                    Is.EqualTo(throwAfterNotifyShow ? RewardedAdState.Failed : RewardedAdState.Ready), throwAfterNotifyShow.ToString());
+
+                // Released: a stale Ready lifecycle cannot be shown again without a fresh, suspending request.
+                Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.False);
+                Assert.That(suspension.ResumeCalls, Is.EqualTo(1), throwAfterNotifyShow.ToString());
+            }
+        }
+
+        [Test]
+        public void ShowStep_UnrequestedReadyLifecycle_NotShown()
+        {
+            var provider = new CountingProvider();
+            var coordinator = new AdShowCoordinator(provider, new NullGameplaySuspension());
+            var lifecycle = new RewardedAdLifecycle();
+            lifecycle.RequestLoad();
+            lifecycle.NotifyReady();
+
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.False);
+            Assert.That(provider.ShowCalls, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ConsentRevokedWhileShowing_DoesNotResumeUntilAdEnds()
+        {
+            var suspension = new CountingSuspension();
+            var coordinator = new AdShowCoordinator(new CountingProvider(), suspension);
+            var lifecycle = new RewardedAdLifecycle();
+            Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+            lifecycle.NotifyShow(); // ad is on screen
+
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Denied, false), Is.False);
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(0));
+            Assert.That(suspension.IsSuspended, Is.True);
+
+            lifecycle.NotifySkipped();
+            coordinator.OnAdSessionEnded(lifecycle);
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(1));
+            Assert.That(suspension.IsSuspended, Is.False);
+        }
+
+        private sealed class ShowThrowingProvider : IAdMediationProvider
+        {
+            private readonly bool _throwAfterNotifyShow;
+            public ShowThrowingProvider(bool throwAfterNotifyShow) { _throwAfterNotifyShow = throwAfterNotifyShow; }
+            public string ProviderId => "ShowThrowing";
+            public bool IsAvailable => true;
+            public void Initialize(string gameId) { }
+
+            public void RequestRewardedAd(string placementId, RewardedAdLifecycle lifecycle)
+            {
+                lifecycle.RequestLoad();
+                lifecycle.NotifyReady();
+            }
+
+            public void ShowRewardedAd(string placementId, RewardedAdLifecycle lifecycle)
+            {
+                if (_throwAfterNotifyShow)
+                    lifecycle.NotifyShow();
+                throw new InvalidOperationException("sdk show failure");
+            }
+        }
+
         private sealed class ThrowingProvider : IAdMediationProvider
         {
             public string ProviderId => "Throwing";

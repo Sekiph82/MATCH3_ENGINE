@@ -12,6 +12,8 @@ namespace Match3.Engine.Runtime.Commerce
     /// <see cref="AdMediationInitializer.TryInitializeRegistered"/>, and RequestRewardedAd/ShowRewardedAd only
     /// through <see cref="AdShowCoordinator.CreateFromRegistry"/> (TryShowRewardedAd / TryShowLoadedRewardedAd), each of which
     /// runs <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> immediately before the call.
+    /// Real SDK adapters should be declared internal and expose only a public static Install() that calls
+    /// <see cref="AdMediationProviderRegistry.Register"/>, so game code never holds a provider instance.
     /// </summary>
     public interface IAdMediationProvider
     {
@@ -43,7 +45,8 @@ namespace Match3.Engine.Runtime.Commerce
 
     /// <summary>
     /// Disabled stub used when no real mediation SDK is registered.
-    /// IsAvailable is always false; requests are immediately failed.
+    /// IsAvailable is always false; requests are immediately failed. Inert: holding <see cref="Instance"/> grants no
+    /// ad capability (Initialize is a no-op, Request fails, Show does nothing), so it needs no gate.
     /// </summary>
     public sealed class NullAdMediationProvider : IAdMediationProvider
     {

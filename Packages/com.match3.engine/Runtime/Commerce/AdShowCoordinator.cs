@@ -25,6 +25,12 @@ namespace Match3.Engine.Runtime.Commerce
         }
     }
 
+    /// <summary>
+    /// Eligibility-gated rewarded-ad flow that suspends gameplay while ads it requested are pending.
+    /// MAIN-THREAD ONLY: not thread-safe. Call every member from the Unity main thread; SDK adapter callbacks
+    /// that drive <see cref="RewardedAdLifecycle"/> or lead to <see cref="OnAdSessionEnded"/> must be marshalled
+    /// to the main thread first.
+    /// </summary>
     public sealed class AdShowCoordinator
     {
         private readonly IAdMediationProvider _provider;
@@ -68,7 +74,8 @@ namespace Match3.Engine.Runtime.Commerce
             if (!placement.IsEnabled)
                 return false;
 
-            if (_suspendedFor.Add(lifecycle) && _suspendedFor.Count == 1)
+            bool added = _suspendedFor.Add(lifecycle);
+            if (added && _suspendedFor.Count == 1)
                 _suspension.Suspend();
             try
             {
@@ -76,7 +83,10 @@ namespace Match3.Engine.Runtime.Commerce
             }
             catch
             {
-                Release(lifecycle); // a throwing provider must not leave gameplay suspended
+                // Release only what this call added: a repeat request for an ad that is already loaded or
+                // on screen must not resume gameplay.
+                if (added)
+                    Release(lifecycle);
                 throw;
             }
             return true;
@@ -88,7 +98,10 @@ namespace Match3.Engine.Runtime.Commerce
         /// consent and kid flag (consent can be revoked between request and show) and re-checks the placement;
         /// only then calls <see cref="IAdMediationProvider.ShowRewardedAd"/>. When eligibility no longer holds the
         /// ad is not shown and this lifecycle's suspension is released (gameplay resumes once no other ad this
-        /// coordinator suspended for is pending; ENG-M14-006). Returns false (no show) unless the lifecycle is Ready.
+        /// coordinator suspended for is pending; ENG-M14-006) unless the ad is already Showing, in which case it stays
+        /// tracked and is released by <see cref="OnAdSessionEnded"/>. Returns false (no show) unless the lifecycle is
+        /// Ready and was requested through this coordinator. If the provider throws while showing, the lifecycle is
+        /// marked Failed when still Showing, its suspension is released, and the exception is rethrown.
         /// </summary>
         public bool TryShowLoadedRewardedAd(RewardPlacement placement, RewardedAdLifecycle lifecycle,
             AdConsentStatus consent, bool isKidProfile)
@@ -97,13 +110,25 @@ namespace Match3.Engine.Runtime.Commerce
 
             if (!AdEligibilityGate.Check(placement.GameId, consent, isKidProfile).IsEligible || !placement.IsEnabled)
             {
-                Release(lifecycle);
+                if (lifecycle.State != RewardedAdState.Showing)
+                    Release(lifecycle);
                 return false;
             }
-            if (lifecycle.State != RewardedAdState.Ready)
+            // Only show ads this coordinator requested (and therefore suspended gameplay for).
+            if (lifecycle.State != RewardedAdState.Ready || !_suspendedFor.Contains(lifecycle))
                 return false;
 
-            _provider.ShowRewardedAd(placement.PlacementId, lifecycle);
+            try
+            {
+                _provider.ShowRewardedAd(placement.PlacementId, lifecycle);
+            }
+            catch
+            {
+                if (lifecycle.State == RewardedAdState.Showing)
+                    lifecycle.NotifyFailed("ProviderShowException");
+                Release(lifecycle);
+                throw;
+            }
             return true;
         }
 
