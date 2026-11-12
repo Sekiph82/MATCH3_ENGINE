@@ -45,8 +45,18 @@ namespace Match3.Engine.Demo.Tests
             FeatureFlagRecord.Create(game, kind == GameModeKind.Endless ? LiveOpsFeature.EndlessMode : LiveOpsFeature.TimedMode,
                 1, enabled, false);
 
+        internal static GameProfile Profile(string game, params string[] features) =>
+            new GameProfile(game, "placeholder." + game.ToLowerInvariant(), ProfileAgeRule.General,
+                ProfileContentChannel.Development,
+                features.Select(f => new FeatureFlag(f, EngineCompatibility.MinimumCapability)));
+
+        /// <summary>A title profile that enables the capability this mode needs ("timed" / "endless").</summary>
+        internal static GameProfile ProfileFor(GameModeKind kind, string game = Game) =>
+            kind == GameModeKind.Classic ? Profile(game)
+            : Profile(game, kind == GameModeKind.Endless ? "endless" : "timed");
+
         internal static ModeSession New(ModeTemplate t, uint seed, string game = Game) =>
-            ModeSession.Start(game, t, seed, Start, Sdk(t), Flag(t.Kind, true, game), FeatureFlagPolicy.Default);
+            ModeSession.Start(ProfileFor(t.Kind, game), t, seed, Start, Sdk(t), Flag(t.Kind, true, game), FeatureFlagPolicy.Default);
 
         internal static SwapCandidate FirstLegal(ModeSession s) =>
             new NeutralSdkSnapshotValidator(new BoardTopology(s.Template.Rows, s.Template.Columns))
@@ -106,24 +116,29 @@ namespace Match3.Engine.Demo.Tests
         [Test]
         public void ModeGate_UsesFeatureFlags_KillSwitch_AndAllowsWonderPopTimedAndEndless()
         {
-            Assert.IsTrue(AlternativeModeGate.CanStart(Game, GameModeKind.Classic, default(FeatureFlagRecord),
+            var timed = ProfileFor(GameModeKind.TimeAttack);
+            var endless = ProfileFor(GameModeKind.Endless);
+            Assert.IsTrue(AlternativeModeGate.CanStart(Profile(Game), GameModeKind.Classic, default(FeatureFlagRecord),
                 FeatureFlagPolicy.Default, out _));
-            Assert.IsTrue(AlternativeModeGate.CanStart(Game, GameModeKind.TimeAttack, Flag(GameModeKind.TimeAttack),
+            Assert.IsTrue(AlternativeModeGate.CanStart(timed, GameModeKind.TimeAttack, Flag(GameModeKind.TimeAttack),
                 FeatureFlagPolicy.Default, out _));
-            Assert.IsFalse(AlternativeModeGate.CanStart(Game, GameModeKind.TimeAttack, Flag(GameModeKind.TimeAttack, false),
+            Assert.IsFalse(AlternativeModeGate.CanStart(timed, GameModeKind.TimeAttack, Flag(GameModeKind.TimeAttack, false),
                 FeatureFlagPolicy.Default, out var reason));
             Assert.AreEqual("FeatureFlagDisabled", reason);
-            Assert.IsFalse(AlternativeModeGate.CanStart(Game, GameModeKind.Endless, Flag(GameModeKind.TimeAttack),
+            Assert.IsFalse(AlternativeModeGate.CanStart(endless, GameModeKind.Endless, Flag(GameModeKind.TimeAttack),
                 FeatureFlagPolicy.Default, out reason));
             Assert.AreEqual("WrongFeatureFlag", reason);
-            Assert.IsFalse(AlternativeModeGate.CanStart("Coral_Rescue", GameModeKind.Endless,
+            Assert.IsFalse(AlternativeModeGate.CanStart(endless, GameModeKind.Endless,
                 Flag(GameModeKind.Endless, true, "Dino_Islands"), FeatureFlagPolicy.Default, out reason));
             Assert.AreEqual("GameIdMismatch", reason);
-            // Owner decision: Wonder_Pop is general audience; timed/endless are flag-controlled, not audience-blocked.
-            Assert.IsTrue(AlternativeModeGate.CanStart("Wonder_Pop", GameModeKind.Endless,
+            Assert.IsFalse(AlternativeModeGate.CanStart(null, GameModeKind.Classic, default(FeatureFlagRecord),
+                FeatureFlagPolicy.Default, out reason));
+            Assert.AreEqual("UnknownGame", reason);
+            // Owner decision: Wonder_Pop is general audience; timed/endless are profile+flag controlled, not audience-blocked.
+            Assert.IsTrue(AlternativeModeGate.CanStart(ProfileFor(GameModeKind.Endless, "Wonder_Pop"), GameModeKind.Endless,
                 Flag(GameModeKind.Endless, true, "Wonder_Pop"), FeatureFlagPolicy.Default, out _));
             Assert.AreEqual(ModePhase.Running, New(TimeAttack(), 7, "Wonder_Pop").Phase);
-            var ex = Assert.Throws<InvalidOperationException>(() => ModeSession.Start(Game, Endless(), 7, Start,
+            var ex = Assert.Throws<InvalidOperationException>(() => ModeSession.Start(endless, Endless(), 7, Start,
                 Sdk(Endless()), Flag(GameModeKind.Endless, false), FeatureFlagPolicy.Default));
             Assert.IsTrue(ex.Message.Contains("FeatureFlagDisabled"));
         }
@@ -315,7 +330,7 @@ namespace Match3.Engine.Demo.Tests
             Assert.Throws<FormatException>(() =>
                 ModeSession.Replay(Game, s.Template, s.Seed, s.StartMs, bad, Sdk(s.Template)));
             Assert.Throws<ArgumentOutOfRangeException>(() => ModeInput.Of(ModeInputKind.Tick, -1));
-            Assert.Throws<ArgumentOutOfRangeException>(() => ModeSession.Start(Game, TimeAttack(), 0, Start,
+            Assert.Throws<ArgumentOutOfRangeException>(() => ModeSession.Start(ProfileFor(GameModeKind.TimeAttack), TimeAttack(), 0, Start,
                 Sdk(TimeAttack()), Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default));
         }
 
@@ -367,7 +382,7 @@ namespace Match3.Engine.Demo.Tests
         [Test]
         public void Classic_EndsWhenMovesAreExhausted()
         {
-            var s = ModeSession.Start(Game, Classic(), 99, Start, Sdk(Classic()), default(FeatureFlagRecord),
+            var s = ModeSession.Start(Profile(Game), Classic(), 99, Start, Sdk(Classic()), default(FeatureFlagRecord),
                 FeatureFlagPolicy.Default);
             Play(s, Start, 200, 100);
             Assert.AreEqual(ModeEndReason.MovesExhausted, s.EndReason);
@@ -551,12 +566,16 @@ namespace Match3.Engine.Demo.Tests
 
             Assert.Throws<FormatException>(() => ModeTemplate.FromJson(Json("challenge.bad", "challenge", 6, 6, 4, 0, 0, 10, 1, 500, 0)));
             Assert.Throws<FormatException>(() => ModeTemplate.FromJson(Json("challenge.bad", "challenge", 6, 6, 4, 0, 60000, 10, 1, 500, 300)));
-            Assert.IsFalse(AlternativeModeGate.CanStart(Game, GameModeKind.Challenge, Flag(GameModeKind.Endless),
+            var timed = ProfileFor(GameModeKind.Challenge);
+            Assert.IsFalse(AlternativeModeGate.CanStart(timed, GameModeKind.Challenge, Flag(GameModeKind.Endless),
                 FeatureFlagPolicy.Default, out var reason));
             Assert.AreEqual("WrongFeatureFlag", reason);
-            Assert.IsFalse(AlternativeModeGate.CanStart(Game, GameModeKind.Challenge, Flag(GameModeKind.TimeAttack, false),
+            Assert.IsFalse(AlternativeModeGate.CanStart(timed, GameModeKind.Challenge, Flag(GameModeKind.TimeAttack, false),
                 FeatureFlagPolicy.Default, out reason));
             Assert.AreEqual("FeatureFlagDisabled", reason);
+            Assert.IsFalse(AlternativeModeGate.CanStart(ProfileFor(GameModeKind.Endless), GameModeKind.Challenge,
+                Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default, out reason));
+            Assert.AreEqual("ProfileFeatureDisabled", reason, "Challenge needs the timed capability");
         }
 
         [Test]
@@ -570,6 +589,35 @@ namespace Match3.Engine.Demo.Tests
                 Assert.IsFalse(p.IsEnabled("endless", EngineCompatibility.MinimumCapability), p.Id);
             }
             Assert.IsTrue(FeatureFlagRecord.Create(Game, LiveOpsFeature.TimedMode, 1, false, false).IsDefaultOff);
+        }
+
+        [Test]
+        public void ModeGate_RequiresBothTheProfileCapabilityAndTheLiveOpsFlag()
+        {
+            foreach (var placeholder in GameProfileCatalog.LoadPlaceholders())
+            {
+                foreach (var kind in new[] { GameModeKind.TimeAttack, GameModeKind.Endless, GameModeKind.Challenge })
+                {
+                    Assert.IsFalse(AlternativeModeGate.CanStart(placeholder, kind, Flag(kind, true, placeholder.Id),
+                        FeatureFlagPolicy.Default, out var reason), placeholder.Id + " " + kind);
+                    Assert.AreEqual("ProfileFeatureDisabled", reason, "an enabled remote flag alone never enables a mode");
+                }
+            }
+            var timed = ProfileFor(GameModeKind.TimeAttack);
+            Assert.IsTrue(AlternativeModeGate.CanStart(timed, GameModeKind.TimeAttack, Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default, out _));
+            Assert.IsTrue(AlternativeModeGate.CanStart(timed, GameModeKind.Challenge, Flag(GameModeKind.Challenge), FeatureFlagPolicy.Default, out _));
+            Assert.IsFalse(AlternativeModeGate.CanStart(timed, GameModeKind.Endless, Flag(GameModeKind.Endless), FeatureFlagPolicy.Default, out var r));
+            Assert.AreEqual("ProfileFeatureDisabled", r);
+            var endless = ProfileFor(GameModeKind.Endless);
+            Assert.IsTrue(AlternativeModeGate.CanStart(endless, GameModeKind.Endless, Flag(GameModeKind.Endless), FeatureFlagPolicy.Default, out _));
+            Assert.IsFalse(AlternativeModeGate.CanStart(endless, GameModeKind.TimeAttack, Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default, out r));
+            Assert.AreEqual("ProfileFeatureDisabled", r);
+            var ex = Assert.Throws<InvalidOperationException>(() => ModeSession.Start(Profile(Game), TimeAttack(), 7, Start,
+                Sdk(TimeAttack()), Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default));
+            Assert.IsTrue(ex.Message.Contains("ProfileFeatureDisabled"));
+            // Existing GameProfiles rule (not changed here, reported for an owner/lead decision): one title cannot
+            // enable both timed and endless, so it cannot offer Time Attack and Endless together.
+            Assert.Throws<ArgumentException>(() => Profile(Game, "timed", "endless"));
         }
     }
 

@@ -54,6 +54,7 @@ namespace Match3.Engine.Runtime.LiveOps
     {
         public const string Schema = "alt-mode/1";
         public const int DefaultMinSwapIntervalMs = 150;
+        public const int DefaultMaxPauseBudgetMs = 120000;
 
         private static readonly string[] Keys =
         {
@@ -62,7 +63,7 @@ namespace Match3.Engine.Runtime.LiveOps
             "maxTurns", "targetScore", "rewardId", "rewardTiers", "perRunRewardCap", "perDayRewardCap"
         };
 
-        private static readonly string[] OptionalKeys = { "minSwapIntervalMs" };
+        private static readonly string[] OptionalKeys = { "minSwapIntervalMs", "maxPauseBudgetMs" };
 
         public string TemplateId { get; }
         public int Version { get; }
@@ -80,6 +81,8 @@ namespace Match3.Engine.Runtime.LiveOps
         public int MaxTurns { get; }
         public int TargetScore { get; }
         public int MinSwapIntervalMs { get; }
+        /// <summary>Most frozen (paused / auto-paused) monotonic ms a verified tournament run may declare.</summary>
+        public int MaxPauseBudgetMs { get; }
         /// <summary>Ledger asset name (CurrencyType, never PremiumGems).</summary>
         public string RewardId { get; }
         public IReadOnlyList<ModeRewardTier> RewardTiers { get; }
@@ -127,6 +130,9 @@ namespace Match3.Engine.Runtime.LiveOps
             MinSwapIntervalMs = d.ContainsKey("minSwapIntervalMs")
                 ? Int(d, "minSwapIntervalMs", 0, 5000)
                 : DefaultMinSwapIntervalMs;
+            MaxPauseBudgetMs = d.ContainsKey("maxPauseBudgetMs")
+                ? Int(d, "maxPauseBudgetMs", 0, 3600000)
+                : DefaultMaxPauseBudgetMs;
 
             // Mode-specific rules: each mode is distinct, not a relabelled Classic level.
             if (Kind == GameModeKind.Classic && (MoveLimit < 1 || TimeLimitMs != 0 || RampEveryTurns != 0))
@@ -207,18 +213,32 @@ namespace Match3.Engine.Runtime.LiveOps
 
     public static class AlternativeModeGate
     {
-        /// <summary>Classic is always available. Time Attack and Challenge need the TimedMode flag, Endless the
-        /// EndlessMode flag, through FeatureFlagGate (per-title kill switch). Both flags default OFF per title.
-        /// LiveOpsFeature has no Challenge member yet (FeatureFlagGate.cs is outside ENG-M20-015), so Challenge rides
-        /// the TimedMode ("limited-time alternative mode") flag.</summary>
-        public static bool CanStart(string gameId, GameModeKind kind, FeatureFlagRecord flag,
+        /// <summary>
+        /// Single source of truth for mode enablement. Classic is always available. Every alternative mode needs BOTH
+        /// the title's GameProfile capability ("timed" for Time Attack and Challenge, "endless" for Endless; both OFF
+        /// in every placeholder profile) AND the matching enabled LiveOps flag (TimedMode / EndlessMode) through
+        /// FeatureFlagGate, which is the remote kill switch. LiveOpsFeature has no Challenge member yet
+        /// (FeatureFlagGate.cs is outside ENG-M20-015), so Challenge rides "timed" + TimedMode.
+        /// Note: GameProfile currently rejects "timed" together with "endless", so one title can offer Time Attack
+        /// (and Challenge) OR Endless, not both; that rule is reported for an owner/lead decision, not changed here.
+        /// </summary>
+        public static bool CanStart(GameProfile profile, GameModeKind kind, FeatureFlagRecord flag,
             FeatureFlagPolicy policy, out string reason)
         {
-            if (!GameProfileCatalog.IsKnownId(gameId)) { reason = "UnknownGame"; return false; }
+            if (profile == null || !GameProfileCatalog.IsKnownId(profile.Id)) { reason = "UnknownGame"; return false; }
             if (kind == GameModeKind.Classic) { reason = string.Empty; return true; }
-            var expected = kind == GameModeKind.Endless ? LiveOpsFeature.EndlessMode : LiveOpsFeature.TimedMode;
-            if (flag.Feature != expected) { reason = "WrongFeatureFlag"; return false; }
-            return FeatureFlagGate.CanEnableFlag(gameId, flag, policy, out reason);
+            var endless = kind == GameModeKind.Endless;
+            if (!profile.IsEnabled(endless ? "endless" : "timed", EngineCompatibility.MinimumCapability))
+            {
+                reason = "ProfileFeatureDisabled";
+                return false;
+            }
+            if (flag.Feature != (endless ? LiveOpsFeature.EndlessMode : LiveOpsFeature.TimedMode))
+            {
+                reason = "WrongFeatureFlag";
+                return false;
+            }
+            return FeatureFlagGate.CanEnableFlag(profile.Id, flag, policy, out reason);
         }
     }
 
@@ -340,6 +360,9 @@ namespace Match3.Engine.Runtime.LiveOps
         public int Turns { get; private set; }
         public long ElapsedMs { get; private set; }
         public long ElapsedAtLastSwapMs { get; private set; }
+        /// <summary>Monotonic ms the run declared as frozen (paused or auto-paused; not across a Reconnect, whose
+        /// gap is unobservable). Derived from the log, so it is not part of StateHash.</summary>
+        public long FrozenMs { get; private set; }
         public long TimeToTargetMs { get; private set; } = -1;
         public int ShuffleLivesRemaining { get; private set; }
         public int ActiveColors { get; private set; }
@@ -374,14 +397,14 @@ namespace Match3.Engine.Runtime.LiveOps
             Phase = ModePhase.Running;
         }
 
-        /// <summary>Starts a new run after the per-title mode gate (feature flag / kill switch).</summary>
-        public static ModeSession Start(string gameId, ModeTemplate template, uint seed, long startMs,
+        /// <summary>Starts a new run after AlternativeModeGate (profile capability + LiveOps flag / kill switch).</summary>
+        public static ModeSession Start(GameProfile profile, ModeTemplate template, uint seed, long startMs,
             ModeMatcher matcher, FeatureFlagRecord modeFlag, FeatureFlagPolicy flagPolicy)
         {
             if (template == null) throw new ArgumentNullException(nameof(template));
-            if (!AlternativeModeGate.CanStart(gameId, template.Kind, modeFlag, flagPolicy, out var reason))
+            if (!AlternativeModeGate.CanStart(profile, template.Kind, modeFlag, flagPolicy, out var reason))
                 throw new InvalidOperationException("Mode not available: " + reason);
-            return new ModeSession(gameId, template, matcher, seed, startMs);
+            return new ModeSession(profile.Id, template, matcher, seed, startMs);
         }
 
         /// <summary>Rebuilds a run from its log (restore after reconnect, or server-side verification).
@@ -458,8 +481,11 @@ namespace Match3.Engine.Runtime.LiveOps
                 {
                     Phase = ModePhase.Paused;
                     IsAutoPaused = true;
+                    FrozenMs = checked(FrozenMs + t - Math.Max(graceEnd, _lastMs));
                 }
             }
+            else if (Phase == ModePhase.Paused && t > _lastMs)
+                FrozenMs = checked(FrozenMs + t - _lastMs);
             _lastMs = t;
         }
 

@@ -62,7 +62,7 @@ namespace Match3.Engine.Demo.Tests
 
         private static ModeSession Run(TournamentService svc, AttemptTicket ticket, long stepMs)
         {
-            var s = ModeSession.Start(Game, svc.Template.Mode, ticket.Seed, M.Start, M.Sdk(svc.Template.Mode),
+            var s = ModeSession.Start(M.ProfileFor(GameModeKind.TimeAttack), svc.Template.Mode, ticket.Seed, M.Start, M.Sdk(svc.Template.Mode),
                 M.Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default);
             M.Play(s, M.Start, stepMs, 1000);
             Assert.AreEqual(ModePhase.Ended, s.Phase);
@@ -72,7 +72,7 @@ namespace Match3.Engine.Demo.Tests
         private static TournamentSubmitStatus Submit(TournamentService svc, AttemptTicket ticket,
             IReadOnlyList<ModeInput> inputs, int claimed, DateTime receipt, TournamentEligibility e = null,
             FeatureFlagRecord? flag = null) =>
-            svc.Submit(ticket, M.Start, inputs, claimed, receipt, e ?? Elig(), flag ?? TFlag(), FeatureFlagPolicy.Default);
+            svc.Submit(ticket, M.Start, inputs, claimed, receipt, _ => e ?? Elig(), flag ?? TFlag(), FeatureFlagPolicy.Default);
 
         /// <summary>Ticket at T0+hours, honest run, receipt two minutes later (60 s run).</summary>
         private static TournamentSubmitStatus PlayAndSubmit(TournamentService svc, string player, double hours,
@@ -162,7 +162,8 @@ namespace Match3.Engine.Demo.Tests
             // The log is only valid for the ticket's own server seed.
             var t2 = Ticket(svc, "p1", T0.AddHours(2));
             Assert.AreNotEqual(t1.Seed, t2.Seed);
-            Assert.AreNotEqual(TournamentSubmitStatus.Accepted, Submit(svc, t2, log, run.Score, t2.ServerIssuedUtc.AddMinutes(2)));
+            Assert.AreEqual(TournamentSubmitStatus.TamperedScore, Submit(svc, t2, log, run.Score, t2.ServerIssuedUtc.AddMinutes(2)),
+                "replayed on the new ticket's own seed the copied swaps score differently");
 
             var t3 = Ticket(svc, "p1", T0.AddHours(3));
             var forged = new AttemptTicket(t3.TournamentId, t3.PlayerId, t3.AttemptNo, t3.ServerIssuedUtc, t3.Nonce, t1.Seed);
@@ -313,7 +314,7 @@ namespace Match3.Engine.Demo.Tests
         {
             var svc = Service();
             Admit(svc, "p1");
-            var t1 = Ticket(svc, "p1", End.AddMinutes(-10));
+            var t1 = Ticket(svc, "p1", End.AddMinutes(-2));
             var run = Run(svc, t1, 1500);
             Assert.AreEqual(TournamentSubmitStatus.Closed, Submit(svc, t1, run.Inputs, run.Score, End));
             Assert.AreEqual(TournamentSubmitStatus.Accepted, Submit(svc, t1, run.Inputs, run.Score, End.AddTicks(-1)));
@@ -325,7 +326,7 @@ namespace Match3.Engine.Demo.Tests
             Assert.IsFalse(svc.IsClosed);
             Assert.Throws<ArgumentException>(() => svc.Close(TrustedUtcAnchor.DeviceClock(End), TFlag(),
                 FeatureFlagPolicy.Default, _ => Elig(), _ => null));
-            Assert.Throws<ArgumentException>(() => svc.Submit(t1, M.Start, run.Inputs, run.Score, DateTime.Now, Elig(),
+            Assert.Throws<ArgumentException>(() => svc.Submit(t1, M.Start, run.Inputs, run.Score, DateTime.Now, _ => Elig(),
                 TFlag(), FeatureFlagPolicy.Default));
         }
 
@@ -408,7 +409,7 @@ namespace Match3.Engine.Demo.Tests
                 afterRestore.Standings.Select(s => restored[s.DisplayHandle].Balance(CurrencyType.Coins)).ToArray());
             Assert.AreEqual(standings.Select(s => s.RunId).ToArray(), afterRestore.Standings.Select(s => s.RunId).ToArray());
             Assert.AreEqual(TournamentSubmitStatus.Closed, svc.Submit(new AttemptTicket("cup.week47", "p1", 1, T0, "x", 1),
-                M.Start, new ModeInput[0], 0, End.AddTicks(-1), Elig(), TFlag(), FeatureFlagPolicy.Default));
+                M.Start, new ModeInput[0], 0, End.AddTicks(-1), _ => Elig(), TFlag(), FeatureFlagPolicy.Default));
         }
 
         [Test]
@@ -429,6 +430,83 @@ namespace Match3.Engine.Demo.Tests
             Assert.AreEqual(1, handles.Count(h => h == "Ace"));
             Assert.AreEqual(2, handles.Count(h => h == null), "handle refused by policy or not given -> anonymous");
             Assert.IsNull(typeof(TournamentStandingView).GetProperty("PlayerId"));
+        }
+
+        [Test]
+        public void LeisurelyPlay_IsRejected_AboveTheWallTimeAndPauseBudget()
+        {
+            var svc = Service();
+            Admit(svc, "p1");
+            var limit = 60000 + ModeTemplate.DefaultMaxPauseBudgetMs + 2000; // time limit + pause budget + tolerance
+            var t1 = Ticket(svc, "p1", T0.AddHours(1));
+            var r1 = Run(svc, t1, 1500);
+            Assert.AreEqual(TournamentSubmitStatus.TooSlow, Submit(svc, t1, r1.Inputs, r1.Score, t1.ServerIssuedUtc.AddMilliseconds(limit + 1)));
+            var t2 = Ticket(svc, "p1", T0.AddHours(2));
+            var r2 = Run(svc, t2, 1500);
+            Assert.AreEqual(TournamentSubmitStatus.Accepted, Submit(svc, t2, r2.Inputs, r2.Score, t2.ServerIssuedUtc.AddMilliseconds(limit)));
+
+            // A single declared pause longer than the budget is refused even when the wall time fits.
+            var t3 = Ticket(svc, "p1", T0.AddHours(3));
+            var paused = Fresh(svc, t3);
+            paused.Apply(ModeInput.Of(ModeInputKind.Pause, M.Start + 1000));
+            paused.Apply(ModeInput.Of(ModeInputKind.Resume, M.Start + 1000 + 121000));
+            M.Play(paused, M.Start + 1000 + 121000, 1500, 1000);
+            Assert.AreEqual(121000L, paused.FrozenMs);
+            Assert.AreEqual(TournamentSubmitStatus.TooSlow,
+                Submit(svc, t3, paused.Inputs, paused.Score, t3.ServerIssuedUtc.AddMilliseconds(limit)));
+
+            // Background beyond the grace counts as frozen time too.
+            var t4 = Ticket(svc, "p1", T0.AddHours(4));
+            var bg = Fresh(svc, t4);
+            bg.Apply(ModeInput.Of(ModeInputKind.Background, M.Start + 1000));
+            bg.Apply(ModeInput.Of(ModeInputKind.Foreground, M.Start + 1000 + 130000));
+            Assert.AreEqual(127000L, bg.FrozenMs, "3 s grace charged, the rest frozen");
+            bg.Apply(ModeInput.Of(ModeInputKind.Resume, M.Start + 1000 + 130000));
+            M.Play(bg, M.Start + 1000 + 130000, 1500, 1000);
+            Assert.AreEqual(TournamentSubmitStatus.TooSlow,
+                Submit(svc, t4, bg.Inputs, bg.Score, t4.ServerIssuedUtc.AddMilliseconds(limit)));
+
+            // A short pause inside the budget is fine.
+            var t5 = Ticket(svc, "p1", T0.AddHours(5));
+            var ok = Fresh(svc, t5);
+            ok.Apply(ModeInput.Of(ModeInputKind.Pause, M.Start + 1000));
+            ok.Apply(ModeInput.Of(ModeInputKind.Resume, M.Start + 31000));
+            M.Play(ok, M.Start + 31000, 1500, 1000);
+            Assert.AreEqual(30000L, ok.FrozenMs);
+            Assert.AreEqual(TournamentSubmitStatus.Accepted, Submit(svc, t5, ok.Inputs, ok.Score, t5.ServerIssuedUtc.AddMinutes(2)));
+            Assert.Throws<FormatException>(() => ModeTemplate.FromJson(M.Json("ta.x", "timeAttack", 6, 6, 4, 0, 60000, 0, 3,
+                500, 300, ",\"maxPauseBudgetMs\":3600001")));
+        }
+
+        private static ModeSession Fresh(TournamentService svc, AttemptTicket ticket) =>
+            ModeSession.Start(M.ProfileFor(GameModeKind.TimeAttack), svc.Template.Mode, ticket.Seed, M.Start,
+                M.Sdk(svc.Template.Mode), M.Flag(GameModeKind.TimeAttack), FeatureFlagPolicy.Default);
+
+        [Test]
+        public void Submit_JudgesTheTicketsOwnPlayer_NotEligibilityTheSubmitterSupplies()
+        {
+            var svc = Service();
+            Admit(svc, "p1");
+            Admit(svc, "p2");
+            var t1 = Ticket(svc, "p1", T0.AddHours(1));
+            var run = Run(svc, t1, 1500);
+            var at = t1.ServerIssuedUtc.AddMinutes(2);
+            var revoked = Elig(consent: ConsentRecord.Create(Game, ConsentState.Revoked, false, false));
+            string asked = null;
+            // Server says p1 has revoked consent; everyone else (p2) is fine. The ticket's player decides.
+            Assert.AreEqual(TournamentSubmitStatus.NotEligible, svc.Submit(t1, M.Start, run.Inputs, run.Score, at,
+                id => { asked = id; return id == "p1" ? revoked : Elig(); }, TFlag(), FeatureFlagPolicy.Default));
+            Assert.AreEqual("p1", asked);
+            // The old overload took submitter-supplied eligibility (e.g. p2's): it now always fails closed.
+#pragma warning disable 618
+            Assert.AreEqual(TournamentSubmitStatus.NotEligible, svc.Submit(t1, M.Start, run.Inputs, run.Score, at, Elig(),
+                TFlag(), FeatureFlagPolicy.Default));
+#pragma warning restore 618
+            Assert.Throws<ArgumentNullException>(() => svc.Submit(t1, M.Start, run.Inputs, run.Score, at,
+                (Func<string, TournamentEligibility>)null, TFlag(), FeatureFlagPolicy.Default));
+            // None of these calls consumed the ticket.
+            Assert.AreEqual(TournamentSubmitStatus.Accepted, svc.Submit(t1, M.Start, run.Inputs, run.Score, at,
+                id => Elig(), TFlag(), FeatureFlagPolicy.Default));
         }
 
         [Test]

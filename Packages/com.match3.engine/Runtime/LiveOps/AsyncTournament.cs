@@ -25,6 +25,11 @@ namespace Match3.Engine.Runtime.LiveOps
     // - Verification: the score is recomputed by ModeSession.Replay (injected pinned-SDK matcher); a different
     //   claimed score is TamperedScore. The run's active time may not exceed the server wall time between ticket
     //   issue and receipt (+ ClockToleranceMs), and ModeSession rejects swaps closer than MinSwapIntervalMs.
+    //   Upper bound (timed templates): receipt - issue may not exceed TimeLimitMs + MaxPauseBudgetMs +
+    //   ClockToleranceMs, and the run's declared frozen time may not exceed MaxPauseBudgetMs (TooSlow), so a
+    //   leisurely offline-assisted attempt is refused. Real-time bots playing at human pace remain an ENG-M22 concern.
+    // - Submit evaluates eligibility for the TICKET's player through a server-side lookup (eligibilityOf), never
+    //   from facts the submitter supplies.
     //   The canonical RunId (applied swaps only) dedupes: the same run from another player is Copied.
     // - Ranking: score desc, then earliest verified (server-receipt) completion UTC, then run ID ordinal.
     // - Window [StartUtc, EndUtc): nothing is accepted at or after EndUtc. Close (server anchor >= EndUtc) freezes
@@ -195,7 +200,9 @@ namespace Match3.Engine.Runtime.LiveOps
     public enum TournamentSubmitStatus
     {
         Accepted, NotAdmitted, NotEligible, NotOpen, Closed, UnknownTicket, TicketUsed, InvalidLog, Incomplete,
-        TamperedScore, TooFast, TooManyInterruptions, DuplicateRun, Copied
+        TamperedScore, TooFast, TooManyInterruptions, DuplicateRun, Copied,
+        /// <summary>Server wall time or declared frozen time exceeds the Time Attack limit + pause budget.</summary>
+        TooSlow
     }
 
     public sealed class TournamentCloseResult
@@ -314,11 +321,19 @@ namespace Match3.Engine.Runtime.LiveOps
             return ticket;
         }
 
-        /// <param name="receiptUtc">Trusted server receipt time; it is the verified completion instant.</param>
+        /// <summary>Superseded: eligibility supplied by the submitter is never trusted. Always NotEligible.</summary>
+        [Obsolete("Pass a server-side Func<string, TournamentEligibility> keyed by the ticket's player. Fails closed.")]
         public TournamentSubmitStatus Submit(AttemptTicket ticket, long startMs, IReadOnlyList<ModeInput> inputs,
             int claimedScore, DateTime receiptUtc, TournamentEligibility eligibility,
+            FeatureFlagRecord tournamentFlag, FeatureFlagPolicy flagPolicy) => TournamentSubmitStatus.NotEligible;
+
+        /// <param name="receiptUtc">Trusted server receipt time; it is the verified completion instant.</param>
+        /// <param name="eligibilityOf">Server-side eligibility lookup; called with the ticket's player ID.</param>
+        public TournamentSubmitStatus Submit(AttemptTicket ticket, long startMs, IReadOnlyList<ModeInput> inputs,
+            int claimedScore, DateTime receiptUtc, Func<string, TournamentEligibility> eligibilityOf,
             FeatureFlagRecord tournamentFlag, FeatureFlagPolicy flagPolicy)
         {
+            if (eligibilityOf == null) throw new ArgumentNullException(nameof(eligibilityOf));
             if (receiptUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("UTC required.", nameof(receiptUtc));
             if (_frozen != null || receiptUtc >= Template.EndUtc) return TournamentSubmitStatus.Closed;
             if (receiptUtc < Template.StartUtc) return TournamentSubmitStatus.NotOpen;
@@ -330,7 +345,8 @@ namespace Match3.Engine.Runtime.LiveOps
                 issued.AttemptNo != ticket.AttemptNo || issued.ServerIssuedUtc != ticket.ServerIssuedUtc ||
                 issued.Seed != ticket.Seed || receiptUtc < issued.ServerIssuedUtc)
                 return TournamentSubmitStatus.UnknownTicket;
-            if (!IsEligible(eligibility, tournamentFlag, flagPolicy, out _)) return TournamentSubmitStatus.NotEligible;
+            if (!IsEligible(eligibilityOf(issued.PlayerId), tournamentFlag, flagPolicy, out _))
+                return TournamentSubmitStatus.NotEligible;
 
             // Consumed exactly once from here on, whatever the verdict.
             _openTickets.Remove(issued.Nonce);
@@ -353,6 +369,10 @@ namespace Match3.Engine.Runtime.LiveOps
             if (run.Score != claimedScore) return TournamentSubmitStatus.TamperedScore;
             var wallMs = (receiptUtc - issued.ServerIssuedUtc).Ticks / TimeSpan.TicksPerMillisecond;
             if (wallMs < run.ElapsedMs - Template.ClockToleranceMs) return TournamentSubmitStatus.TooFast;
+            var mode = Template.Mode;
+            if (run.FrozenMs > mode.MaxPauseBudgetMs ||
+                mode.TimeLimitMs > 0 && wallMs > mode.TimeLimitMs + mode.MaxPauseBudgetMs + Template.ClockToleranceMs)
+                return TournamentSubmitStatus.TooSlow;
 
             var runId = run.RunId;
             if (_runOwners.TryGetValue(runId, out var owner))
