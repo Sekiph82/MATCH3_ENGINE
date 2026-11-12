@@ -205,6 +205,50 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentNullException>(() => coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), null, AdConsentStatus.Granted, false));
         }
 
+        [Test]
+        public void ShowStep_IneligibleWithoutPriorSuspend_DoesNotResume()
+        {
+            var suspension = new CountingSuspension();
+            var coordinator = new AdShowCoordinator(new CountingProvider(), suspension);
+            var lifecycle = new RewardedAdLifecycle();
+            lifecycle.RequestLoad();
+            lifecycle.NotifyReady();
+
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Denied, false), Is.False);
+            Assert.That(suspension.SuspendCalls, Is.EqualTo(0));
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ShowStep_IneligibleAfterOwnSuspend_ResumesExactlyOnce()
+        {
+            var suspension = new CountingSuspension();
+            var coordinator = new AdShowCoordinator(new CountingProvider(), suspension);
+            var lifecycle = new RewardedAdLifecycle();
+            Assert.That(coordinator.TryShowRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Granted, false), Is.True);
+            Assert.That(suspension.SuspendCalls, Is.EqualTo(1));
+
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Denied, false), Is.False);
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), lifecycle, AdConsentStatus.Denied, false), Is.False);
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(1));
+
+            // A different (never-suspended) lifecycle on the same coordinator must not resume.
+            var other = new RewardedAdLifecycle();
+            other.RequestLoad();
+            other.NotifyReady();
+            Assert.That(coordinator.TryShowLoadedRewardedAd(EnabledPlacement(), other, AdConsentStatus.Denied, false), Is.False);
+            Assert.That(suspension.ResumeCalls, Is.EqualTo(1));
+        }
+
+        private sealed class CountingSuspension : IGameplaySuspension
+        {
+            public int SuspendCalls { get; private set; }
+            public int ResumeCalls { get; private set; }
+            public bool IsSuspended { get; private set; }
+            public void Suspend() { SuspendCalls++; IsSuspended = true; }
+            public void Resume() { ResumeCalls++; IsSuspended = false; }
+        }
+
         private sealed class CountingProvider : IAdMediationProvider
         {
             public int ShowCalls { get; private set; }

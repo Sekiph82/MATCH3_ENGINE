@@ -90,13 +90,15 @@ namespace Match3.Engine.Runtime.Commerce
     /// Process-wide registry for the active <see cref="IAdMediationProvider"/>.
     /// Defaults to <see cref="NullAdMediationProvider"/>; replace at startup by
     /// calling <see cref="Register"/> from the optional SDK adapter assembly.
+    /// Registration is public; <see cref="Current"/> is engine-internal so game code cannot fetch the provider
+    /// and call ShowRewardedAd/Initialize around <see cref="AdEligibilityGate"/>.
     /// </summary>
     public static class AdMediationProviderRegistry
     {
         private static IAdMediationProvider _current = NullAdMediationProvider.Instance;
 
-        /// <summary>Returns the currently registered provider (never null).</summary>
-        public static IAdMediationProvider Current => _current;
+        /// <summary>Returns the currently registered provider (never null). Engine-internal (ENG-M14-002).</summary>
+        internal static IAdMediationProvider Current => _current;
 
         /// <summary>Replaces the current provider. Throws <see cref="ArgumentNullException"/> if null.</summary>
         public static void Register(IAdMediationProvider provider)

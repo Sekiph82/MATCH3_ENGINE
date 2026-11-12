@@ -128,13 +128,10 @@ namespace Match3.Engine.Tests.Editor
         {
             var record = RemoteConfigRecord.Create("wonder_pop", RemoteConfigScope.Anonymous, false, true);
             var policy = ConsentSafeRemoteConfigPolicy.Default;
-            // Ordinal mismatch: "wonder_pop" != "Wonder_Pop"
-            // But ContainsUserIdentifier=true, HasUserConsent=false => Guard 2 fires
             var result = ConsentSafeRemoteConfigGate.CanFetchRemoteConfig("wonder_pop", record, policy, out string reason);
             Assert.IsFalse(result);
             Assert.AreNotEqual("WonderPopUserIdentifierProhibited", reason);
             // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
-            Assert.IsFalse(result);
             Assert.AreEqual("UnknownGame", reason);
         }
 

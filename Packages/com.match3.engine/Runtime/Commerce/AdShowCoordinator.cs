@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Match3.Engine.Runtime.Commerce
 {
@@ -28,6 +29,8 @@ namespace Match3.Engine.Runtime.Commerce
     {
         private readonly IAdMediationProvider _provider;
         private readonly IGameplaySuspension _suspension;
+        // Lifecycles this coordinator suspended gameplay for; the ineligible-at-show path resumes only these.
+        private readonly HashSet<RewardedAdLifecycle> _suspendedFor = new HashSet<RewardedAdLifecycle>();
 
         private static readonly RewardedAdState[] TerminalStates =
         {
@@ -55,6 +58,7 @@ namespace Match3.Engine.Runtime.Commerce
                 return false;
 
             _suspension.Suspend();
+            _suspendedFor.Add(lifecycle);
             _provider.RequestRewardedAd(placement.PlacementId, lifecycle);
             return true;
         }
@@ -64,7 +68,8 @@ namespace Match3.Engine.Runtime.Commerce
         /// Re-runs <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> at show time with the CURRENT
         /// consent and kid flag (consent can be revoked between request and show) and re-checks the placement;
         /// only then calls <see cref="IAdMediationProvider.ShowRewardedAd"/>. When eligibility no longer holds the
-        /// ad is not shown and gameplay is resumed. Returns false (no show) unless the lifecycle is Ready.
+        /// ad is not shown and gameplay is resumed only if this coordinator suspended it for this lifecycle
+        /// (ENG-M14-006). Returns false (no show) unless the lifecycle is Ready.
         /// </summary>
         public bool TryShowLoadedRewardedAd(RewardPlacement placement, RewardedAdLifecycle lifecycle,
             AdConsentStatus consent, bool isKidProfile)
@@ -73,7 +78,8 @@ namespace Match3.Engine.Runtime.Commerce
 
             if (!AdEligibilityGate.Check(placement.GameId, consent, isKidProfile).IsEligible || !placement.IsEnabled)
             {
-                _suspension.Resume();
+                if (_suspendedFor.Remove(lifecycle))
+                    _suspension.Resume();
                 return false;
             }
             if (lifecycle.State != RewardedAdState.Ready)
@@ -98,6 +104,7 @@ namespace Match3.Engine.Runtime.Commerce
                 throw new InvalidOperationException(
                     $"OnAdSessionEnded called with non-terminal lifecycle state: {state}");
 
+            _suspendedFor.Remove(lifecycle);
             _suspension.Resume();
         }
     }

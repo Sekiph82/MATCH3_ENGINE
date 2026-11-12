@@ -109,7 +109,6 @@ namespace Match3.Engine.Tests.Editor
         public void CanServeAds_WonderPop_Lowercase_UnknownGame()
         {
             var record = VendorDisclosureRecord.Create("wonder_pop", CmpDisclosureKind.GdprTcf, true, false);
-            // Safe policy blocks ad serving, but Wonder_Pop guard should NOT fire for lowercase
             var result = CmpAdVendorDisclosureGate.CanServeAds("wonder_pop", record, CmpAdPolicy.Default, out var reason);
             Assert.AreNotEqual("WonderPopAdsProhibited", reason);
             // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.

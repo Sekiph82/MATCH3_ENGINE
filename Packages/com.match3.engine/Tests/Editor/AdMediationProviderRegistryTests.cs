@@ -28,6 +28,17 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void Current_IsNotPublic_GameCodeCannotBypassGate()
+        {
+            var prop = typeof(AdMediationProviderRegistry).GetProperty("Current",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(prop);
+            Assert.IsFalse(prop.GetMethod.IsPublic, "AdMediationProviderRegistry.Current must be engine-internal.");
+            Assert.IsTrue(prop.GetMethod.IsAssembly, "AdMediationProviderRegistry.Current must be internal.");
+            Assert.IsTrue(typeof(AdMediationProviderRegistry).GetMethod("Register").IsPublic, "Register stays public.");
+        }
+
+        [Test]
         public void Register_NullThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() => AdMediationProviderRegistry.Register(null));

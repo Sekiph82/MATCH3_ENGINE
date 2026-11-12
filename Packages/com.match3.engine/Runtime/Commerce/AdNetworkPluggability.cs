@@ -27,6 +27,10 @@ namespace Match3.Engine.Runtime.Commerce
 
     /// <summary>
     /// Contract for a one-time, idempotent ad network SDK initializer.
+    /// ENGINE-INTERNAL USE: game code must not call <see cref="Initialize"/> directly. Call only via
+    /// <see cref="AdMediationInitializer"/> / <see cref="AdShowCoordinator"/> /
+    /// <see cref="AdNetworkInitializerRegistry.TryInitialize(AdNetworkConfig, AdConsentStatus, bool)"/>,
+    /// which run <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> first.
     /// </summary>
     public interface IAdNetworkInitializer
     {
@@ -57,13 +61,14 @@ namespace Match3.Engine.Runtime.Commerce
 
     /// <summary>
     /// Process-wide registry for the active <see cref="IAdNetworkInitializer"/>.
-    /// Defaults to <see cref="NullAdNetworkInitializer"/>.
+    /// Defaults to <see cref="NullAdNetworkInitializer"/>. Registration is public; <see cref="Current"/> is
+    /// engine-internal (ENG-M14-003) so game code cannot reach Initialize around the eligibility gate.
     /// </summary>
     public static class AdNetworkInitializerRegistry
     {
         private static IAdNetworkInitializer _current = NullAdNetworkInitializer.Instance;
 
-        public static IAdNetworkInitializer Current => _current;
+        internal static IAdNetworkInitializer Current => _current;
 
         public static void Register(IAdNetworkInitializer initializer)
         {

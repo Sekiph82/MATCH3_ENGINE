@@ -110,15 +110,12 @@ namespace Match3.Engine.Tests.Editor
         [Test]
         public void CanRequestAttPermission_WonderPop_Lowercase_UnknownGame()
         {
-            // "wonder_pop" (lowercase) should NOT be blocked by Wonder_Pop guard (Ordinal comparison)
             var record = AttRecord.Create("wonder_pop", AttAuthorizationStatus.NotDetermined, false, true);
             var policy = AttPolicy.Safe("test");
             var result = AppleAttGate.CanRequestAttPermission("wonder_pop", record, policy, out var reason);
-            // Safe policy blocks cross-app tracking, so result is false but for different reason
             Assert.IsFalse(result);
             Assert.AreNotEqual("WonderPopAttProhibited", reason);
             // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
-            Assert.IsFalse(result);
             Assert.AreEqual("UnknownGame", reason);
         }
 

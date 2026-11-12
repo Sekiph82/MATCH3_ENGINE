@@ -75,7 +75,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.AreEqual("WonderPopLinkProhibited", result.Reason);
         }
 
-        // 9. wonder_pop (lowercase) is NOT blocked — guard is Ordinal
+        // 9. wonder_pop (lowercase) is not a catalog ID — fails closed with UnknownGame
         [Test]
         public void CanLink_WonderPopLowercase_UnknownGame()
         {

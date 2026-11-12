@@ -145,7 +145,6 @@ namespace Match3.Engine.Tests.Editor
             Assert.IsFalse(result);
             Assert.AreNotEqual("WonderPopExternalLinkGated", reason);
             // Ordinal catalog lookup: the case variant is not a catalog ID, so it fails closed with UnknownGame.
-            Assert.IsFalse(result);
             Assert.AreEqual("UnknownGame", reason);
         }
 

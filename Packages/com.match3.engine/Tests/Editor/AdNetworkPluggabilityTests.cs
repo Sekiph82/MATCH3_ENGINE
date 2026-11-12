@@ -46,6 +46,17 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void Current_IsNotPublic_GameCodeCannotBypassGate()
+        {
+            var prop = typeof(AdNetworkInitializerRegistry).GetProperty("Current",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            Assert.IsNotNull(prop);
+            Assert.IsFalse(prop.GetMethod.IsPublic, "AdNetworkInitializerRegistry.Current must be engine-internal.");
+            Assert.IsTrue(prop.GetMethod.IsAssembly, "AdNetworkInitializerRegistry.Current must be internal.");
+            Assert.IsTrue(typeof(AdNetworkInitializerRegistry).GetMethod("Register").IsPublic, "Register stays public.");
+        }
+
+        [Test]
         public void Register_Null_Throws_ArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
