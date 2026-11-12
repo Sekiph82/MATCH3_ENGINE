@@ -18,11 +18,13 @@ namespace Match3.Engine.Runtime.LiveOps
     // - Max three earned wins, granted ONLY through RewardLedger with keys (catch_up, windowId#winIndex),
     //   Reference = win event id and ExpiresUtc = window end, so replays/reinstalls cannot double-grant; when local
     //   state is lost the window end and its start (earliest win) are re-derived from the ledger, never from policy.
+    //   A new window's absence must also be strictly after every live catch_up grant (the player was active then).
     // - Wins are ENG-M08-015 VerifiedProgressionResults (verified, won, same game/profile, completed inside the window
-    //   by the server anchor); the result id is the ledger Reference. The string overload is [Obsolete], fails closed.
-    // - Persisted state is validated on construction (windowId "w"+ticks, opened >= absence + threshold, length <=
-    //   policy, and no evidence-free window starting within threshold of the latest recorded absence); a window with
-    //   ledger grants counts as already signalled. Callers persist State before showing the signal.
+    //   by the server anchor, CanonicalWeekId = ISO week of that completion); the result id is the ledger Reference
+    //   and pays at most one catch-up win across all windows (WinAlreadyRewarded). The string overload is [Obsolete].
+    // - The service is bound to the server last-active (constructor); persisted state is validated against it and the
+    //   ledger (see constructor doc); a window with ledger grants counts as already signalled. The constructor without
+    //   last-active is [Obsolete] and fails closed. Callers persist State before showing the signal.
     // - Transparent explanation data only (remaining wins, window end, reward per win); no urgency flags.
     // - Gated by the per-title "catch_up" feature flag (default OFF). Child players (per-player input): OFF - no
     //   window, no signal, no grants. Family-safe titles (Wonder_Pop, general/family audience): non-targeted track
@@ -63,6 +65,8 @@ namespace Match3.Engine.Runtime.LiveOps
         public const string WinOwnerMismatch = "WinOwnerMismatch";
         public const string CompletionOutsideWindow = "CompletionOutsideWindow";
         public const string InvalidWindowState = "InvalidWindowState";
+        public const string WinAlreadyRewarded = "WinAlreadyRewarded";
+        public const string CompletionWeekMismatch = "CompletionWeekMismatch";
     }
 
     public sealed class CatchUpPolicy
@@ -185,14 +189,29 @@ namespace Match3.Engine.Runtime.LiveOps
         private readonly RewardLedger _ledger;
         private readonly CatchUpPolicy _policy;
         private readonly bool _childPlayer;
+        /// <summary>Non-null when the service was built without a trusted server last-active: every call fails closed.</summary>
+        private readonly string _bindingError;
 
         public CatchUpWindowState State { get; private set; }
 
-        /// <param name="state">Persisted window record. Validated against the policy and the ledger's catch_up history;
-        /// an inconsistent record throws ArgumentException (InvalidWindowState). If the window already has ledger
-        /// grants its signal counts as sent.</param>
+        /// <summary>Superseded: a persisted window cannot be checked without the server last-active. Fails closed.</summary>
+        [Obsolete("Pass the server-anchored last-active TrustedUtcAnchor; this overload always returns TrustedLastActiveRequired.")]
         public ComebackCatchUpService(GameProfile profile, RewardLedger ledger, CatchUpPolicy policy,
             bool playerIsChildProfile, CatchUpWindowState state = null)
+            : this(profile, ledger, policy, playerIsChildProfile, default(TrustedUtcAnchor), null)
+        {
+        }
+
+        /// <param name="lastActive">Server-recorded last activity BEFORE the current session (the absence start).</param>
+        /// <param name="state">Persisted window record, validated against the policy, the server last-active and the
+        /// ledger's catch_up history; an inconsistent record throws ArgumentException (InvalidWindowState).
+        /// - With ledger grants for its windowId: EndsUtc must equal their expiry and OpenedUtc must not be after the
+        ///   earliest grant (same derivation as Evaluate); a fully settled window cannot be restored. Signal counts as sent.
+        /// - Without ledger grants: its absence must equal <paramref name="lastActive"/>, be strictly after every live
+        ///   catch_up grant and at least one threshold after the latest recorded absence.
+        /// - Always: windowId "w"+ticks, OpenedUtc >= absence + threshold, length <= policy window.</param>
+        public ComebackCatchUpService(GameProfile profile, RewardLedger ledger, CatchUpPolicy policy,
+            bool playerIsChildProfile, TrustedUtcAnchor lastActive, CatchUpWindowState state = null)
         {
             _profile = profile ?? throw new ArgumentNullException(nameof(profile));
             _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
@@ -200,18 +219,36 @@ namespace Match3.Engine.Runtime.LiveOps
             if (!string.Equals(profile.Id, ledger.GameId, StringComparison.Ordinal))
                 throw new ArgumentException("Ledger belongs to another game.", nameof(ledger));
             _childPlayer = playerIsChildProfile;
+            if (!lastActive.IsServerAnchored || lastActive.UtcNow.Kind != DateTimeKind.Utc)
+            {
+                _bindingError = CatchUpReasons.TrustedLastActiveRequired;
+                return;
+            }
             if (state != null)
             {
                 var absence = ParseAbsenceTicks(state.WindowId);
                 var threshold = TimeSpan.FromDays(policy.InactivityThresholdDays).Ticks;
-                var hasEvidence = Enumerable.Range(1, CatchUpPolicy.MaxRecoveryWins).Any(i => ledger.ContainsKey(SlotKey(state.WindowId, i)));
-                var latest = LatestRecordedAbsence();
                 if (!absence.HasValue || state.OpenedUtc.Ticks - absence.Value < threshold ||
-                    state.WindowLength > TimeSpan.FromDays(policy.WindowLengthDays) ||
-                    !hasEvidence && latest.HasValue && absence.Value < latest.Value + threshold)
+                    state.WindowLength > TimeSpan.FromDays(policy.WindowLengthDays))
                     throw new ArgumentException(CatchUpReasons.InvalidWindowState, nameof(state));
-                if (hasEvidence && !state.SignalSent)
-                    state = new CatchUpWindowState(state.WindowId, state.OpenedUtc, state.EndsUtc, true);
+                var keys = Enumerable.Range(1, CatchUpPolicy.MaxRecoveryWins).Select(i => SlotKey(state.WindowId, i)).ToList();
+                var live = keys.Select(k => ledger.TryGetRecord(k, out var r) ? r : null).Where(r => r != null).ToList();
+                if (keys.Any(ledger.ContainsKey))
+                {
+                    if (live.Count == 0 || live.Any(r => r.ExpiresUtc != state.EndsUtc) ||
+                        state.OpenedUtc > live.Min(r => r.GrantedUtc))
+                        throw new ArgumentException(CatchUpReasons.InvalidWindowState, nameof(state));
+                    if (!state.SignalSent) state = new CatchUpWindowState(state.WindowId, state.OpenedUtc, state.EndsUtc, true);
+                }
+                else
+                {
+                    var latest = LatestRecordedAbsence();
+                    var lastGrant = LatestLiveCatchUpGrantTicks();
+                    if (absence.Value != lastActive.UtcNow.Ticks ||
+                        lastGrant.HasValue && absence.Value <= lastGrant.Value ||
+                        latest.HasValue && absence.Value < latest.Value + threshold)
+                        throw new ArgumentException(CatchUpReasons.InvalidWindowState, nameof(state));
+                }
             }
             State = state;
         }
@@ -240,7 +277,10 @@ namespace Match3.Engine.Runtime.LiveOps
                 return t < State.EndsUtc ? Active() : Ineligible(CatchUpReasons.WindowExpired);
             }
             var latest = LatestRecordedAbsence();
-            if (latest.HasValue && last.Ticks < latest.Value + threshold.Ticks) return Ineligible(CatchUpReasons.RecentCatchUpWindow);
+            var lastGrant = LatestLiveCatchUpGrantTicks();
+            if (latest.HasValue && last.Ticks < latest.Value + threshold.Ticks ||
+                lastGrant.HasValue && last.Ticks <= lastGrant.Value)
+                return Ineligible(CatchUpReasons.RecentCatchUpWindow);
 
             State = new CatchUpWindowState(windowId, t, t + TimeSpan.FromDays(_policy.WindowLengthDays), false);
             return Active();
@@ -271,21 +311,27 @@ namespace Match3.Engine.Runtime.LiveOps
             if (now.UtcNow >= State.EndsUtc) return RewardLedgerGrantResult.Rejected(CatchUpReasons.WindowExpired);
             if (verifiedCompletionUtc < State.OpenedUtc || verifiedCompletionUtc >= State.EndsUtc || verifiedCompletionUtc > now.UtcNow)
                 return RewardLedgerGrantResult.Rejected(CatchUpReasons.CompletionOutsideWindow);
+            if (!string.Equals(result.CanonicalWeekId, IsoWeekWindow.WeekId(verifiedCompletionUtc), StringComparison.Ordinal))
+                return RewardLedgerGrantResult.Rejected(CatchUpReasons.CompletionWeekMismatch);
             var winEventId = result.ResultId;
 
-            for (var i = 1; i <= CatchUpPolicy.MaxRecoveryWins; i++)
+            var free = 0;
+            for (var i = CatchUpPolicy.MaxRecoveryWins; i >= 1; i--)
             {
                 var key = SlotKey(State.WindowId, i);
                 if (_ledger.TryGetRecord(key, out var rec))
                 {
                     if (string.Equals(rec.Reference, winEventId, StringComparison.Ordinal)) return RewardLedgerGrantResult.Duplicate(rec);
-                    continue;
                 }
-                if (_ledger.ContainsKey(key)) continue;
-                return _ledger.TryGrant(new RewardLedgerRequest(_ledger.GameId, _ledger.PlayerId, RewardSources.CatchUp,
-                    SlotInstance(State.WindowId, i), _policy.RewardPerWin, now.UtcNow, State.EndsUtc, winEventId), now);
+                else if (!_ledger.ContainsKey(key)) free = i;
             }
-            return RewardLedgerGrantResult.Rejected(CatchUpReasons.WinCapReached);
+            // One verified result pays at most one catch-up win across ALL windows. Settled (tombstoned) windows ended
+            // at least retention ago, so their results cannot also satisfy this window's completion-week check.
+            if (LiveCatchUpRecords().Any(r => string.Equals(r.Reference, winEventId, StringComparison.Ordinal)))
+                return RewardLedgerGrantResult.Rejected(CatchUpReasons.WinAlreadyRewarded);
+            if (free == 0) return RewardLedgerGrantResult.Rejected(CatchUpReasons.WinCapReached);
+            return _ledger.TryGrant(new RewardLedgerRequest(_ledger.GameId, _ledger.PlayerId, RewardSources.CatchUp,
+                SlotInstance(State.WindowId, free), _policy.RewardPerWin, now.UtcNow, State.EndsUtc, winEventId), now);
         }
 
         private CatchUpEvaluation Gate(TrustedUtcAnchor now, TrustedUtcAnchor lastActive)
@@ -293,6 +339,7 @@ namespace Match3.Engine.Runtime.LiveOps
             if (_childPlayer) return new CatchUpEvaluation(CatchUpStatus.Off, CatchUpReasons.ChildProfileOff);
             if (!_profile.IsEnabled("catch_up", EngineCompatibility.MinimumCapability))
                 return new CatchUpEvaluation(CatchUpStatus.Off, CatchUpReasons.FeatureDisabled);
+            if (_bindingError != null) return Ineligible(_bindingError);
             if (!now.IsServerAnchored) return Ineligible(CatchUpReasons.TrustedTimeAnchorRequired);
             if (!lastActive.IsServerAnchored) return Ineligible(CatchUpReasons.TrustedLastActiveRequired);
             if (now.UtcNow.Kind != DateTimeKind.Utc || lastActive.UtcNow.Kind != DateTimeKind.Utc)
@@ -322,6 +369,20 @@ namespace Match3.Engine.Runtime.LiveOps
                 var ticks = hash > 0 ? ParseAbsenceTicks(id.Substring(0, hash)) : null;
                 if (ticks.HasValue && (!latest.HasValue || ticks.Value > latest.Value)) latest = ticks;
             }
+            return latest;
+        }
+
+        private IEnumerable<RewardLedgerRecord> LiveCatchUpRecords() =>
+            _ledger.InstanceIds(RewardSources.CatchUp)
+                .Select(id => _ledger.TryGetRecord(RewardLedgerKey.Derive(_ledger.GameId, _ledger.PlayerId, RewardSources.CatchUp, id), out var r) ? r : null)
+                .Where(r => r != null);
+
+        /// <summary>Latest GrantedUtc (ticks) of any live catch_up grant: the player was active then.</summary>
+        private long? LatestLiveCatchUpGrantTicks()
+        {
+            long? latest = null;
+            foreach (var r in LiveCatchUpRecords())
+                if (!latest.HasValue || r.GrantedUtc.Ticks > latest.Value) latest = r.GrantedUtc.Ticks;
             return latest;
         }
 

@@ -23,19 +23,19 @@ namespace Match3.Engine.Tests.Editor
         private static ComebackCatchUpService Service(out RewardLedger ledger, string id = "Coral_Rescue", bool catchUp = true, bool child = false)
         {
             ledger = new RewardLedger(id, Player);
-            return new ComebackCatchUpService(Profile(id, catchUp), ledger, CatchUpPolicy.Standard, child);
+            return new ComebackCatchUpService(Profile(id, catchUp), ledger, CatchUpPolicy.Standard, child, Last);
         }
 
         private static TrustedUtcAnchor At(DateTime utc) => TrustedUtcAnchor.Server(utc);
 
         private static VerifiedProgressionResult Won(string id, string game = "Coral_Rescue", bool won = true,
-            bool verified = true, string profile = Player) =>
+            bool verified = true, string profile = Player, string week = "2026-W43") =>
             new VerifiedProgressionResult(id, game, profile, "classic", "lvl.1", "lvl.1", won, false, true,
-                100, won ? 1 : 0, 1, 0, "2026-W43", verified);
+                100, won ? 1 : 0, 1, 0, week, verified);
 
         // A verified win completed at the server-anchored instant `at`.
         private static RewardLedgerGrantResult Win(ComebackCatchUpService s, DateTime at, string id, string game = "Coral_Rescue") =>
-            s.RecordWin(At(at), Won(id, game), at);
+            s.RecordWin(At(at), Won(id, game, week: IsoWeekWindow.WeekId(at)), at);
 
         [Test]
         public void RecordWin_RequiresVerifiedWonOwnResultCompletedInsideWindow()
@@ -55,6 +55,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(s.RecordWin(now, Won("x"), Return.AddHours(-1)).Reason, Is.EqualTo(C.CompletionOutsideWindow), "before window");
             Assert.That(s.RecordWin(now, Won("x"), Return.AddHours(3)).Reason, Is.EqualTo(C.CompletionOutsideWindow), "after server now");
             Assert.That(s.RecordWin(now, Won("x"), new DateTime(2026, 10, 21, 11, 0, 0, DateTimeKind.Local)).Reason, Is.EqualTo(C.NonUtcTime));
+            Assert.That(s.RecordWin(now, Won("x", week: "2026-W40"), at).Reason, Is.EqualTo(C.CompletionWeekMismatch));
             Assert.That(ledger.Count, Is.EqualTo(0));
             var ok = s.RecordWin(now, Won("x"), at);
             Assert.That(ok.Outcome, Is.EqualTo(RewardLedgerOutcome.Applied));
@@ -63,30 +64,86 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
-        public void PersistedState_Validated_EditedFreshWindowCannotOpenMoreGrants()
+        public void PersistedState_QaF1_EditedOverlappingWindowRejected()
         {
             var s = Service(out var ledger);
             s.Evaluate(At(Return), Last);
-            for (var i = 1; i <= 3; i++) Win(s, Return.AddHours(i), "win-" + i);
-            ComebackCatchUpService Restore(CatchUpWindowState st) =>
-                new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, st);
+            Win(s, Return.AddHours(1), "r1");
+            ComebackCatchUpService Restore(CatchUpWindowState st, TrustedUtcAnchor last) =>
+                new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, last, st);
 
-            // Edited state: a fresh windowId (absence one day after the recorded one) with no ledger evidence.
-            var fresh = LastActive.AddDays(1);
-            var edited = new CatchUpWindowState("w" + fresh.Ticks, Return.AddDays(1), Return.AddDays(8), false);
-            Assert.Throws<ArgumentException>(() => Restore(edited));
-            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("bogus", Return, Return.AddDays(7), false)));
-            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w0" + LastActive.Ticks, Return, Return.AddDays(7), false)));
+            // QA sequence: absence = A + 14d (exactly one threshold after the recorded absence A), opened = A + 100d,
+            // presented with a matching (forged) server last-active. The real window w(A) has a live grant at A+20d+1h,
+            // i.e. the player was active after this claimed absence started.
+            var claimed = LastActive.AddDays(14);
+            var edited = new CatchUpWindowState("w" + claimed.Ticks, LastActive.AddDays(100), LastActive.AddDays(107), false);
+            Assert.Throws<ArgumentException>(() => Restore(edited, At(claimed)));
+            // Same edited state against the true server last-active (absence mismatch, F3).
+            Assert.Throws<ArgumentException>(() => Restore(edited, Last));
+            // Format/consistency checks.
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("bogus", Return, Return.AddDays(7), false), Last));
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w0" + LastActive.Ticks, Return, Return.AddDays(7), false), Last));
             Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w" + LastActive.Ticks, LastActive.AddDays(5),
-                LastActive.AddDays(12), false)), "opened before the absence was genuine");
-            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w" + LastActive.Ticks, Return, Return.AddDays(8), false)),
+                LastActive.AddDays(12), false), Last), "opened before the absence was genuine");
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState("w" + LastActive.Ticks, Return, Return.AddDays(8), false), Last),
                 "longer than the policy window");
-            Assert.That(ledger.Count, Is.EqualTo(3));
-            Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(300));
+            Assert.That(ledger.Count, Is.EqualTo(1));
+            Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(100));
 
-            // The genuine persisted state restores fine and stays capped.
-            var restored = Restore(s.State);
-            Assert.That(Win(restored, Return.AddHours(5), "win-9").Reason, Is.EqualTo(C.WinCapReached));
+            // The genuine persisted state restores; the same result cannot pay again.
+            var restored = Restore(s.State, Last);
+            Assert.That(Win(restored, Return.AddHours(5), "r1").Outcome, Is.EqualTo(RewardLedgerOutcome.Duplicate));
+            Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(100));
+        }
+
+        [Test]
+        public void PersistedState_QaF2_TimeShiftedEvidencedWindowRejected()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            Win(s, Return.AddHours(1), "r1");                               // window ends Return + 7d, 2 slots left
+            var id = s.State.WindowId;
+            ComebackCatchUpService Restore(CatchUpWindowState st, RewardLedger l = null) =>
+                new ComebackCatchUpService(Profile(), l ?? ledger, CatchUpPolicy.Standard, false, Last, st);
+
+            // After expiry, the window is presented again with shifted dates to reopen its two free slots.
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState(id, Return.AddDays(29), Return.AddDays(36), true)));
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState(id, Return, Return.AddDays(6), true)), "end moved");
+            Assert.Throws<ArgumentException>(() => Restore(new CatchUpWindowState(id, Return.AddHours(2), Return.AddDays(7), true)),
+                "opened after the earliest recorded win");
+            var settled = RewardLedger.FromSnapshot(ledger.ToSnapshot()).Ledger;
+            Assert.That(settled.Prune(At(Return.AddDays(400))), Is.EqualTo(1));
+            Assert.Throws<ArgumentException>(() => Restore(s.State, settled), "a settled window cannot be restored");
+            Assert.That(ledger.Count, Is.EqualTo(1));
+
+            // The unshifted state is accepted but the window stays expired.
+            var genuine = Restore(s.State);
+            Assert.That(Win(genuine, Return.AddDays(30), "r2").Reason, Is.EqualTo(C.WindowExpired));
+            Assert.That(ledger.Balance(CurrencyType.Coins), Is.EqualTo(100));
+        }
+
+        [Test]
+        public void PersistedState_QaF3_BoundToServerLastActive_LegacyConstructorFailsClosed()
+        {
+            // Empty history; a never-absent player (server last-active = recent) presents an old-absence window.
+            var oldAbsence = LastActive;
+            var recent = At(Return.AddDays(-1));
+            var forgedState = new CatchUpWindowState("w" + oldAbsence.Ticks, Return, Return.AddDays(7), false);
+            Assert.Throws<ArgumentException>(() =>
+                new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false, recent, forgedState));
+            Assert.That(new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false,
+                Last, forgedState).State, Is.Not.Null, "matches the server last-active");
+
+            var untrusted = new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false,
+                TrustedUtcAnchor.DeviceClock(LastActive), forgedState);
+            Assert.That(untrusted.State, Is.Null);
+            Assert.That(untrusted.Evaluate(At(Return), Last).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
+#pragma warning disable CS0618
+            var legacy = new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false, forgedState);
+#pragma warning restore CS0618
+            Assert.That(legacy.State, Is.Null);
+            Assert.That(legacy.Evaluate(At(Return), Last).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
+            Assert.That(Win(legacy, Return.AddHours(1), "r1").Reason, Is.EqualTo(C.TrustedLastActiveRequired));
         }
 
         [Test]
@@ -96,11 +153,11 @@ namespace Match3.Engine.Tests.Editor
             s.Evaluate(At(Return), Last);
             Win(s, Return.AddHours(1), "win-1");
             var unsent = new CatchUpWindowState(s.State.WindowId, s.State.OpenedUtc, s.State.EndsUtc, false);
-            var restored = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, unsent);
+            var restored = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last, unsent);
             Assert.That(restored.State.SignalSent, Is.True);
             Assert.That(restored.Evaluate(At(Return.AddHours(2)), Last).EmitEligibleSignal, Is.False);
             // Without ledger evidence the persisted flag is authoritative.
-            var notYet = new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false,
+            var notYet = new ComebackCatchUpService(Profile(), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false, Last,
                 new CatchUpWindowState("w" + LastActive.Ticks, Return, Return.AddDays(7), false));
             Assert.That(notYet.Evaluate(At(Return.AddHours(1)), Last).EmitEligibleSignal, Is.True);
         }
@@ -204,8 +261,10 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active));
             Assert.That(e.EmitEligibleSignal, Is.True);
             Assert.That(e.Explanation.RemainingWins, Is.EqualTo(3));
-            Assert.That(Win(s, active2.AddDays(15).AddHours(1), "win-1").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied),
-                "win ids are scoped per window");
+            Assert.That(Win(s, active2.AddDays(15).AddHours(1), "win-5").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied),
+                "a fresh verified result in the new window");
+            // QA F4/F1b: a result that already paid in the first window never pays again in a later one.
+            Assert.That(Win(s, active2.AddDays(15).AddHours(2), "win-1").Reason, Is.EqualTo(C.WinAlreadyRewarded));
             Assert.That(ledger.Count, Is.EqualTo(2));
         }
 
@@ -220,7 +279,7 @@ namespace Match3.Engine.Tests.Editor
 
             // Policy window length changed since: the pinned window must not move.
             var longer = new CatchUpPolicy(14, 30, CatchUpPolicy.Standard.RewardPerWin);
-            var reinstalled = new ComebackCatchUpService(Profile(), cloud, longer, false);
+            var reinstalled = new ComebackCatchUpService(Profile(), cloud, longer, false, Last);
             var e = reinstalled.Evaluate(At(Return.AddDays(3)), Last);
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active));
             Assert.That(e.EmitEligibleSignal, Is.False, "no second signal after reinstall");
@@ -233,7 +292,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(cloud.Balance(CurrencyType.Coins), Is.EqualTo(300));
 
             // Reinstall after the window ended: the window is closed, not re-opened.
-            var late = new ComebackCatchUpService(Profile(), cloud, CatchUpPolicy.Standard, false);
+            var late = new ComebackCatchUpService(Profile(), cloud, CatchUpPolicy.Standard, false, Last);
             Assert.That(late.Evaluate(At(Return.AddDays(9)), Last).Reason, Is.EqualTo(C.WindowExpired));
             Assert.That(late.Evaluate(At(Return.AddDays(10)), Last).Reason, Is.EqualTo(C.NewAbsenceRequired));
         }
@@ -247,7 +306,7 @@ namespace Match3.Engine.Tests.Editor
             // Local state lost; a forged "server" last-active value is presented to get a fresh windowId.
             foreach (var forged in new[] { LastActive.AddDays(-30), LastActive.AddDays(-1), LastActive.AddDays(1), LastActive.AddDays(7) })
             {
-                var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false);
+                var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last);
                 var e = fresh.Evaluate(At(Return.AddDays(1)), At(forged));
                 Assert.That(e.Reason, Is.EqualTo(C.RecentCatchUpWindow), forged.ToString("o"));
                 Assert.That(e.EmitEligibleSignal, Is.False);
@@ -256,7 +315,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.That(ledger.Count, Is.EqualTo(1));
             // A genuine later absence (>= latest recorded absence + threshold, and a full threshold ago) is allowed.
             var genuine = LastActive.AddDays(22);
-            var ok = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false).Evaluate(At(genuine.AddDays(14)), At(genuine));
+            var ok = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, At(genuine)).Evaluate(At(genuine.AddDays(14)), At(genuine));
             Assert.That(ok.Status, Is.EqualTo(CatchUpStatus.Active), ok.Reason);
         }
 
@@ -267,7 +326,7 @@ namespace Match3.Engine.Tests.Editor
             s.Evaluate(At(Return), Last);
             Win(s, Return.AddHours(1), "win-1");
             Assert.That(ledger.Prune(At(Return.AddDays(400))), Is.EqualTo(1));
-            var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false);
+            var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last);
             Assert.That(fresh.Evaluate(At(Return.AddDays(400)), At(LastActive.AddDays(5))).Reason, Is.EqualTo(C.RecentCatchUpWindow));
             Assert.That(fresh.Evaluate(At(Return.AddDays(400)), Last).Reason, Is.EqualTo(C.WindowExpired), "same absence, settled window");
         }
@@ -280,7 +339,7 @@ namespace Match3.Engine.Tests.Editor
             var text = s.State.ToCanonical();
             Assert.That(CatchUpWindowState.TryParse(text, out var restored), Is.True);
             Assert.That(restored.WindowLength, Is.EqualTo(TimeSpan.FromDays(7)));
-            var resumed = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, restored);
+            var resumed = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last, restored);
             Assert.That(resumed.Evaluate(At(Return.AddHours(1)), Last).EmitEligibleSignal, Is.False);
             Assert.That(CatchUpWindowState.TryParse(text.Replace(":true", ": true"), out _), Is.False);
             Assert.That(CatchUpWindowState.TryParse("{}", out _), Is.False);
@@ -356,7 +415,7 @@ namespace Match3.Engine.Tests.Editor
             Assert.Throws<ArgumentException>(() => new CatchUpPolicy(14, 7, new Dictionary<string, long>()));
             Assert.Throws<ArgumentOutOfRangeException>(() => new CatchUpPolicy(0, 7, new Dictionary<string, long> { ["Coins"] = 1 }));
             Assert.Throws<ArgumentException>(() =>
-                new ComebackCatchUpService(Profile("Dino_Islands"), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false));
+                new ComebackCatchUpService(Profile("Dino_Islands"), new RewardLedger("Coral_Rescue", Player), CatchUpPolicy.Standard, false, Last));
         }
     }
 }
