@@ -25,6 +25,9 @@ namespace Match3.Engine.Runtime.LiveOps
     // - The service is bound to the server last-active (constructor); persisted state is validated against it and the
     //   ledger (see constructor doc); a window with ledger grants counts as already signalled. The constructor without
     //   last-active is [Obsolete] and fails closed. Callers persist State before showing the signal.
+    // - One instance per session: Evaluate's lastActive must equal the constructor's. Known limitation: a window with
+    //   no win yet is lost on restart into a later session. Restore failures throw InvalidWindowState; TryCreate
+    //   returns the reason instead. The ledger's catch_up retention must cover threshold + window length.
     // - Transparent explanation data only (remaining wins, window end, reward per win); no urgency flags.
     // - Gated by the per-title "catch_up" feature flag (default OFF). Child players (per-player input): OFF - no
     //   window, no signal, no grants. Family-safe titles (Wonder_Pop, general/family audience): non-targeted track
@@ -67,6 +70,7 @@ namespace Match3.Engine.Runtime.LiveOps
         public const string InvalidWindowState = "InvalidWindowState";
         public const string WinAlreadyRewarded = "WinAlreadyRewarded";
         public const string CompletionWeekMismatch = "CompletionWeekMismatch";
+        public const string CatchUpRetentionTooShort = "CatchUpRetentionTooShort";
     }
 
     public sealed class CatchUpPolicy
@@ -191,6 +195,7 @@ namespace Match3.Engine.Runtime.LiveOps
         private readonly bool _childPlayer;
         /// <summary>Non-null when the service was built without a trusted server last-active: every call fails closed.</summary>
         private readonly string _bindingError;
+        private readonly TrustedUtcAnchor _lastActive;
 
         public CatchUpWindowState State { get; private set; }
 
@@ -202,23 +207,54 @@ namespace Match3.Engine.Runtime.LiveOps
         {
         }
 
-        /// <param name="lastActive">Server-recorded last activity BEFORE the current session (the absence start).</param>
+        /// <param name="lastActive">Server-recorded last activity BEFORE the current session (the absence start). One
+        /// service instance serves one session: Evaluate must be called with this same value.</param>
         /// <param name="state">Persisted window record, validated against the policy, the server last-active and the
-        /// ledger's catch_up history; an inconsistent record throws ArgumentException (InvalidWindowState).
+        /// ledger's catch_up history; an inconsistent record throws ArgumentException (InvalidWindowState). Integrators
+        /// must catch it or use TryCreate. Rules:
         /// - With ledger grants for its windowId: EndsUtc must equal their expiry and OpenedUtc must not be after the
         ///   earliest grant (same derivation as Evaluate); a fully settled window cannot be restored. Signal counts as sent.
-        /// - Without ledger grants: its absence must equal <paramref name="lastActive"/>, be strictly after every live
-        ///   catch_up grant and at least one threshold after the latest recorded absence.
-        /// - Always: windowId "w"+ticks, OpenedUtc >= absence + threshold, length <= policy window.</param>
+        /// - Without ledger grants: its absence must equal lastActive, be strictly after every live catch_up grant and
+        ///   at least one threshold after the latest recorded absence. Known limitation: a window that has no win yet
+        ///   does not survive into a later session (that session's last-active is newer), so a restart before the
+        ///   first win loses the window (under-grant by design, never a second track).
+        /// - Always: windowId "w"+ticks, OpenedUtc >= absence + threshold, length <= policy window.
+        /// The ledger's catch_up retention must be >= threshold + window length (CatchUpRetentionTooShort): settled
+        /// windows are then old enough that their results cannot satisfy a current window's completion-week check.</param>
         public ComebackCatchUpService(GameProfile profile, RewardLedger ledger, CatchUpPolicy policy,
             bool playerIsChildProfile, TrustedUtcAnchor lastActive, CatchUpWindowState state = null)
+            : this(profile, ledger, policy, playerIsChildProfile, lastActive, state, out var error)
         {
+            if (error != null) throw new ArgumentException(error, nameof(state));
+        }
+
+        /// <summary>Non-throwing variant for persisted-state and ledger-configuration problems (InvalidWindowState,
+        /// CatchUpRetentionTooShort). Null arguments and a ledger of another game still throw (programming errors).</summary>
+        public static bool TryCreate(GameProfile profile, RewardLedger ledger, CatchUpPolicy policy, bool playerIsChildProfile,
+            TrustedUtcAnchor lastActive, CatchUpWindowState state, out ComebackCatchUpService service, out string reason)
+        {
+            var created = new ComebackCatchUpService(profile, ledger, policy, playerIsChildProfile, lastActive, state, out reason);
+            service = reason == null ? created : null;
+            reason = reason ?? string.Empty;
+            return service != null;
+        }
+
+        private ComebackCatchUpService(GameProfile profile, RewardLedger ledger, CatchUpPolicy policy,
+            bool playerIsChildProfile, TrustedUtcAnchor lastActive, CatchUpWindowState state, out string error)
+        {
+            error = null;
             _profile = profile ?? throw new ArgumentNullException(nameof(profile));
             _ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             _policy = policy ?? throw new ArgumentNullException(nameof(policy));
             if (!string.Equals(profile.Id, ledger.GameId, StringComparison.Ordinal))
                 throw new ArgumentException("Ledger belongs to another game.", nameof(ledger));
             _childPlayer = playerIsChildProfile;
+            _lastActive = lastActive;
+            if (ledger.Retention.For(RewardSources.CatchUp) < TimeSpan.FromDays(policy.InactivityThresholdDays + policy.WindowLengthDays))
+            {
+                error = CatchUpReasons.CatchUpRetentionTooShort;
+                return;
+            }
             if (!lastActive.IsServerAnchored || lastActive.UtcNow.Kind != DateTimeKind.Utc)
             {
                 _bindingError = CatchUpReasons.TrustedLastActiveRequired;
@@ -230,14 +266,20 @@ namespace Match3.Engine.Runtime.LiveOps
                 var threshold = TimeSpan.FromDays(policy.InactivityThresholdDays).Ticks;
                 if (!absence.HasValue || state.OpenedUtc.Ticks - absence.Value < threshold ||
                     state.WindowLength > TimeSpan.FromDays(policy.WindowLengthDays))
-                    throw new ArgumentException(CatchUpReasons.InvalidWindowState, nameof(state));
+                {
+                    error = CatchUpReasons.InvalidWindowState;
+                    return;
+                }
                 var keys = Enumerable.Range(1, CatchUpPolicy.MaxRecoveryWins).Select(i => SlotKey(state.WindowId, i)).ToList();
                 var live = keys.Select(k => ledger.TryGetRecord(k, out var r) ? r : null).Where(r => r != null).ToList();
                 if (keys.Any(ledger.ContainsKey))
                 {
                     if (live.Count == 0 || live.Any(r => r.ExpiresUtc != state.EndsUtc) ||
                         state.OpenedUtc > live.Min(r => r.GrantedUtc))
-                        throw new ArgumentException(CatchUpReasons.InvalidWindowState, nameof(state));
+                    {
+                        error = CatchUpReasons.InvalidWindowState;
+                        return;
+                    }
                     if (!state.SignalSent) state = new CatchUpWindowState(state.WindowId, state.OpenedUtc, state.EndsUtc, true);
                 }
                 else
@@ -247,16 +289,22 @@ namespace Match3.Engine.Runtime.LiveOps
                     if (absence.Value != lastActive.UtcNow.Ticks ||
                         lastGrant.HasValue && absence.Value <= lastGrant.Value ||
                         latest.HasValue && absence.Value < latest.Value + threshold)
-                        throw new ArgumentException(CatchUpReasons.InvalidWindowState, nameof(state));
+                    {
+                        error = CatchUpReasons.InvalidWindowState;
+                        return;
+                    }
                 }
             }
             State = state;
         }
 
+        /// <param name="lastActive">Must equal the constructor's server last-active (one instance per session);
+        /// a different value is rejected with TrustedLastActiveRequired.</param>
         public CatchUpEvaluation Evaluate(TrustedUtcAnchor now, TrustedUtcAnchor lastActive)
         {
             var blocked = Gate(now, lastActive);
             if (blocked != null) return blocked;
+            if (lastActive.UtcNow != _lastActive.UtcNow) return Ineligible(CatchUpReasons.TrustedLastActiveRequired);
             var t = now.UtcNow;
             var last = lastActive.UtcNow;
             if (last > t) return Ineligible(CatchUpReasons.ClockRollbackDetected);

@@ -20,10 +20,11 @@ namespace Match3.Engine.Tests.Editor
             new GameProfile(id, "placeholder." + id.ToLowerInvariant(), ProfileAgeRule.General, ProfileContentChannel.Development,
                 catchUp ? new[] { new FeatureFlag("catch_up", EngineCompatibility.MinimumCapability) } : null);
 
-        private static ComebackCatchUpService Service(out RewardLedger ledger, string id = "Coral_Rescue", bool catchUp = true, bool child = false)
+        private static ComebackCatchUpService Service(out RewardLedger ledger, string id = "Coral_Rescue", bool catchUp = true,
+            bool child = false, TrustedUtcAnchor? last = null)
         {
             ledger = new RewardLedger(id, Player);
-            return new ComebackCatchUpService(Profile(id, catchUp), ledger, CatchUpPolicy.Standard, child, Last);
+            return new ComebackCatchUpService(Profile(id, catchUp), ledger, CatchUpPolicy.Standard, child, last ?? Last);
         }
 
         private static TrustedUtcAnchor At(DateTime utc) => TrustedUtcAnchor.Server(utc);
@@ -254,17 +255,18 @@ namespace Match3.Engine.Tests.Editor
             Win(s, Return.AddHours(1), "win-1");
             Assert.That(Win(s, Return.AddDays(7), "win-2").Reason, Is.EqualTo(C.WindowExpired));
             Assert.That(s.Evaluate(At(Return.AddDays(30)), Last).Reason, Is.EqualTo(C.NewAbsenceRequired));
-            // Player was active during the window, then absent again for 13 days: not yet genuine.
+            // Player was active during the window, then absent again: a later session binds the newer last-active.
             var active2 = Return.AddDays(2);
-            Assert.That(s.Evaluate(At(active2.AddDays(13)), At(active2)).Reason, Is.EqualTo(C.InsufficientAbsence));
-            var e = s.Evaluate(At(active2.AddDays(15)), At(active2));
+            var s2 = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, At(active2), s.State);
+            Assert.That(s2.Evaluate(At(active2.AddDays(13)), At(active2)).Reason, Is.EqualTo(C.InsufficientAbsence));
+            var e = s2.Evaluate(At(active2.AddDays(15)), At(active2));
             Assert.That(e.Status, Is.EqualTo(CatchUpStatus.Active));
             Assert.That(e.EmitEligibleSignal, Is.True);
             Assert.That(e.Explanation.RemainingWins, Is.EqualTo(3));
-            Assert.That(Win(s, active2.AddDays(15).AddHours(1), "win-5").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied),
+            Assert.That(Win(s2, active2.AddDays(15).AddHours(1), "win-5").Outcome, Is.EqualTo(RewardLedgerOutcome.Applied),
                 "a fresh verified result in the new window");
             // QA F4/F1b: a result that already paid in the first window never pays again in a later one.
-            Assert.That(Win(s, active2.AddDays(15).AddHours(2), "win-1").Reason, Is.EqualTo(C.WinAlreadyRewarded));
+            Assert.That(Win(s2, active2.AddDays(15).AddHours(2), "win-1").Reason, Is.EqualTo(C.WinAlreadyRewarded));
             Assert.That(ledger.Count, Is.EqualTo(2));
         }
 
@@ -306,7 +308,7 @@ namespace Match3.Engine.Tests.Editor
             // Local state lost; a forged "server" last-active value is presented to get a fresh windowId.
             foreach (var forged in new[] { LastActive.AddDays(-30), LastActive.AddDays(-1), LastActive.AddDays(1), LastActive.AddDays(7) })
             {
-                var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last);
+                var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, At(forged));
                 var e = fresh.Evaluate(At(Return.AddDays(1)), At(forged));
                 Assert.That(e.Reason, Is.EqualTo(C.RecentCatchUpWindow), forged.ToString("o"));
                 Assert.That(e.EmitEligibleSignal, Is.False);
@@ -326,9 +328,10 @@ namespace Match3.Engine.Tests.Editor
             s.Evaluate(At(Return), Last);
             Win(s, Return.AddHours(1), "win-1");
             Assert.That(ledger.Prune(At(Return.AddDays(400))), Is.EqualTo(1));
-            var fresh = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last);
-            Assert.That(fresh.Evaluate(At(Return.AddDays(400)), At(LastActive.AddDays(5))).Reason, Is.EqualTo(C.RecentCatchUpWindow));
-            Assert.That(fresh.Evaluate(At(Return.AddDays(400)), Last).Reason, Is.EqualTo(C.WindowExpired), "same absence, settled window");
+            var near = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, At(LastActive.AddDays(5)));
+            Assert.That(near.Evaluate(At(Return.AddDays(400)), At(LastActive.AddDays(5))).Reason, Is.EqualTo(C.RecentCatchUpWindow));
+            var same = new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, Last);
+            Assert.That(same.Evaluate(At(Return.AddDays(400)), Last).Reason, Is.EqualTo(C.WindowExpired), "same absence, settled window");
         }
 
         [Test]
@@ -395,14 +398,69 @@ namespace Match3.Engine.Tests.Editor
             // Absence spanning the US DST end (2026-11-01) expressed in different offsets yields identical results.
             var lastLocal = new DateTimeOffset(2026, 10, 25, 1, 30, 0, TimeSpan.FromHours(-4));
             var nowLocal = new DateTimeOffset(2026, 11, 8, 0, 30, 0, TimeSpan.FromHours(-5)); // exactly 14 days later in UTC
-            var a = Service(out _).Evaluate(At(nowLocal.UtcDateTime), At(lastLocal.UtcDateTime));
-            var b = Service(out _).Evaluate(At(nowLocal.ToOffset(TimeSpan.FromHours(9)).UtcDateTime),
-                At(lastLocal.ToOffset(TimeSpan.FromHours(14)).UtcDateTime));
+            var lastA = At(lastLocal.UtcDateTime);
+            var lastB = At(lastLocal.ToOffset(TimeSpan.FromHours(14)).UtcDateTime);
+            var a = Service(out _, last: lastA).Evaluate(At(nowLocal.UtcDateTime), lastA);
+            var b = Service(out _, last: lastB).Evaluate(At(nowLocal.ToOffset(TimeSpan.FromHours(9)).UtcDateTime), lastB);
             Assert.That(a.Status, Is.EqualTo(CatchUpStatus.Active), a.Reason);
             Assert.That(b.Explanation.WindowEndsUtc, Is.EqualTo(a.Explanation.WindowEndsUtc));
             Assert.That(b.Explanation.WindowId, Is.EqualTo(a.Explanation.WindowId));
-            var justShort = Service(out _).Evaluate(At(nowLocal.UtcDateTime.AddTicks(-1)), At(lastLocal.UtcDateTime));
+            var justShort = Service(out _, last: lastA).Evaluate(At(nowLocal.UtcDateTime.AddTicks(-1)), lastA);
             Assert.That(justShort.Reason, Is.EqualTo(C.InsufficientAbsence), "local wall-clock hours (DST) never count");
+        }
+
+        [Test]
+        public void Construction_RejectsCatchUpRetentionShorterThanThresholdPlusWindow()
+        {
+            RewardLedger LedgerWithRetention(int days) => new RewardLedger("Coral_Rescue", Player, null,
+                new RewardRetentionPolicy(180, new Dictionary<string, int> { [RewardSources.CatchUp] = days }));
+            var tooShort = LedgerWithRetention(20); // Standard needs 14 + 7 = 21 days
+            var ex = Assert.Throws<ArgumentException>(() =>
+                new ComebackCatchUpService(Profile(), tooShort, CatchUpPolicy.Standard, false, Last));
+            StringAssert.StartsWith(C.CatchUpRetentionTooShort, ex.Message);
+            Assert.That(ComebackCatchUpService.TryCreate(Profile(), tooShort, CatchUpPolicy.Standard, false, Last, null,
+                out var none, out var reason), Is.False);
+            Assert.That(none, Is.Null);
+            Assert.That(reason, Is.EqualTo(C.CatchUpRetentionTooShort));
+            Assert.That(ComebackCatchUpService.TryCreate(Profile(), LedgerWithRetention(21), CatchUpPolicy.Standard, false, Last, null,
+                out var svc, out var ok), Is.True);
+            Assert.That(svc, Is.Not.Null);
+            Assert.That(ok, Is.Empty);
+        }
+
+        [Test]
+        public void PersistedState_NearAbsenceAfterSettledWindow_Rejected_IsolatedThresholdRule()
+        {
+            var s = Service(out var ledger);
+            s.Evaluate(At(Return), Last);
+            Win(s, Return.AddHours(1), "r1");
+            Assert.That(ledger.Prune(At(Return.AddDays(400))), Is.EqualTo(1), "earlier window fully settled: no live grant left");
+            // Edited state claims an absence 5 days after the recorded one (< recorded absence + threshold), matched by
+            // the bound last-active; only the "latest recorded absence + threshold" rule can reject it.
+            var near = LastActive.AddDays(5);
+            var edited = new CatchUpWindowState("w" + near.Ticks, near.AddDays(14), near.AddDays(21), false);
+            Assert.That(ComebackCatchUpService.TryCreate(Profile(), ledger, CatchUpPolicy.Standard, false, At(near), edited,
+                out var rejected, out var reason), Is.False);
+            Assert.That(rejected, Is.Null);
+            Assert.That(reason, Is.EqualTo(C.InvalidWindowState));
+            Assert.Throws<ArgumentException>(() => new ComebackCatchUpService(Profile(), ledger, CatchUpPolicy.Standard, false, At(near), edited));
+            // Boundary: exactly one threshold after the recorded absence is accepted.
+            var far = LastActive.AddDays(14);
+            var boundary = new CatchUpWindowState("w" + far.Ticks, far.AddDays(14), far.AddDays(21), false);
+            Assert.That(ComebackCatchUpService.TryCreate(Profile(), ledger, CatchUpPolicy.Standard, false, At(far), boundary,
+                out var accepted, out _), Is.True);
+            Assert.That(accepted.State.WindowId, Is.EqualTo(boundary.WindowId));
+        }
+
+        [Test]
+        public void Evaluate_LastActiveMustMatchConstructorBinding()
+        {
+            var s = Service(out var ledger);
+            Assert.That(s.Evaluate(At(Return), At(LastActive.AddDays(-30))).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
+            Assert.That(s.Evaluate(At(Return), At(LastActive.AddTicks(1))).Reason, Is.EqualTo(C.TrustedLastActiveRequired));
+            Assert.That(s.State, Is.Null);
+            Assert.That(s.Evaluate(At(Return), Last).Status, Is.EqualTo(CatchUpStatus.Active));
+            Assert.That(ledger.Count, Is.EqualTo(0));
         }
 
         [Test]
