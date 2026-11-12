@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 
 namespace Match3.Engine.Runtime.Commerce
 {
@@ -30,14 +31,33 @@ namespace Match3.Engine.Runtime.Commerce
     /// MAIN-THREAD ONLY: not thread-safe. Call every member from the Unity main thread; SDK adapter callbacks
     /// that drive <see cref="RewardedAdLifecycle"/> or lead to <see cref="OnAdSessionEnded"/> must be marshalled
     /// to the main thread first.
+    /// Gameplay is restored when an ad ends (<see cref="OnAdSessionEnded"/>), becomes ineligible before showing,
+    /// the app is backgrounded before the SDK owns the screen (<see cref="OnApplicationPaused"/>), or a load/show
+    /// start stalls past its timeout (<see cref="Tick"/>). Released lifecycles may later receive late SDK callbacks:
+    /// adapters must ignore a callback whose lifecycle is no longer in the expected state.
+    /// If <see cref="IGameplaySuspension.Resume"/> throws, the released lifecycle is already untracked and is not
+    /// retried; the exception propagates to the caller.
     /// </summary>
     public sealed class AdShowCoordinator
     {
+        public const long DefaultLoadTimeoutMs = 30000;
+        public const long DefaultReadyTimeoutMs = 120000;
+
+        private sealed class Tracked
+        {
+            public bool ShowInvoked;     // ShowRewardedAd was handed to the SDK; it may own the screen before NotifyShow.
+            public bool Observed;        // Tick has seen ObservedState at least once.
+            public RewardedAdState ObservedState;
+            public long ObservedSinceMs; // monotonic time Tick first saw ObservedState
+        }
+
         private readonly IAdMediationProvider _provider;
         private readonly IGameplaySuspension _suspension;
+        private readonly long _loadTimeoutMs;
+        private readonly long _readyTimeoutMs;
         // Lifecycles this coordinator suspended gameplay for. Gameplay is suspended when the first one is added
         // and resumed only when the last one is released (ENG-M14-006), so one ad ending never resumes another's.
-        private readonly HashSet<RewardedAdLifecycle> _suspendedFor = new HashSet<RewardedAdLifecycle>();
+        private readonly Dictionary<RewardedAdLifecycle, Tracked> _tracked = new Dictionary<RewardedAdLifecycle, Tracked>();
 
         private static readonly RewardedAdState[] TerminalStates =
         {
@@ -50,15 +70,22 @@ namespace Match3.Engine.Runtime.Commerce
         /// Game-facing factory (ENG-M14-002): binds the provider registered via
         /// <see cref="AdMediationProviderRegistry.Register"/> (register before creating) without ever exposing it,
         /// so Request/Show are reachable only through this coordinator's eligibility-gated methods.
+        /// The timeouts apply only when the game drives <see cref="Tick"/>.
         /// </summary>
-        public static AdShowCoordinator CreateFromRegistry(IGameplaySuspension suspension) =>
-            new AdShowCoordinator(AdMediationProviderRegistry.Current, suspension);
+        public static AdShowCoordinator CreateFromRegistry(IGameplaySuspension suspension,
+            long loadTimeoutMs = DefaultLoadTimeoutMs, long readyTimeoutMs = DefaultReadyTimeoutMs) =>
+            new AdShowCoordinator(AdMediationProviderRegistry.Current, suspension, loadTimeoutMs, readyTimeoutMs);
 
         // Engine-internal: a public provider-taking constructor would require game code to hold the provider.
-        internal AdShowCoordinator(IAdMediationProvider provider, IGameplaySuspension suspension)
+        internal AdShowCoordinator(IAdMediationProvider provider, IGameplaySuspension suspension,
+            long loadTimeoutMs = DefaultLoadTimeoutMs, long readyTimeoutMs = DefaultReadyTimeoutMs)
         {
             _provider = provider ?? throw new ArgumentNullException(nameof(provider));
             _suspension = suspension ?? throw new ArgumentNullException(nameof(suspension));
+            if (loadTimeoutMs <= 0) throw new ArgumentOutOfRangeException(nameof(loadTimeoutMs));
+            if (readyTimeoutMs <= 0) throw new ArgumentOutOfRangeException(nameof(readyTimeoutMs));
+            _loadTimeoutMs = loadTimeoutMs;
+            _readyTimeoutMs = readyTimeoutMs;
         }
 
         /// <summary>
@@ -74,9 +101,23 @@ namespace Match3.Engine.Runtime.Commerce
             if (!placement.IsEnabled)
                 return false;
 
-            bool added = _suspendedFor.Add(lifecycle);
-            if (added && _suspendedFor.Count == 1)
-                _suspension.Suspend();
+            bool added = !_tracked.ContainsKey(lifecycle);
+            if (added)
+            {
+                _tracked.Add(lifecycle, new Tracked());
+                if (_tracked.Count == 1)
+                {
+                    try
+                    {
+                        _suspension.Suspend();
+                    }
+                    catch
+                    {
+                        _tracked.Remove(lifecycle); // never tracked without a successful suspend
+                        throw;
+                    }
+                }
+            }
             try
             {
                 _provider.RequestRewardedAd(placement.PlacementId, lifecycle);
@@ -89,6 +130,8 @@ namespace Match3.Engine.Runtime.Commerce
                     Release(lifecycle);
                 throw;
             }
+            if (!added)
+                _tracked[lifecycle] = new Tracked(); // successful re-request (e.g. after Failed): fresh tracking
             return true;
         }
 
@@ -98,35 +141,39 @@ namespace Match3.Engine.Runtime.Commerce
         /// consent and kid flag (consent can be revoked between request and show) and re-checks the placement;
         /// only then calls <see cref="IAdMediationProvider.ShowRewardedAd"/>. When eligibility no longer holds the
         /// ad is not shown and this lifecycle's suspension is released (gameplay resumes once no other ad this
-        /// coordinator suspended for is pending; ENG-M14-006) unless the ad is already Showing, in which case it stays
-        /// tracked and is released by <see cref="OnAdSessionEnded"/>. Returns false (no show) unless the lifecycle is
-        /// Ready and was requested through this coordinator. If the provider throws while showing, the lifecycle is
-        /// marked Failed when still Showing, its suspension is released, and the exception is rethrown.
+        /// coordinator suspended for is pending; ENG-M14-006) unless the SDK already owns the screen (Showing, or
+        /// show already handed to the SDK), in which case it stays tracked and is released by
+        /// <see cref="OnAdSessionEnded"/>. Returns false (no show) unless the lifecycle is Ready, was requested through
+        /// this coordinator and has not been handed to the SDK yet. If the provider throws while showing, the lifecycle
+        /// is marked Failed when it reached Showing, its suspension is released, and the exception is rethrown.
+        /// A lifecycle left Ready after such a pre-show throw (or after a background/timeout release) is unusable:
+        /// create a new <see cref="RewardedAdLifecycle"/> for the next request.
         /// </summary>
         public bool TryShowLoadedRewardedAd(RewardPlacement placement, RewardedAdLifecycle lifecycle,
             AdConsentStatus consent, bool isKidProfile)
         {
             if (lifecycle == null) throw new ArgumentNullException(nameof(lifecycle));
+            _tracked.TryGetValue(lifecycle, out var tracked);
 
             if (!AdEligibilityGate.Check(placement.GameId, consent, isKidProfile).IsEligible || !placement.IsEnabled)
             {
-                if (lifecycle.State != RewardedAdState.Showing)
+                if (tracked != null && !SdkOwnsScreen(lifecycle, tracked))
                     Release(lifecycle);
                 return false;
             }
-            // Only show ads this coordinator requested (and therefore suspended gameplay for).
-            if (lifecycle.State != RewardedAdState.Ready || !_suspendedFor.Contains(lifecycle))
+            // Only show ads this coordinator requested (and therefore suspended gameplay for), once.
+            if (lifecycle.State != RewardedAdState.Ready || tracked == null || tracked.ShowInvoked)
                 return false;
 
+            tracked.ShowInvoked = true;
+            tracked.Observed = false; // show-start timeout counts from now
             try
             {
                 _provider.ShowRewardedAd(placement.PlacementId, lifecycle);
             }
             catch
             {
-                if (lifecycle.State == RewardedAdState.Showing)
-                    lifecycle.NotifyFailed("ProviderShowException");
-                Release(lifecycle);
+                FailAndRelease(lifecycle, "ProviderShowException");
                 throw;
             }
             return true;
@@ -155,10 +202,101 @@ namespace Match3.Engine.Runtime.Commerce
             Release(lifecycle);
         }
 
+        /// <summary>
+        /// Background-interruption contract (ENG-M14-006): forward MonoBehaviour.OnApplicationPause(bool) here.
+        /// On pause, every tracked ad still Loading (marked Failed) or Ready and not yet handed to the SDK (left Ready,
+        /// unusable) is released, so gameplay is restored when the app returns to the foreground. Ads Showing or
+        /// already handed to the SDK stay tracked: the SDK owns the screen (on Android a fullscreen ad itself pauses
+        /// the app) and <see cref="OnAdSessionEnded"/> releases them. Unpause (false) is a no-op.
+        /// Rethrows the first lifecycle state-handler exception after every eligible ad has been released.
+        /// </summary>
+        public void OnApplicationPaused(bool paused)
+        {
+            if (!paused)
+                return;
+            ReleaseWhere((lifecycle, tracked) =>
+                !SdkOwnsScreen(lifecycle, tracked) &&
+                (lifecycle.State == RewardedAdState.Loading || lifecycle.State == RewardedAdState.Ready),
+                "AppBackgrounded");
+        }
+
+        /// <summary>
+        /// Stuck-ad timeout driven by the caller's MONOTONIC clock in milliseconds (e.g. a Stopwatch or
+        /// Time.realtimeSinceStartup; never wall-clock time). Call regularly, e.g. once per frame. A tracked ad that
+        /// stays Loading for the load timeout is marked Failed and released; one that stays Ready (unshown, or handed
+        /// to the SDK without reaching Showing) for the ready timeout is released (left Ready, unusable). Showing and
+        /// terminal ads never time out. Each timer starts at the first Tick that observes the current state.
+        /// Rethrows the first lifecycle state-handler exception after every timed-out ad has been released.
+        /// </summary>
+        public void Tick(long nowMs)
+        {
+            // ponytail: elapsed time is measured from the first Tick that sees a state, so accuracy is one Tick
+            // interval; subscribe to OnStateChanged with a clock if sub-frame precision is ever needed.
+            ReleaseWhere((lifecycle, tracked) =>
+            {
+                var state = lifecycle.State;
+                if (!tracked.Observed || tracked.ObservedState != state)
+                {
+                    tracked.Observed = true;
+                    tracked.ObservedState = state;
+                    tracked.ObservedSinceMs = nowMs;
+                    return false;
+                }
+                long elapsed = nowMs - tracked.ObservedSinceMs;
+                if (state == RewardedAdState.Loading) return elapsed >= _loadTimeoutMs;
+                if (state == RewardedAdState.Ready) return elapsed >= _readyTimeoutMs;
+                return false;
+            }, "Timeout");
+        }
+
+        private static bool SdkOwnsScreen(RewardedAdLifecycle lifecycle, Tracked tracked) =>
+            lifecycle.State == RewardedAdState.Showing ||
+            (tracked.ShowInvoked && lifecycle.State == RewardedAdState.Ready);
+
+        private void ReleaseWhere(Func<RewardedAdLifecycle, Tracked, bool> shouldRelease, string reason)
+        {
+            List<RewardedAdLifecycle> doomed = null;
+            foreach (var entry in _tracked)
+                if (shouldRelease(entry.Key, entry.Value))
+                    (doomed ??= new List<RewardedAdLifecycle>()).Add(entry.Key);
+            if (doomed == null)
+                return;
+
+            ExceptionDispatchInfo first = null;
+            foreach (var lifecycle in doomed)
+            {
+                try
+                {
+                    FailAndRelease(lifecycle, reason);
+                }
+                catch (Exception e)
+                {
+                    first ??= ExceptionDispatchInfo.Capture(e);
+                }
+            }
+            first?.Throw();
+        }
+
+        // Marks the lifecycle Failed where the lifecycle API allows (Loading/Showing); a throwing OnStateChanged
+        // handler can never skip the release.
+        private void FailAndRelease(RewardedAdLifecycle lifecycle, string reason)
+        {
+            try
+            {
+                if (lifecycle.State == RewardedAdState.Loading || lifecycle.State == RewardedAdState.Showing)
+                    lifecycle.NotifyFailed(reason);
+            }
+            finally
+            {
+                Release(lifecycle);
+            }
+        }
+
         // Resumes only what this coordinator suspended, and only when no other tracked ad is still pending.
+        // Untracks before resuming, so a throwing Resume leaves the lifecycle untracked (not retried).
         private void Release(RewardedAdLifecycle lifecycle)
         {
-            if (_suspendedFor.Remove(lifecycle) && _suspendedFor.Count == 0)
+            if (_tracked.Remove(lifecycle) && _tracked.Count == 0)
                 _suspension.Resume();
         }
     }
