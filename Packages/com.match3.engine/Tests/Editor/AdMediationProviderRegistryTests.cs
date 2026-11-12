@@ -124,6 +124,30 @@ namespace Match3.Engine.Tests.Editor
         }
 
         [Test]
+        public void TryInitializeRegistered_UsesRegisteredProvider_ThroughGate()
+        {
+            var provider = new FakeProvider();
+            AdMediationProviderRegistry.Register(provider);
+
+            Assert.IsFalse(AdMediationInitializer.TryInitializeRegistered("Coral_Rescue", AdConsentStatus.Granted, true).IsEligible);
+            Assert.IsFalse(AdMediationInitializer.TryInitializeRegistered("Wonder_Pop", AdConsentStatus.Granted, false).IsEligible);
+            Assert.IsFalse(AdMediationInitializer.TryInitializeRegistered("Coral_Rescue", AdConsentStatus.Denied, false).IsEligible);
+            Assert.AreEqual(0, provider.InitializeCalls);
+
+            Assert.IsTrue(AdMediationInitializer.TryInitializeRegistered("Coral_Rescue", AdConsentStatus.Granted, false).IsEligible);
+            Assert.AreEqual(1, provider.InitializeCalls);
+        }
+
+        [Test]
+        public void ProviderTakingTryInitialize_IsNotPublic()
+        {
+            var publicStatic = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static;
+            Assert.IsNull(typeof(AdMediationInitializer).GetMethod("TryInitialize", publicStatic),
+                "The provider-taking TryInitialize must be engine-internal.");
+            Assert.IsNotNull(typeof(AdMediationInitializer).GetMethod("TryInitializeRegistered", publicStatic));
+        }
+
+        [Test]
         public void Initializer_NullProvider_Throws()
         {
             Assert.Throws<ArgumentNullException>(() =>

@@ -7,9 +7,10 @@ namespace Match3.Engine.Runtime.Commerce
     /// Actual SDK adapters (LevelPlay/IronSource, etc.) implement this in a
     /// separate asmdef excluded from the core package.
     /// See ENG-M14-002-levelplay-mediation-policy.md for installation gating rules.
-    /// ENGINE-INTERNAL USE: game code must not call these members directly. Initialize is reached only
-    /// through <see cref="AdMediationInitializer.TryInitialize"/>, and RequestRewardedAd/ShowRewardedAd only
-    /// through <see cref="AdShowCoordinator"/> (TryShowRewardedAd / TryShowLoadedRewardedAd), each of which
+    /// ENGINE-INTERNAL USE: game code must not call these members directly. Register the provider with
+    /// <see cref="AdMediationProviderRegistry.Register"/>; Initialize is reached only through
+    /// <see cref="AdMediationInitializer.TryInitializeRegistered"/>, and RequestRewardedAd/ShowRewardedAd only
+    /// through <see cref="AdShowCoordinator.CreateFromRegistry"/> (TryShowRewardedAd / TryShowLoadedRewardedAd), each of which
     /// runs <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> immediately before the call.
     /// </summary>
     public interface IAdMediationProvider
@@ -74,7 +75,12 @@ namespace Match3.Engine.Runtime.Commerce
     /// </summary>
     public static class AdMediationInitializer
     {
-        public static AdEligibilityResult TryInitialize(
+        /// <summary>Game-facing entry point (ENG-M14-002): initializes the registered provider through the gate.</summary>
+        public static AdEligibilityResult TryInitializeRegistered(string gameId, AdConsentStatus consent, bool isKidProfile) =>
+            TryInitialize(gameId, consent, isKidProfile, AdMediationProviderRegistry.Current);
+
+        // Engine-internal: a public provider-taking overload would require game code to hold the provider.
+        internal static AdEligibilityResult TryInitialize(
             string gameId, AdConsentStatus consent, bool isKidProfile, IAdMediationProvider provider)
         {
             if (provider == null) throw new ArgumentNullException(nameof(provider));
