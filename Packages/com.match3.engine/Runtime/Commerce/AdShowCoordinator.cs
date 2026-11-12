@@ -37,6 +37,16 @@ namespace Match3.Engine.Runtime.Commerce
     /// adapters must ignore a callback whose lifecycle is no longer in the expected state.
     /// If <see cref="IGameplaySuspension.Resume"/> throws, the released lifecycle is already untracked and is not
     /// retried; the exception propagates to the caller.
+    /// Known limitations (documented, ENG-M14-006 QA):
+    /// - A late SDK show callback after a timeout/background release can drive a still-Ready lifecycle to Showing
+    ///   over unsuspended gameplay. The glue that marshals SDK callbacks must honor a show callback only while
+    ///   <see cref="IsTracking"/> returns true for that lifecycle.
+    /// - Showing never times out: if the SDK never reports an end, gameplay stays suspended until
+    ///   <see cref="OnAdSessionEnded"/> is called.
+    /// - An exception thrown by an <see cref="RewardedAdLifecycle.OnStateChanged"/> handler while a failure is
+    ///   recorded may replace the provider exception that caused it.
+    /// Integration: drive <see cref="Tick"/> from an unscaled monotonic clock that <see cref="IGameplaySuspension"/>
+    /// does not pause (e.g. Time.realtimeSinceStartupAsDouble, not Time.time), or stuck ads never time out.
     /// </summary>
     public sealed class AdShowCoordinator
     {
@@ -58,6 +68,10 @@ namespace Match3.Engine.Runtime.Commerce
         // Lifecycles this coordinator suspended gameplay for. Gameplay is suspended when the first one is added
         // and resumed only when the last one is released (ENG-M14-006), so one ad ending never resumes another's.
         private readonly Dictionary<RewardedAdLifecycle, Tracked> _tracked = new Dictionary<RewardedAdLifecycle, Tracked>();
+        // Cached delegates so Tick/pause do not allocate a closure per call.
+        private readonly Func<RewardedAdLifecycle, Tracked, bool> _timedOut;
+        private static readonly Func<RewardedAdLifecycle, Tracked, bool> NotSdkOwned = (lifecycle, tracked) => !SdkOwnsScreen(lifecycle, tracked);
+        private long _tickNowMs;
 
         private static readonly RewardedAdState[] TerminalStates =
         {
@@ -86,11 +100,21 @@ namespace Match3.Engine.Runtime.Commerce
             if (readyTimeoutMs <= 0) throw new ArgumentOutOfRangeException(nameof(readyTimeoutMs));
             _loadTimeoutMs = loadTimeoutMs;
             _readyTimeoutMs = readyTimeoutMs;
+            _timedOut = TimedOut;
         }
 
         /// <summary>
+        /// True while this coordinator holds gameplay suspended for <paramref name="lifecycle"/>. SDK callback glue
+        /// must not honor a late show callback for a lifecycle that is no longer tracked.
+        /// </summary>
+        public bool IsTracking(RewardedAdLifecycle lifecycle) => lifecycle != null && _tracked.ContainsKey(lifecycle);
+
+        /// <summary>
         /// Evaluates <see cref="AdEligibilityGate.Check(string, AdConsentStatus, bool)"/> itself for the
-        /// placement's game; a caller-supplied eligibility result is never trusted.
+        /// placement's game; a caller-supplied eligibility result is never trusted. Returns false without suspending
+        /// gameplay when the provider is not available (<see cref="IAdMediationProvider.IsAvailable"/> false): a
+        /// compliant adapter no-ops the request then, which would otherwise leave gameplay suspended with nothing
+        /// loading.
         /// </summary>
         public bool TryShowRewardedAd(RewardPlacement placement, RewardedAdLifecycle lifecycle,
             AdConsentStatus consent, bool isKidProfile)
@@ -100,7 +124,10 @@ namespace Match3.Engine.Runtime.Commerce
                 return false;
             if (!placement.IsEnabled)
                 return false;
+            if (!_provider.IsAvailable)
+                return false;
 
+            var priorState = lifecycle.State;
             bool added = !_tracked.ContainsKey(lifecycle);
             if (added)
             {
@@ -130,8 +157,10 @@ namespace Match3.Engine.Runtime.Commerce
                     Release(lifecycle);
                 throw;
             }
-            if (!added)
-                _tracked[lifecycle] = new Tracked(); // successful re-request (e.g. after Failed): fresh tracking
+            // A repeat request for an ad that is loading, loaded or handed to the SDK (lenient adapter no-op) keeps its
+            // tracking (incl. ShowInvoked); only a real restart from Uninitialized/terminal starts fresh.
+            if (!added && IsRestartable(priorState))
+                _tracked[lifecycle] = new Tracked();
             return true;
         }
 
@@ -204,50 +233,58 @@ namespace Match3.Engine.Runtime.Commerce
 
         /// <summary>
         /// Background-interruption contract (ENG-M14-006): forward MonoBehaviour.OnApplicationPause(bool) here.
-        /// On pause, every tracked ad still Loading (marked Failed) or Ready and not yet handed to the SDK (left Ready,
-        /// unusable) is released, so gameplay is restored when the app returns to the foreground. Ads Showing or
+        /// On pause, every tracked ad the SDK does not own is released: Loading (marked Failed), Uninitialized (adapter
+        /// never started loading), Ready and not yet handed to the SDK (left Ready, unusable) and terminal
+        /// (Completed/Skipped/Failed), so gameplay is restored when the app returns to the foreground. Ads Showing or
         /// already handed to the SDK stay tracked: the SDK owns the screen (on Android a fullscreen ad itself pauses
         /// the app) and <see cref="OnAdSessionEnded"/> releases them. Unpause (false) is a no-op.
         /// Rethrows the first lifecycle state-handler exception after every eligible ad has been released.
         /// </summary>
         public void OnApplicationPaused(bool paused)
         {
-            if (!paused)
+            if (!paused || _tracked.Count == 0)
                 return;
-            ReleaseWhere((lifecycle, tracked) =>
-                !SdkOwnsScreen(lifecycle, tracked) &&
-                (lifecycle.State == RewardedAdState.Loading || lifecycle.State == RewardedAdState.Ready),
-                "AppBackgrounded");
+            ReleaseWhere(NotSdkOwned, "AppBackgrounded");
         }
 
         /// <summary>
         /// Stuck-ad timeout driven by the caller's MONOTONIC clock in milliseconds (e.g. a Stopwatch or
         /// Time.realtimeSinceStartup; never wall-clock time). Call regularly, e.g. once per frame. A tracked ad that
-        /// stays Loading for the load timeout is marked Failed and released; one that stays Ready (unshown, or handed
+        /// stays Loading for the load timeout is marked Failed and released (Uninitialized, i.e. an adapter that
+        /// never started loading, is released after the same timeout); one that stays Ready (unshown, or handed
         /// to the SDK without reaching Showing) for the ready timeout is released (left Ready, unusable). Showing and
         /// terminal ads never time out. Each timer starts at the first Tick that observes the current state.
         /// Rethrows the first lifecycle state-handler exception after every timed-out ad has been released.
         /// </summary>
         public void Tick(long nowMs)
         {
-            // ponytail: elapsed time is measured from the first Tick that sees a state, so accuracy is one Tick
-            // interval; subscribe to OnStateChanged with a clock if sub-frame precision is ever needed.
-            ReleaseWhere((lifecycle, tracked) =>
-            {
-                var state = lifecycle.State;
-                if (!tracked.Observed || tracked.ObservedState != state)
-                {
-                    tracked.Observed = true;
-                    tracked.ObservedState = state;
-                    tracked.ObservedSinceMs = nowMs;
-                    return false;
-                }
-                long elapsed = nowMs - tracked.ObservedSinceMs;
-                if (state == RewardedAdState.Loading) return elapsed >= _loadTimeoutMs;
-                if (state == RewardedAdState.Ready) return elapsed >= _readyTimeoutMs;
-                return false;
-            }, "Timeout");
+            if (_tracked.Count == 0)
+                return;
+            _tickNowMs = nowMs;
+            ReleaseWhere(_timedOut, "Timeout");
         }
+
+        // ponytail: elapsed time is measured from the first Tick that sees a state, so accuracy is one Tick
+        // interval; subscribe to OnStateChanged with a clock if sub-frame precision is ever needed.
+        private bool TimedOut(RewardedAdLifecycle lifecycle, Tracked tracked)
+        {
+            var state = lifecycle.State;
+            if (!tracked.Observed || tracked.ObservedState != state)
+            {
+                tracked.Observed = true;
+                tracked.ObservedState = state;
+                tracked.ObservedSinceMs = _tickNowMs;
+                return false;
+            }
+            long elapsed = _tickNowMs - tracked.ObservedSinceMs;
+            if (state == RewardedAdState.Loading || state == RewardedAdState.Uninitialized) return elapsed >= _loadTimeoutMs;
+            if (state == RewardedAdState.Ready) return elapsed >= _readyTimeoutMs;
+            return false;
+        }
+
+        private static bool IsRestartable(RewardedAdState state) =>
+            state == RewardedAdState.Uninitialized || state == RewardedAdState.Completed ||
+            state == RewardedAdState.Skipped || state == RewardedAdState.Failed;
 
         private static bool SdkOwnsScreen(RewardedAdLifecycle lifecycle, Tracked tracked) =>
             lifecycle.State == RewardedAdState.Showing ||
