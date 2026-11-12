@@ -12,10 +12,11 @@ namespace Match3.Engine.Runtime.Economy
     // Key: "rgk1|" + L(gameId) + L(playerId) + L(source) + L(sourceInstanceId), L(s) = len ":" s "|", Ordinal.
     // Length prefixes make the key injective even when ids contain '|' or ':'.
     //
-    // Sources: WINDOWED sources (daily, weekly, weekly_personal_best, seasonal_collection, tournament, catch_up)
+    // Sources: WINDOWED sources (daily, weekly, weekly_personal_best, seasonal_collection, tournament, catch_up, alt_mode)
     // REQUIRE ExpiresUtc and are judged against a server-anchored TrustedUtcAnchor (SourceExpired: anchor > expiry).
-    // TryGrant(request, anchor) is the strict path; the one-argument TryGrant(request) is kept for existing callers
-    // (ENG-M20-012) and treats request.GrantedUtc as caller-asserted server time. PERMANENT sources (first_clear, level_win, streak, chest, earned_pack, iap, ad_ssv)
+    // TryGrant(request, anchor) is the only supported path; every runtime caller uses it. The one-argument
+    // TryGrant(request) is [Obsolete] (behaviour unchanged: request.GrantedUtc is treated as caller-asserted server
+    // time) and kept only for compatibility. PERMANENT sources (first_clear, level_win, streak, chest, earned_pack, iap, ad_ssv)
     // FORBID ExpiresUtc: each instance id names one earned/purchased fact that never expires.
     //
     // Assets: fixed registry = CurrencyType names (Ordinal). Paid asset = PremiumGems; paid grants (iap or any
@@ -348,6 +349,7 @@ namespace Match3.Engine.Runtime.Economy
         /// Compatibility overload: for windowed sources the caller ASSERTS that request.GrantedUtc is trusted server
         /// time (it becomes the anchor). Prefer <see cref="TryGrant(RewardLedgerRequest, TrustedUtcAnchor)"/>.
         /// </summary>
+        [Obsolete("Use TryGrant(request, TrustedUtcAnchor)")]
         public RewardLedgerGrantResult TryGrant(RewardLedgerRequest request) =>
             TryGrant(request, TrustedUtcAnchor.Server((request ?? throw new ArgumentNullException(nameof(request))).GrantedUtc));
 

@@ -7,6 +7,8 @@ using NUnit.Framework;
 using M08 = Match3.Engine.Runtime;
 using R = Match3.Engine.Runtime.Economy.RewardLedgerReasons;
 
+// These tests deliberately exercise the [Obsolete] one-argument TryGrant(request) compatibility overload.
+#pragma warning disable 0618
 namespace Match3.Engine.Tests.Editor
 {
     // ENG-M16-011.
@@ -493,3 +495,4 @@ namespace Match3.Engine.Tests.Editor
         }
     }
 }
+#pragma warning restore 0618
